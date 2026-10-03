@@ -1,0 +1,80 @@
+# Q01 ｜ Cursor 为什么需要 Agent 模式而不仅仅是代码补全
+# 批次：T12 首日题库第 1 批（Q01~Q06）｜ 状态：草案，待产品负责人评审与试跑
+id: Q01
+title: "Cursor 为什么需要 Agent 模式而不仅仅是代码补全"
+case_title: "从「帮你写」到「替你做」：Cursor 的 Agent 模式"
+case_background:
+  product: "Cursor——Anysphere 公司出品的 AI 原生代码编辑器，基于 VS Code 分叉构建，深度集成多家大模型。"
+  audience: "软件开发者（从独立开发者到企业研发团队），尤其是愿意让 AI 深度参与开发流程的早期采用者。"
+  scenario: "开发者完成一个真实编码任务的全过程：理解需求、定位代码、编写与修改多个文件、运行命令与测试、修复报错——而不只是在光标处续写下一行。"
+  related_features: "Tab 自动补全（多行连续补全）、Cmd+K 行内编辑、Chat/Ask 对话、Agent 模式（自主探索代码库、编辑多文件、运行终端命令）、Plan 模式、多 Agent 并行。"
+  current_status: "2025 年 Cursor 2.0 将编辑器重心转向多 Agent 管理（同一提示最多 8 个代理并行）；官方博客称用户主要工作正变为「为 Agent 提供完成任务所需的上下文」。据 2025 年媒体报道，母公司 Anysphere 成立约两年估值约 90 亿美元（数字未经官方确认，见 uncertainty）。"
+main_question: "以 Cursor 为例，从「代码补全」到「Agent 模式」的跨越，为什么是产品价值上的质变而不只是功能叠加？这一步跨越让产品付出了什么代价？"
+ability_tags:
+  - 用户理解
+  - 产品价值判断
+  - 产品取舍
+difficulty: 基础
+rubric:
+  dimensions:
+    用户理解:
+      - "区分两类任务的差异：补全服务「已经知道要写什么」的输入时刻，Agent 服务「知道目标但不愿做全链路」的完整任务。"
+      - "识别开发者工作流中「写代码」之外的时间消耗：查文档、跨文件定位、跑命令、调试报错。"
+      - "指出 Agent 改变了人机关系：从「人写、AI 猜」变为「人定义目标与约束、AI 执行、人审查」。"
+    产品价值判断:
+      - "论证价值锚点的迁移：补全优化按键效率，Agent 接管任务闭环，价值从「省时间碎片」变为「省整块任务时间」。"
+      - "指出 Agent 抬高了产品的定价空间与用户信任预期（订阅制、更高客单价）。"
+      - "能用官方叙事佐证（如「用户主要工作变为为 Agent 提供上下文」），而非只凭个人感受下结论。"
+    产品取舍:
+      - "指出至少两项代价：自主操作的风险与权限设计成本、结果不可控感、审查负担向用户转移、模型调用成本。"
+      - "说明缓释设计（终端命令需确认/可编辑、Plan 模式、diff 审查）正是对该取舍的回应。"
+      - "判断补全与 Agent 是分层共存而非替代关系，并给出理由。"
+  forbidden_leaks:
+    - "「补全省按键、Agent 省任务」的价值对比结论"
+    - "人机关系从「AI 猜」变为「人审」的表述"
+    - "具体缓释设计清单（命令确认、Plan 模式、diff 审查）"
+    - "「分层共存而非替代」的结论"
+    - "定价空间与信任预期的论证链条"
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: "题目要你论证的是「为什么是质变」，而不是「Agent 能做什么」——你打算从用户侧、价值侧，还是两侧一起切入？你的结论句会长什么样？"
+  - level: 2
+    stage: 视角补充
+    question: "回忆你（或身边开发者）真实的一天开发工作：花在「敲字符」上的时间占多少？剩下的时间耗在哪些事上，那些事今天由谁完成？"
+  - level: 3
+    stage: 反例/风险
+    question: "如果「Agent 模式只是营销噱头」，反方最有力的证据是什么？一个代码库被 AI 自作主张改乱的开发者，会怎样评价这个功能？"
+  - level: 4
+    stage: 取舍权衡
+    question: "让 AI 自主改多个文件、跑命令，用户必然让渡了某种东西——是什么？如果你是设计师，会用什么机制把这种让渡控制在用户可接受的范围内？"
+  - level: 5
+    stage: 验证方式
+    question: "若要向团队证明「Agent 模式带来质变而非噱头」，你会追踪哪个指标的变化（而不是 Agent 功能使用率本身）？为什么是它？"
+materials:
+  core:
+    - title: "使用智能体编码的最佳实践"
+      source: "Cursor 官方博客"
+      url: "https://cursor.com/cn/blog/agent-best-practices"
+      summary: "Cursor 官方谈 Agent 时代的用户角色：习惯由 Agent 写代码后，用户主要工作变为「为每个 Agent 提供完成任务所需的上下文」，可让 Agent 自行获取上下文。"
+    - title: "全新代码模型与 Agent 界面（Cursor 2.0）"
+      source: "Cursor 官网 Changelog"
+      url: "https://cursor.com/cn/changelog/2-0"
+      summary: "Cursor 2.0 转向多 Agent 管理：侧边栏集中展示代理与计划，同一提示最多可并行运行八个代理，底层借助 git worktrees 或远程机器实现隔离。"
+  extended:
+    - title: "模式选对，效率翻倍：Cursor 的 3 种内置模式指南"
+      source: "知乎专栏"
+      url: "https://zhuanlan.zhihu.com/p/1899940397310018060"
+      summary: "梳理 Cursor 内置模式差异：Agent 模式拥有全部工具权限，包括搜索代码库、编辑文件、运行终端命令等，适合新功能模块开发等复杂任务。"
+    - title: "Cursor 入门教程：三大核心 AI 功能"
+      source: "SegmentFault"
+      url: "https://segmentfault.com/a/1190000046916720"
+      summary: "介绍 Tab 补全与 Chat 等核心功能；称 Agent 是默认且最自主的模式，可自主探索代码库、联网检索、编辑文件并运行终端命令，把复杂任务拆解后按序执行。"
+    - title: "免费 AI 编程助手实测对比：Copilot / Codeium / Cursor / Tabby"
+      source: "盛网科技博客"
+      url: "https://www.shengwang.cn/blog/blogdetail/free-ai-code-assistant/"
+      summary: "对比文章指出 Cursor 基于 VS Code 分叉，核心为 Tab 补全与内置 Chat；用户测试中 Tab 的多行连续补全在连贯性与准确度上优于 GitHub Copilot。"
+uncertainty:
+  - "Anysphere 融资金额、估值（约 90 亿美元）与年营收（约 5 亿美元）来自 2025 年 6 月媒体转载报道，非官方披露，可能已变化。"
+  - "Cursor Pro 定价（约 20 美元/月）来自第三方工具站，未在官网核实。"
+status: draft
