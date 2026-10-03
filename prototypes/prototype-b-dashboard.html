@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原型 B · 成长驾驶舱 — 自适应产品经理训练平台</title>
+<style>
+:root{
+  --blue:#2563EB;
+  --blue-dark:#1D4ED8;
+  --blue-mid:#3B82F6;
+  --blue-soft:#60A5FA;
+  --blue-tint:#EFF5FF;
+  --blue-border:#D9E7FD;
+  --ink:#0F172A;
+  --body:#475569;
+  --muted:#94A3B8;
+  --line:#E9EDF4;
+  --bg:#F5F6F8;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#E6E9EF}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC","Segoe UI",sans-serif;
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.hidden{display:none !important}
+
+/* ============ review bar (not part of the design) ============ */
+.review-bar{
+  height:52px;background:#12141B;border-bottom:1px solid #272B35;
+  display:flex;align-items:center;justify-content:space-between;padding:0 22px;
+  font-size:13px;
+}
+.rb-left{display:flex;align-items:center;gap:14px;min-width:0}
+.rb-badge{font-size:10.5px;letter-spacing:.14em;color:#8A93A6;border:1px solid #363B48;border-radius:5px;padding:4px 9px;flex-shrink:0}
+.rb-name{color:#F2F4F8;font-weight:700;font-size:14px;flex-shrink:0}
+.rb-divider{width:1px;height:16px;background:#333845;flex-shrink:0}
+.rb-concept{color:#8A93A6;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb-tabs{display:flex;gap:4px;background:#1D2029;padding:4px;border-radius:10px;flex-shrink:0}
+.rb-tab{
+  border:none;background:transparent;color:#98A0B3;font-family:inherit;font-size:12.5px;
+  padding:7px 16px;border-radius:7px;cursor:pointer;transition:all .18s ease;
+}
+.rb-tab:hover{color:#DFE4EE}
+.rb-tab.active{background:#F5F6F8;color:#12141B;font-weight:700}
+
+/* ============ shared canvas ============ */
+.canvas{width:1440px;min-height:900px;margin:0 auto;background:var(--bg);display:flex}
+
+/* ============ sidebar ============ */
+.sidebar{
+  width:236px;flex-shrink:0;
+  background:linear-gradient(180deg,#101A2E 0%,#0B1322 100%);
+  color:#C4CDDD;display:flex;flex-direction:column;padding:26px 18px 22px;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:2px 8px 22px;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:20px}
+.brand-mark{
+  width:35px;height:35px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,#3B82F6 0%,#2563EB 100%);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:16px;font-weight:700;
+  box-shadow:0 6px 14px -4px rgba(37,99,235,.55);
+}
+.brand-name{font-size:17px;font-weight:700;color:#FFFFFF;letter-spacing:.03em;line-height:1.2}
+.brand-sub{font-size:10.5px;color:#66738C;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:10px;
+  color:#8B98B2;font-size:13.5px;cursor:pointer;position:relative;
+  transition:all .18s ease;text-decoration:none;user-select:none;
+}
+.nav-item svg{width:17px;height:17px;flex-shrink:0}
+.nav-item:hover{color:#E9EEF7;background:rgba(255,255,255,.05)}
+.nav-item.active{color:#FFFFFF;background:rgba(37,99,235,.20);font-weight:600}
+.nav-item.active::before{
+  content:"";position:absolute;left:-18px;top:10px;bottom:10px;width:3px;
+  border-radius:0 3px 3px 0;background:#3B82F6;
+}
+.side-foot{
+  margin-top:auto;background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:13px 15px;
+}
+.sf-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#8B98B2}
+.sf-row b{color:#E9EEF7;font-weight:600}
+.sf-row b.sf-warn{color:#7FA8F5}
+.sf-div{height:1px;background:rgba(255,255,255,.08);margin:10px 0}
+
+/* ============ main frame ============ */
+.main{flex:1;min-width:0;padding:30px 34px}
+.card{
+  background:#FFFFFF;border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 12px 32px -20px rgba(16,24,40,.16);
+}
+
+/* ============ screen 1: header ============ */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px}
+.greet h1{font-size:26px;font-weight:700;letter-spacing:.01em}
+.greet p{margin-top:8px;color:#64748B;font-size:13.5px}
+.greet p b{color:var(--blue);font-weight:600}
+.greet .dot-sep{margin:0 8px;color:#CBD5E1}
+.stats{
+  display:flex;align-items:center;gap:20px;background:#FFFFFF;
+  border:1px solid var(--line);border-radius:14px;padding:14px 22px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04);
+}
+.stat{display:flex;flex-direction:column;gap:3px}
+.s-num{font-size:22px;font-weight:700;line-height:1}
+.s-num .s-unit{font-size:12.5px;font-weight:500;color:var(--muted);margin-left:2px}
+.s-label{font-size:12px;color:#64748B}
+.stat-div{width:1px;height:32px;background:var(--line)}
+.week{display:flex;flex-direction:column;gap:8px}
+.week-top{display:flex;align-items:center;justify-content:space-between;gap:18px;font-size:12px;color:#64748B}
+.week-top b{color:var(--ink);font-size:13px;font-weight:700}
+.week-segs{display:flex;gap:4px}
+.wseg{width:22px;height:7px;border-radius:4px;background:#E2E8F0}
+.wseg.on{background:var(--blue)}
+.wseg.today{background:var(--blue-soft);box-shadow:0 0 0 3px rgba(96,165,250,.20)}
+
+/* ============ screen 1: grid ============ */
+.dash-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:stretch}
+.col-left{display:flex;flex-direction:column;gap:22px}
+
+/* ---- task card ---- */
+.task-card{padding:30px 32px;display:flex;flex-direction:column;flex:1}
+.task-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--blue)}
+.day-badge{font-size:12px;color:var(--body);background:#F1F5F9;border:1px solid #E6EAF1;border-radius:999px;padding:5px 13px}
+.task-title{font-size:29px;font-weight:700;letter-spacing:.01em;margin-bottom:16px}
+.task-title .dash{color:#A5B2C5;font-weight:400;padding:0 2px}
+.task-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.chip{font-size:12px;color:var(--body);background:#F5F7FA;border:1px solid #E9EDF3;border-radius:8px;padding:6px 11px}
+.focus-box{background:var(--blue-tint);border:1px solid var(--blue-border);border-radius:12px;padding:14px 17px;margin-bottom:12px}
+.fb-label{font-size:13px;font-weight:700;color:var(--blue-dark);display:block;margin-bottom:5px}
+.fb-label .star{margin-right:6px}
+.focus-box p{font-size:13px;color:#3D5A90;line-height:1.65}
+.why-line{
+  display:flex;align-items:center;gap:9px;font-size:13px;color:#8A5A12;
+  background:#FFFBEB;border:1px solid #FBE9C4;border-radius:10px;
+  padding:11px 16px;margin-bottom:16px;
+}
+.why-line .why-ic{color:#D97706;font-size:12px}
+.question-box{background:#F8FAFD;border:1.5px dashed #C6D3E6;border-radius:12px;padding:16px 18px;margin-bottom:24px}
+.qb-label{font-size:11px;letter-spacing:.14em;color:#7C8AA5;font-weight:700;display:block;margin-bottom:8px}
+.question-box p{font-size:16.5px;font-weight:600;color:#12233F;line-height:1.6}
+.task-actions{display:flex;align-items:center;gap:18px;margin-top:auto}
+.btn-primary{
+  background:var(--blue);color:#fff;border:none;font-family:inherit;
+  font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:11px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:9px;
+  box-shadow:0 8px 18px -8px rgba(37,99,235,.65);
+  transition:all .18s ease;
+}
+.btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 12px 24px -8px rgba(37,99,235,.6)}
+.btn-primary .arr{font-size:12px;transition:transform .18s ease}
+.btn-primary:hover .arr{transform:translateX(3px)}
+.actions-note{font-size:12.5px;color:var(--muted)}
+
+/* ---- overview card ---- */
+.overview-card{padding:26px 28px;display:flex;flex-direction:column}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px}
+.card-head h3{font-size:16.5px;font-weight:700}
+.card-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.unlock-badge{
+  font-size:12px;font-weight:600;color:var(--blue-dark);
+  background:var(--blue-tint);border:1px solid var(--blue-border);
+  padding:5px 12px;border-radius:999px;flex-shrink:0;
+}
+.bars{display:flex;flex-direction:column;gap:19px;margin-bottom:24px}
+.bar-row{display:grid;grid-template-columns:96px 1fr 40px;align-items:center;gap:12px;padding:1px 0}
+.bar-name{font-size:13px;color:#334155}
+.bar-track{height:9px;background:#EDF1F7;border-radius:6px;overflow:hidden}
+.bar-fill{
+  height:100%;border-radius:6px;background:#A9BCD9;width:var(--w);
+  animation:grow 1.1s cubic-bezier(.25,.7,.25,1) both;
+}
+.bar-row.focus .bar-fill{background:linear-gradient(90deg,#3B82F6,#2563EB)}
+.bar-row.focus .bar-name{color:var(--ink);font-weight:600}
+.bar-score{font-size:13.5px;font-weight:700;color:#334155;text-align:right;white-space:nowrap}
+.bar-row.focus .bar-score{color:var(--blue)}
+.trend-up{font-size:11px;font-weight:700;margin-left:3px;vertical-align:1px}
+@keyframes grow{from{width:0}}
+.ghost-list{display:flex;flex-direction:column;gap:9px;padding-top:19px;border-top:1px dashed #E2E8F0;margin-bottom:22px}
+.ghost-row{display:flex;align-items:center;gap:10px;border:1.5px dashed #D9E0EB;border-radius:10px;padding:12px 14px;background:#FAFBFD}
+.ghost-row svg{width:13px;height:13px;color:#A6B2C6;flex-shrink:0}
+.ghost-name{font-size:13px;color:#9AA7BC}
+.ghost-tag{margin-left:auto;font-size:11px;color:#A6B2C6;border:1px solid #E2E8F0;border-radius:999px;padding:3px 10px;background:#FFFFFF}
+.next-hint{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#64748B;padding:0 2px 18px}
+.next-hint .nh-ic{color:var(--blue);font-size:12px}
+.next-hint b{color:var(--blue-dark);font-weight:600}
+.dep-mini{
+  margin-top:auto;display:flex;align-items:center;gap:14px;
+  background:#F8FAFD;border:1px solid #EEF2F8;border-radius:12px;padding:13px 16px;
+}
+.dm-label{font-size:12.5px;color:var(--body)}
+.segs{display:flex;gap:5px}
+.seg{width:30px;height:8px;border-radius:5px;background:#E2E8F0}
+.seg.on-1{background:#BFDBFE}
+.seg.on-2{background:#60A5FA}
+.seg.on-3{background:#2563EB}
+.dm-val{margin-left:auto;font-size:14px;font-weight:700;color:var(--blue)}
+
+/* ---- diagnosis card ---- */
+.diag-card{padding:24px 28px;position:relative;overflow:hidden}
+.diag-card::before{
+  content:"“";position:absolute;top:-18px;right:16px;
+  font-family:"Noto Serif SC","Songti SC","SimSun",serif;
+  font-size:120px;color:#EAF1FD;line-height:1;pointer-events:none;
+}
+.diag-label{font-size:11.5px;font-weight:700;letter-spacing:.14em;color:#7C8AA5;margin-bottom:13px}
+.diag-quote{
+  font-family:"Noto Serif SC","Songti SC","SimSun",serif;
+  font-size:16.5px;line-height:1.8;color:#22334E;position:relative;
+}
+.diag-meta{margin-top:12px;font-size:12.5px;color:var(--muted)}
+
+/* ============ screen 2 ============ */
+.page-title-row{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
+.page-title-row h1{font-size:21px;font-weight:700}
+.page-title-row p{font-size:12.5px;color:var(--muted)}
+.insight-bar{
+  display:flex;align-items:center;gap:11px;
+  background:linear-gradient(90deg,#EDF4FF 0%,#F7FAFF 100%);
+  border:1px solid var(--blue-border);border-left:3px solid var(--blue);
+  border-radius:12px;padding:14px 20px;font-size:13.5px;color:#33425E;margin-bottom:20px;
+}
+.insight-bar .ib-ic{color:var(--blue);font-size:13px}
+.insight-bar b{color:var(--blue-dark);font-weight:700}
+.insight-bar .ib-dot{color:#B7C6DC;margin:0 3px}
+
+.observed-card{margin-bottom:20px;overflow:hidden}
+.obs-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:19px 26px;border-bottom:1px solid var(--line);
+}
+.obs-head h3{font-size:16px;font-weight:700}
+.obs-head span{font-size:12px;color:var(--muted)}
+.dim-row{border-bottom:1px solid #F0F3F8;transition:background .15s ease}
+.dim-row:last-child{border-bottom:none}
+.dim-row:hover{background:#FAFBFE}
+.dim-main{
+  display:grid;grid-template-columns:170px 96px 130px 1fr 120px;
+  align-items:center;gap:14px;padding:15px 26px;
+}
+.dim-name{font-size:14px;font-weight:600;color:#1E293B}
+.dim-score{font-size:23px;font-weight:700;color:var(--ink);line-height:1}
+.dim-row.rise .dim-score{color:var(--blue)}
+.dim-obs{font-size:12.5px;color:#64748B}
+.spark{display:block}
+.tag{
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:11.5px;font-weight:600;border-radius:999px;padding:4px 12px;white-space:nowrap;justify-self:end;
+}
+.tag-ok{color:#047857;background:#ECFDF5;border:1px solid #D1FAE5}
+.tag-grey{color:#64748B;background:#F1F5F9;border:1px solid #E6EAF1}
+.tag-up{color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border)}
+.dim-detail{
+  margin:0 26px 18px;background:#F7FAFF;border-left:3px solid var(--blue);
+  border-radius:0 10px 10px 0;padding:12px 18px;
+}
+.dim-detail p{font-size:12.5px;color:var(--body);line-height:1.9}
+.dim-detail .d-k{font-weight:700;color:#1E293B}
+.dim-detail .d-arr{color:var(--blue);font-weight:600;padding:0 3px}
+.pill-blue{
+  display:inline-block;font-size:11.5px;font-weight:600;color:var(--blue-dark);
+  background:#E3EEFF;border-radius:999px;padding:2px 10px;vertical-align:1px;
+}
+
+.unobs-head{display:flex;align-items:baseline;gap:12px;margin:0 2px 12px}
+.unobs-head h3{font-size:15px;font-weight:700}
+.unobs-head span{font-size:12px;color:var(--muted)}
+.ghost-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.ghost-card{
+  border:1.5px dashed #CBD5E3;border-radius:14px;background:#FBFCFE;
+  padding:24px 20px;text-align:center;transition:all .18s ease;
+}
+.ghost-card:hover{border-color:#AEC2DC;background:#F8FBFF}
+.gc-lock{
+  width:34px;height:34px;margin:0 auto 12px;border-radius:10px;
+  background:#EFF3F9;display:flex;align-items:center;justify-content:center;
+}
+.gc-lock svg{width:15px;height:15px;color:#9AA9BF}
+.gc-name{font-size:14.5px;font-weight:600;color:#7A8AA3;margin-bottom:6px}
+.gc-state{font-size:11.5px;color:#A6B2C6}
+
+.dep-card{display:flex;align-items:center;gap:34px;padding:20px 28px}
+.dep-info h4{font-size:15px;font-weight:700;margin-bottom:4px}
+.dep-info p{font-size:12px;color:var(--muted)}
+.dep-gauge{display:flex;flex-direction:column;gap:7px;margin-left:auto}
+.dep-gauge .seg{width:46px;height:9px}
+.segs-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.dep-badge{
+  font-size:17px;font-weight:700;color:var(--blue-dark);
+  background:var(--blue-tint);border:1px solid var(--blue-border);
+  border-radius:12px;padding:10px 22px;
+}
+</style>
+</head>
+<body>
+
+<!-- review bar: evaluation chrome, not part of the design -->
+<div class="review-bar">
+  <div class="rb-left">
+    <span class="rb-badge">概念原型</span>
+    <span class="rb-name">原型 B · 成长驾驶舱</span>
+    <span class="rb-divider"></span>
+    <span class="rb-concept">把「AI 越来越懂我」做成肉眼可见的成长面板：首页即状态，每次打开都强化成长曲线感</span>
+  </div>
+  <div class="rb-tabs">
+    <button class="rb-tab active" data-screen="1">屏1 · 首页仪表盘</button>
+    <button class="rb-tab" data-screen="2">屏2 · 能力画像</button>
+  </div>
+</div>
+
+<!-- ==================== Screen 1: dashboard ==================== -->
+<div class="canvas" id="screen-1">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        今日训练
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.2V8l2.1 1.6"/></svg>
+        训练历史
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="side-foot">
+      <div class="sf-row"><span>今日状态</span><b class="sf-warn">待开始</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>连续训练</span><b>12 天</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="page-head">
+      <div class="greet">
+        <h1>早上好，回到训练场。</h1>
+        <p><b>今日训练 · 第 12 天</b><span class="dot-sep">·</span>保持节奏，每天一道真实产品案例</p>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="s-num">12<span class="s-unit">天</span></div>
+          <div class="s-label">连续训练</div>
+        </div>
+        <div class="stat-div"></div>
+        <div class="week">
+          <div class="week-top"><span>本周</span><b>5/7</b></div>
+          <div class="week-segs">
+            <span class="wseg on"></span>
+            <span class="wseg on"></span>
+            <span class="wseg on"></span>
+            <span class="wseg on"></span>
+            <span class="wseg on today"></span>
+            <span class="wseg"></span>
+            <span class="wseg"></span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="dash-grid">
+      <div class="col-left">
+        <!-- today's task -->
+        <section class="card task-card">
+          <div class="task-top">
+            <span class="eyebrow">今日任务</span>
+            <span class="day-badge">今日训练 · 第 12 天</span>
+          </div>
+          <h2 class="task-title">Cursor <span class="dash">——</span> AI 代码编辑器</h2>
+          <div class="task-meta">
+            <span class="chip">服务谁：开发者</span>
+            <span class="chip">场景：编写、修改、理解大型代码库</span>
+            <span class="chip">相关功能：代码补全、Agent 模式</span>
+            <span class="chip">状态：Agent 模式上线 3 个月</span>
+          </div>
+          <div class="focus-box">
+            <span class="fb-label"><span class="star">★</span>训练重点：产品取舍</span>
+            <p>今天主要训练你识别一个产品决策同时带来的收益、成本和风险。</p>
+          </div>
+          <div class="why-line">
+            <span class="why-ic">◇</span>
+            为什么是它：你最近 3 次取舍训练有 2 次依赖提示
+          </div>
+          <div class="question-box">
+            <span class="qb-label">今日问题</span>
+            <p>Cursor 为什么需要 Agent 模式，而不仅仅提供代码补全？</p>
+          </div>
+          <div class="task-actions">
+            <button class="btn-primary">开始今日训练<span class="arr">▸</span></button>
+            <span class="actions-note">作答后，AI 产品总监将追问并给出诊断</span>
+          </div>
+        </section>
+
+        <!-- latest diagnosis -->
+        <section class="card diag-card">
+          <div class="diag-label">最近一条诊断</div>
+          <blockquote class="diag-quote">「你最近 5 次训练有 3 次忽略了方案的用户认知成本。」</blockquote>
+          <div class="diag-meta">—— 3 天前</div>
+        </section>
+      </div>
+
+      <!-- capability overview -->
+      <section class="card overview-card">
+        <div class="card-head">
+          <div>
+            <h3>能力总览</h3>
+            <p class="card-sub">8 个维度 · 随训练持续更新</p>
+          </div>
+          <span class="unlock-badge">5/8 已解锁</span>
+        </div>
+        <div class="bars">
+          <div class="bar-row">
+            <span class="bar-name">产品价值判断</span>
+            <div class="bar-track"><div class="bar-fill" style="--w:75%"></div></div>
+            <span class="bar-score">75</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-name">产品表达</span>
+            <div class="bar-track"><div class="bar-fill" style="--w:73%;animation-delay:.08s"></div></div>
+            <span class="bar-score">73</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-name">问题定义</span>
+            <div class="bar-track"><div class="bar-fill" style="--w:72%;animation-delay:.16s"></div></div>
+            <span class="bar-score">72</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-name">用户理解</span>
+            <div class="bar-track"><div class="bar-fill" style="--w:68%;animation-delay:.24s"></div></div>
+            <span class="bar-score">68</span>
+          </div>
+          <div class="bar-row focus">
+            <span class="bar-name">产品取舍</span>
+            <div class="bar-track"><div class="bar-fill" style="--w:61%;animation-delay:.32s"></div></div>
+            <span class="bar-score">61<span class="trend-up">↑</span></span>
+          </div>
+        </div>
+        <div class="ghost-list">
+          <div class="ghost-row">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>
+            <span class="ghost-name">根因分析</span>
+            <span class="ghost-tag">待解锁</span>
+          </div>
+          <div class="ghost-row">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>
+            <span class="ghost-name">方案设计</span>
+            <span class="ghost-tag">待解锁</span>
+          </div>
+          <div class="ghost-row">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>
+            <span class="ghost-name">指标与验证</span>
+            <span class="ghost-tag">待解锁</span>
+          </div>
+        </div>
+        <div class="next-hint">
+          <span class="nh-ic">◇</span>
+          <span>下一题将优先探索<b>「根因分析」</b>，完成今日训练后画像继续更新</span>
+        </div>
+        <div class="dep-mini">
+          <span class="dm-label">整体提示依赖度</span>
+          <div class="segs">
+            <span class="seg on-1"></span>
+            <span class="seg on-2"></span>
+            <span class="seg on-3"></span>
+            <span class="seg"></span>
+            <span class="seg"></span>
+          </div>
+          <span class="dm-val">中</span>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ==================== Screen 2: capability profile ==================== -->
+<div class="canvas hidden" id="screen-2">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        今日训练
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.2V8l2.1 1.6"/></svg>
+        训练历史
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="side-foot">
+      <div class="sf-row"><span>今日状态</span><b class="sf-warn">待开始</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>连续训练</span><b>12 天</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-title-row">
+      <h1>能力画像</h1>
+      <p>AI 基于你的每次作答持续更新</p>
+    </div>
+
+    <div class="insight-bar">
+      <span class="ib-ic">◇</span>
+      <span>AI 已了解你 <b>5/8</b> 个维度<span class="ib-dot">·</span>下一题将优先探索「根因分析」</span>
+    </div>
+
+    <!-- observed dimensions -->
+    <section class="card observed-card">
+      <div class="obs-head">
+        <h3>已观测维度</h3>
+        <span>共 5 个维度 · 每次训练后更新</span>
+      </div>
+
+      <div class="dim-row">
+        <div class="dim-main">
+          <span class="dim-name">产品价值判断</span>
+          <span class="dim-score">75</span>
+          <span class="dim-obs">观察 4 次</span>
+          <svg class="spark" viewBox="0 0 120 32" width="120" height="32" fill="none">
+            <polyline points="8,14 43,12 77,11 112,10" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="112" cy="10" r="2.4" fill="#94A3B8"/>
+          </svg>
+          <span class="tag tag-ok">稳定</span>
+        </div>
+      </div>
+
+      <div class="dim-row">
+        <div class="dim-main">
+          <span class="dim-name">产品表达</span>
+          <span class="dim-score">73</span>
+          <span class="dim-obs">观察 2 次</span>
+          <svg class="spark" viewBox="0 0 120 32" width="120" height="32" fill="none">
+            <polyline points="8,15 112,12" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="112" cy="12" r="2.4" fill="#94A3B8"/>
+          </svg>
+          <span class="tag tag-grey">样本较少</span>
+        </div>
+      </div>
+
+      <div class="dim-row">
+        <div class="dim-main">
+          <span class="dim-name">问题定义</span>
+          <span class="dim-score">72</span>
+          <span class="dim-obs">观察 3 次</span>
+          <svg class="spark" viewBox="0 0 120 32" width="120" height="32" fill="none">
+            <polyline points="8,15 60,14 112,13" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="112" cy="13" r="2.4" fill="#94A3B8"/>
+          </svg>
+          <span class="tag tag-ok">稳定</span>
+        </div>
+      </div>
+
+      <div class="dim-row">
+        <div class="dim-main">
+          <span class="dim-name">用户理解</span>
+          <span class="dim-score">68</span>
+          <span class="dim-obs">观察 2 次</span>
+          <svg class="spark" viewBox="0 0 120 32" width="120" height="32" fill="none">
+            <polyline points="8,14 112,16" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="112" cy="16" r="2.4" fill="#94A3B8"/>
+          </svg>
+          <span class="tag tag-grey">样本较少</span>
+        </div>
+      </div>
+
+      <div class="dim-row rise">
+        <div class="dim-main">
+          <span class="dim-name">产品取舍</span>
+          <span class="dim-score">61</span>
+          <span class="dim-obs">观察 3 次</span>
+          <svg class="spark" viewBox="0 0 120 32" width="120" height="32" fill="none">
+            <polyline points="8,28 60,25 112,21" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="112" cy="21" r="2.6" fill="#2563EB"/>
+          </svg>
+          <span class="tag tag-up">↑ 上升中</span>
+        </div>
+        <div class="dim-detail">
+          <p><span class="d-k">特征</span>：终答质量高，但 3 次中 2 次依赖 2+ 提示</p>
+          <p><span class="d-k">诊断</span>：独立构建分析框架的能力待加强<span class="d-arr">→</span><span class="pill-blue">已列入明日训练</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- unobserved dimensions -->
+    <div class="unobs-head">
+      <h3>未观测维度</h3>
+      <span>完成更多训练后，AI 将逐步探索这些维度</span>
+    </div>
+    <div class="ghost-cards">
+      <div class="ghost-card">
+        <div class="gc-lock">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>
+        </div>
+        <div class="gc-name">根因分析</div>
+        <div class="gc-state">待解锁 · 完成更多训练后开启观测</div>
+      </div>
+      <div class="ghost-card">
+        <div class="gc-lock">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>
+        </div>
+        <div class="gc-name">方案设计</div>
+        <div class="gc-state">待解锁 · 完成更多训练后开启观测</div>
+      </div>
+      <div class="ghost-card">
+        <div class="gc-lock">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>
+        </div>
+        <div class="gc-name">指标与验证</div>
+        <div class="gc-state">待解锁 · 完成更多训练后开启观测</div>
+      </div>
+    </div>
+
+    <!-- hint dependency gauge -->
+    <section class="card dep-card">
+      <div class="dep-info">
+        <h4>整体提示依赖度</h4>
+        <p>提示使用越独立，得分系数越高</p>
+      </div>
+      <div class="dep-gauge">
+        <div class="segs">
+          <span class="seg on-1"></span>
+          <span class="seg on-2"></span>
+          <span class="seg on-3"></span>
+          <span class="seg"></span>
+          <span class="seg"></span>
+        </div>
+        <div class="segs-label"><span>低</span><span>中</span><span>高</span></div>
+      </div>
+      <span class="dep-badge">中</span>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  var tabs = document.querySelectorAll('.rb-tab');
+  function showScreen(n){
+    document.getElementById('screen-1').classList.toggle('hidden', n !== '1');
+    document.getElementById('screen-2').classList.toggle('hidden', n !== '2');
+    tabs.forEach(function(t){ t.classList.toggle('active', t.dataset.screen === n); });
+    window.scrollTo(0, 0);
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ showScreen(t.dataset.screen); });
+  });
+})();
+</script>
+</body>
+</html>

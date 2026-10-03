@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原型 C · 产品总监在身边 — 自适应产品经理训练平台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC","Segoe UI",sans-serif;
+  color:#1c2530;background:#edf1f5;font-size:14px;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit}
+ul{list-style:none}
+
+/* ================= 评审条（非设计稿部分） ================= */
+.review-bar{
+  height:46px;background:#15171c;display:flex;align-items:center;gap:14px;
+  padding:0 18px;font-size:12.5px;color:#8b93a3;position:relative;z-index:50;
+}
+.rb-badge{flex:none;font-size:10.5px;letter-spacing:.12em;color:#aab3c2;border:1px solid #343944;border-radius:4px;padding:2px 7px}
+.rb-name{flex:none;color:#e8ebf1;font-weight:600}
+.rb-divider{flex:none;width:1px;height:16px;background:#2c313b}
+.rb-concept{color:#79818f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb-tabs{margin-left:auto;flex:none;display:flex;background:#22252d;border-radius:8px;padding:3px;gap:2px}
+.rb-tab{border:none;background:transparent;color:#8b93a3;font-size:12px;padding:5px 16px;border-radius:6px;cursor:pointer;transition:color .18s,background .18s}
+.rb-tab:hover{color:#e6e9ef;background:rgba(255,255,255,.05)}
+.rb-tab.active{background:#3b4150;color:#fff;font-weight:600}
+
+/* ================= 屏幕容器 ================= */
+.screen{height:calc(100vh - 46px);min-width:1180px;display:flex;flex-direction:column}
+.screen.hidden{display:none}
+
+/* ================= 应用标题栏 ================= */
+.app-header{height:58px;flex:none;background:#fff;border-bottom:1px solid #e3e8ee;display:flex;align-items:center;gap:12px;padding:0 28px}
+.brand{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#14b8a6,#0e9488);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 6px rgba(13,148,136,.3)}
+.app-title{font-size:15.5px;font-weight:600;letter-spacing:.01em}
+.day-pill{font-size:11px;color:#0b7c72;background:#d9f2ee;border-radius:999px;padding:3px 10px;font-weight:600}
+.app-nav{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:12.5px;color:#8b95a5}
+.app-nav span{cursor:pointer;transition:color .15s}
+.app-nav span:hover{color:#0d9488}
+.app-nav i{font-style:normal;color:#cfd6de;font-size:11px}
+
+/* ================= 主体布局 ================= */
+.app-body{flex:1;min-height:0;display:flex;gap:22px;padding:20px 28px;background:linear-gradient(180deg,#f0f3f7 0%,#e9edf2 100%)}
+
+/* ================= 左栏 ================= */
+.side{width:280px;flex:none;display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding-bottom:4px}
+.card{background:#fff;border:1px solid #e4e9ef;border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.05);padding:14px 16px}
+.card-label{font-size:11px;letter-spacing:.14em;color:#93a0b0;font-weight:600;margin-bottom:10px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.card-note{font-size:10.5px;letter-spacing:0;color:#a7b2c0;font-weight:400;white-space:nowrap}
+
+.acc-head{width:100%;display:flex;align-items:center;gap:8px;background:#f6f9f8;border:1px solid #e4eeeb;border-radius:10px;padding:9px 11px;cursor:pointer;transition:background .15s}
+.acc-head:hover{background:#eff6f4}
+.acc-dot{width:6px;height:6px;border-radius:50%;background:#14b8a6;flex:none}
+.acc-title{font-size:13px;font-weight:600;color:#1c2530;flex:1;text-align:left}
+.acc-arrow{font-size:10px;color:#7d8a99;transition:transform .2s}
+.acc-head.collapsed .acc-arrow{transform:rotate(-90deg)}
+.acc-body{padding:8px 4px 2px}
+.kv{display:flex;gap:10px;padding:5px 0;font-size:12.5px;line-height:1.6}
+.kv+.kv{border-top:1px dashed #edf1f5}
+.k{flex:none;width:56px;color:#93a0b0}
+.v{color:#3a4552}
+
+.refs li{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:8px;cursor:pointer;transition:background .15s}
+.refs li:hover{background:#f4f8f7}
+.refs li:hover .ref-title{color:#0b7c72}
+.ref-badge{flex:none;font-size:10px;padding:2px 6px;border-radius:5px;color:#8b95a5;background:#f0f2f5;margin-top:1px;letter-spacing:.02em}
+.ref-badge.core{color:#b45309;background:#fdf0d9}
+.ref-title{font-size:12.5px;color:#3a4552;line-height:1.55;transition:color .15s}
+
+.focus-card{background:linear-gradient(135deg,#effaf7 0%,#e8f4fb 100%);border-color:#d5ebe4}
+.focus-word{font-family:"Noto Serif SC","Songti SC","SimSun",serif;font-size:21px;font-weight:700;color:#0b7c72;letter-spacing:.06em;margin:2px 0 8px}
+.focus-desc{font-size:12px;color:#5b6a63;line-height:1.75}
+
+/* ================= 聊天区 ================= */
+.chat{flex:1;min-width:0;display:flex;flex-direction:column}
+.chat-scroll{flex:1;min-height:0;overflow-y:auto;padding:8px 28px 4px}
+.chat-inner{max-width:740px;margin:0 auto;padding:14px 0 10px}
+.day-divider{display:flex;align-items:center;gap:12px;margin:6px 0 20px;color:#9aa6b4;font-size:11px}
+.day-divider::before,.day-divider::after{content:"";flex:1;height:1px;background:#dfe5ec}
+
+.msg{display:flex;gap:10px;margin-bottom:22px}
+.msg.me{flex-direction:row-reverse}
+.avatar{flex:none;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 2px 5px rgba(16,24,40,.15)}
+.avatar-ai{background:linear-gradient(135deg,#14b8a6,#0c8577);font-size:10.5px;font-weight:600;letter-spacing:.05em}
+.avatar-me{background:linear-gradient(135deg,#7c93ab,#5b7189);font-size:12px}
+.msg-main{max-width:600px;min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.msg.me .msg-main{align-items:flex-end}
+.msg-meta{display:flex;align-items:center;gap:8px;margin:0 4px 6px;font-size:11px;color:#98a4b2}
+.msg-name{font-size:12px;color:#4d5a68;font-weight:600}
+.chip-follow{font-size:10px;color:#0b7c72;border:1px solid rgba(13,148,136,.35);border-radius:4px;padding:1px 5px;background:#f0faf7}
+.bubble{background:#fff;border:1px solid rgba(16,24,40,.05);box-shadow:0 1px 2px rgba(16,24,40,.06);border-radius:5px 18px 18px 18px;padding:13px 17px;font-size:14px;line-height:1.8;color:#232e3a}
+.bubble b{font-weight:600}
+.msg.me .bubble{background:linear-gradient(135deg,#d9f3ec,#d2edf3);border:none;border-radius:18px 5px 18px 18px;color:#173c36;box-shadow:0 1px 2px rgba(13,148,136,.12)}
+
+/* ================= 反馈卡（屏2） ================= */
+.score-card{background:#f5faf9;border:1px solid #e1efec;border-radius:12px;padding:12px 16px 10px;margin-bottom:12px;min-width:440px}
+.score-title{font-size:11px;letter-spacing:.12em;color:#7d9b95;font-weight:600;margin-bottom:8px}
+.score-row{display:flex;align-items:baseline;padding:6px 0}
+.score-row+.score-row{border-top:1px dashed #dcebe7}
+.score-name{flex:none;width:64px;color:#3a4552;font-weight:600;font-size:12.5px}
+.score-num{flex:none;width:44px;font-size:19px;font-weight:700;color:#0b7c72;font-variant-numeric:tabular-nums}
+.score-detail{color:#8b98a5;font-size:11.5px}
+.fb-line{font-size:13.5px;line-height:1.8;color:#2c3844}
+.fb-line+.fb-line{margin-top:6px}
+.fb-label{font-weight:600;color:#b45309}
+.fb-next .fb-label{color:#0b7c72}
+.next-mark{color:#0d9488;margin-right:6px;font-size:12px}
+
+/* ================= 问卷与流内按钮（屏2） ================= */
+.poll{margin:2px 0 18px 46px;display:flex;flex-direction:column;gap:9px}
+.poll-row{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#5b6675}
+.stars{display:inline-flex;gap:2px}
+.stars i{font-style:normal;font-size:16px;color:#c3ccd6;cursor:pointer;transition:color .12s,transform .12s}
+.stars i:hover{color:#f59e0b;transform:scale(1.15)}
+.stars i.on{color:#f59e0b}
+.flow-actions{margin:0 0 26px 46px;display:flex;gap:12px}
+.btn-ghost{border:1px solid #d3dbe3;background:#fff;color:#4d5a68;font-size:13px;padding:9px 22px;border-radius:999px;cursor:pointer;transition:all .18s;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.btn-ghost:hover{border-color:#0d9488;color:#0b7c72}
+.btn-primary{border:none;background:#0d9488;color:#fff;font-size:13px;font-weight:600;padding:9px 26px;border-radius:999px;cursor:pointer;transition:all .18s;box-shadow:0 3px 8px rgba(13,148,136,.28)}
+.btn-primary:hover{background:#0b7c72;box-shadow:0 5px 14px rgba(13,148,136,.36)}
+
+/* ================= 输入条 ================= */
+.composer{flex:none;padding:6px 28px 16px}
+.composer-inner{max-width:740px;margin:0 auto;background:#fff;border:1px solid #e2e8ef;border-radius:16px;box-shadow:0 6px 18px rgba(16,24,40,.07);display:flex;align-items:center;gap:8px;padding:8px 10px 8px 8px;transition:border-color .18s,box-shadow .18s}
+.composer-inner:focus-within{border-color:rgba(13,148,136,.55);box-shadow:0 6px 20px rgba(13,148,136,.14)}
+.hint-btn{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:transparent;border:1px dashed rgba(13,148,136,.4);border-radius:11px;padding:7px 12px;cursor:pointer;transition:background .15s}
+.hint-btn:hover{background:#f0faf7}
+.hint-main{font-size:12.5px;font-weight:600;color:#0b7c72}
+.hint-sub{font-size:10px;color:#93a0b0}
+.composer-input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:14px;color:#1c2530;padding:10px 6px;font-family:inherit}
+.composer-input::placeholder{color:#a4afbc}
+.send-btn{flex:none;border:none;background:#0d9488;color:#fff;font-size:13.5px;font-weight:600;padding:10px 22px;border-radius:11px;cursor:pointer;transition:all .18s}
+.send-btn:hover{background:#0b7c72;box-shadow:0 4px 12px rgba(13,148,136,.35)}
+.composer-hint{max-width:740px;margin:8px auto 0;font-size:11px;color:#9aa6b4;padding-left:6px}
+
+/* ================= 滚动条 ================= */
+.chat-scroll::-webkit-scrollbar,.side::-webkit-scrollbar{width:8px}
+.chat-scroll::-webkit-scrollbar-thumb,.side::-webkit-scrollbar-thumb{background:#cdd5de;border-radius:8px}
+.chat-scroll::-webkit-scrollbar-thumb:hover,.side::-webkit-scrollbar-thumb:hover{background:#b6c1cd}
+</style>
+</head>
+<body>
+
+<!-- 评审条：不属于设计稿 -->
+<nav class="review-bar">
+  <span class="rb-badge">原型评审</span>
+  <span class="rb-name">原型 C · 产品总监在身边</span>
+  <span class="rb-divider"></span>
+  <span class="rb-concept">训练即与产品总监的结对讨论 —— 没有答题卡，追问、提示、反馈都在对话流中自然发生</span>
+  <div class="rb-tabs">
+    <button class="rb-tab active" data-target="s1" type="button">屏 1</button>
+    <button class="rb-tab" data-target="s2" type="button">屏 2</button>
+  </div>
+</nav>
+
+<!-- ==================== 屏 1 · 对话训练主屏 ==================== -->
+<main class="screen" id="s1">
+  <header class="app-header">
+    <div class="brand">◇</div>
+    <h1 class="app-title">今日训练 · Cursor 的 Agent 模式</h1>
+    <span class="day-pill">第 12 天</span>
+    <nav class="app-nav"><span>画像</span><i>/</i><span>历史</span><i>/</i><span>我的</span></nav>
+  </header>
+  <div class="app-body">
+    <aside class="side">
+      <div class="card">
+        <div class="card-label"><span>案例背景</span></div>
+        <button class="acc-head" type="button">
+          <span class="acc-dot"></span>
+          <span class="acc-title">Cursor —— AI 代码编辑器</span>
+          <span class="acc-arrow">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="kv"><span class="k">服务谁</span><span class="v">开发者</span></div>
+          <div class="kv"><span class="k">场景</span><span class="v">编写、修改、理解大型代码库</span></div>
+          <div class="kv"><span class="k">相关功能</span><span class="v">代码补全、Agent 模式</span></div>
+          <div class="kv"><span class="k">状态</span><span class="v">Agent 模式上线 3 个月</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label"><span>参考资料</span><span class="card-note">不必读完，先读两篇核心</span></div>
+        <ul class="refs">
+          <li><span class="ref-badge core">★核心</span><span class="ref-title">Cursor 官方博客：Agent 模式发布说明</span></li>
+          <li><span class="ref-badge core">★核心</span><span class="ref-title">创始人访谈：为什么补全还不够</span></li>
+          <li><span class="ref-badge">○扩展</span><span class="ref-title">用户吐槽：Agent 犯错的瞬间</span></li>
+          <li><span class="ref-badge">○扩展</span><span class="ref-title">竞品对比：Copilot Workspace</span></li>
+          <li><span class="ref-badge">○扩展</span><span class="ref-title">第三方分析：自主性与风险的权衡</span></li>
+        </ul>
+      </div>
+      <div class="card focus-card">
+        <div class="card-label"><span>今日训练重点</span></div>
+        <div class="focus-word">产品取舍</div>
+        <p class="focus-desc">今天主要训练你识别一个产品决策同时带来的收益、成本和风险</p>
+      </div>
+    </aside>
+    <section class="chat">
+      <div class="chat-scroll">
+        <div class="chat-inner">
+          <div class="day-divider"><span>今天</span></div>
+          <div class="msg">
+            <div class="avatar avatar-ai">总监</div>
+            <div class="msg-main">
+              <div class="msg-meta"><span class="msg-name">产品总监</span><span class="msg-time">10:02</span></div>
+              <div class="bubble">今天只有一个问题：<b>Cursor 为什么需要 Agent 模式，而不仅仅提供代码补全？</b>想好就写给我，不设格式。</div>
+            </div>
+          </div>
+          <div class="msg me">
+            <div class="avatar avatar-me">我</div>
+            <div class="msg-main">
+              <div class="msg-meta"><span class="msg-time">10:15</span></div>
+              <div class="bubble">我认为 Agent 的核心价值是把多步操作压缩成一次指令，减少用户在编辑器和终端之间来回切换……</div>
+            </div>
+          </div>
+          <div class="msg">
+            <div class="avatar avatar-ai">总监</div>
+            <div class="msg-main">
+              <div class="msg-meta"><span class="msg-name">产品总监</span><span class="chip-follow">追问</span><span class="msg-time">10:16</span></div>
+              <div class="bubble">如果自主操作带来更高的错误风险，这个结论还成立吗？</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="composer">
+        <div class="composer-inner">
+          <button class="hint-btn" type="button">
+            <span class="hint-main">◇ 给我提示</span>
+            <span class="hint-sub">系数 ×0.9</span>
+          </button>
+          <input class="composer-input" type="text" placeholder="补充你的判断……">
+          <button class="send-btn" type="button">发送</button>
+        </div>
+        <p class="composer-hint">思考方向（非必填）：用户任务 · 当前问题 · 新价值 · 成本 · 风险</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ==================== 屏 2 · 对话式收尾反馈 ==================== -->
+<main class="screen hidden" id="s2">
+  <header class="app-header">
+    <div class="brand">◇</div>
+    <h1 class="app-title">今日训练 · Cursor 的 Agent 模式</h1>
+    <span class="day-pill">第 12 天</span>
+    <nav class="app-nav"><span>画像</span><i>/</i><span>历史</span><i>/</i><span>我的</span></nav>
+  </header>
+  <div class="app-body">
+    <aside class="side">
+      <div class="card">
+        <div class="card-label"><span>案例背景</span></div>
+        <button class="acc-head" type="button">
+          <span class="acc-dot"></span>
+          <span class="acc-title">Cursor —— AI 代码编辑器</span>
+          <span class="acc-arrow">▾</span>
+        </button>
+        <div class="acc-body">
+          <div class="kv"><span class="k">服务谁</span><span class="v">开发者</span></div>
+          <div class="kv"><span class="k">场景</span><span class="v">编写、修改、理解大型代码库</span></div>
+          <div class="kv"><span class="k">相关功能</span><span class="v">代码补全、Agent 模式</span></div>
+          <div class="kv"><span class="k">状态</span><span class="v">Agent 模式上线 3 个月</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label"><span>参考资料</span><span class="card-note">不必读完，先读两篇核心</span></div>
+        <ul class="refs">
+          <li><span class="ref-badge core">★核心</span><span class="ref-title">Cursor 官方博客：Agent 模式发布说明</span></li>
+          <li><span class="ref-badge core">★核心</span><span class="ref-title">创始人访谈：为什么补全还不够</span></li>
+          <li><span class="ref-badge">○扩展</span><span class="ref-title">用户吐槽：Agent 犯错的瞬间</span></li>
+          <li><span class="ref-badge">○扩展</span><span class="ref-title">竞品对比：Copilot Workspace</span></li>
+          <li><span class="ref-badge">○扩展</span><span class="ref-title">第三方分析：自主性与风险的权衡</span></li>
+        </ul>
+      </div>
+      <div class="card focus-card">
+        <div class="card-label"><span>今日训练重点</span></div>
+        <div class="focus-word">产品取舍</div>
+        <p class="focus-desc">今天主要训练你识别一个产品决策同时带来的收益、成本和风险</p>
+      </div>
+    </aside>
+    <section class="chat">
+      <div class="chat-scroll">
+        <div class="chat-inner">
+          <div class="day-divider"><span>今天</span></div>
+          <div class="msg">
+            <div class="avatar avatar-ai">总监</div>
+            <div class="msg-main">
+              <div class="msg-meta"><span class="msg-name">产品总监</span><span class="msg-time">10:02</span></div>
+              <div class="bubble">今天只有一个问题：<b>Cursor 为什么需要 Agent 模式，而不仅仅提供代码补全？</b>想好就写给我，不设格式。</div>
+            </div>
+          </div>
+          <div class="msg me">
+            <div class="avatar avatar-me">我</div>
+            <div class="msg-main">
+              <div class="msg-meta"><span class="msg-time">10:15</span></div>
+              <div class="bubble">我认为 Agent 的核心价值是把多步操作压缩成一次指令，减少用户在编辑器和终端之间来回切换……</div>
+            </div>
+          </div>
+          <div class="msg">
+            <div class="avatar avatar-ai">总监</div>
+            <div class="msg-main">
+              <div class="msg-meta"><span class="msg-name">产品总监</span><span class="chip-follow">追问</span><span class="msg-time">10:16</span></div>
+              <div class="bubble">如果自主操作带来更高的错误风险，这个结论还成立吗？</div>
+            </div>
+          </div>
+          <div class="msg">
+            <div class="avatar avatar-ai">总监</div>
+            <div class="msg-main">
+              <div class="msg-meta"><span class="msg-name">产品总监</span><span class="chip-follow">反馈</span><span class="msg-time">10:31</span></div>
+              <div class="bubble">
+                <div class="score-card">
+                  <div class="score-title">本次有效得分</div>
+                  <div class="score-row">
+                    <span class="score-name">产品取舍</span>
+                    <span class="score-num">68</span>
+                    <span class="score-detail">原始 85 × 系数 0.8 · 用了 2 次提示</span>
+                  </div>
+                  <div class="score-row">
+                    <span class="score-name">用户理解</span>
+                    <span class="score-num">82</span>
+                    <span class="score-detail">原始 82 × 系数 1.0 · 完全独立</span>
+                  </div>
+                </div>
+                <p class="fb-line"><span class="fb-label">最值得优化：</span>你两次忽略了自主性带来的错误风险与信任成本。</p>
+                <p class="fb-line fb-next"><span class="next-mark">▸</span><span class="fb-label">明天我们练：</span>复杂决策中的成本识别。</p>
+              </div>
+            </div>
+          </div>
+          <div class="poll">
+            <div class="poll-row">
+              <span class="poll-q">这次反馈是否让你更清楚自己的问题？</span>
+              <span class="stars"><i>☆</i><i>☆</i><i>☆</i><i>☆</i><i>☆</i></span>
+            </div>
+            <div class="poll-row">
+              <span class="poll-q">你是否清楚接下来最值得训练什么？</span>
+              <span class="stars"><i>☆</i><i>☆</i><i>☆</i><i>☆</i><i>☆</i></span>
+            </div>
+          </div>
+          <div class="flow-actions">
+            <button class="btn-ghost" type="button">查看能力画像</button>
+            <button class="btn-primary" type="button">再练一题</button>
+          </div>
+        </div>
+      </div>
+      <div class="composer">
+        <div class="composer-inner">
+          <button class="hint-btn" type="button">
+            <span class="hint-main">◇ 给我提示</span>
+            <span class="hint-sub">系数 ×0.9</span>
+          </button>
+          <input class="composer-input" type="text" placeholder="补充你的判断……">
+          <button class="send-btn" type="button">发送</button>
+        </div>
+        <p class="composer-hint">思考方向（非必填）：用户任务 · 当前问题 · 新价值 · 成本 · 风险</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+  /* 屏1 / 屏2 切换 */
+  var tabs=document.querySelectorAll('.rb-tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){
+      tabs.forEach(function(x){x.classList.toggle('active',x===t);});
+      ['s1','s2'].forEach(function(id){
+        document.getElementById(id).classList.toggle('hidden',id!==t.dataset.target);
+      });
+      var sc=document.querySelector('#'+t.dataset.target+' .chat-scroll');
+      if(sc){sc.scrollTop=sc.scrollHeight;}
+    });
+  });
+
+  /* 案例背景折叠 */
+  document.querySelectorAll('.acc-head').forEach(function(h){
+    h.addEventListener('click',function(){
+      h.classList.toggle('collapsed');
+      var b=h.nextElementSibling;
+      if(b){b.style.display=h.classList.contains('collapsed')?'none':'';}
+    });
+  });
+
+  /* 星标问卷可点击 */
+  document.querySelectorAll('.stars').forEach(function(g){
+    var stars=Array.prototype.slice.call(g.children);
+    stars.forEach(function(s,i){
+      s.addEventListener('click',function(){
+        stars.forEach(function(x,j){
+          var on=j<=i;
+          x.textContent=on?'★':'☆';
+          x.classList.toggle('on',on);
+        });
+      });
+    });
+  });
+
+  /* 屏2 默认滚动到对话底部 */
+  var s2sc=document.querySelector('#s2 .chat-scroll');
+  if(s2sc){s2sc.scrollTop=s2sc.scrollHeight;}
+})();
+</script>
+</body>
+</html>

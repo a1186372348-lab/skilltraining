@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MVP 概念原型评审 — 自适应产品经理训练平台</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
+    background: #14161a;
+    color: #e8eaed;
+    min-height: 100vh;
+    padding: 64px 24px 96px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { margin-bottom: 48px; }
+  .kicker {
+    font-size: 13px; letter-spacing: .12em; color: #8a919e;
+    text-transform: uppercase; margin-bottom: 12px;
+  }
+  h1 { font-size: 32px; font-weight: 700; margin-bottom: 12px; }
+  .sub { color: #9aa1ad; font-size: 15px; line-height: 1.7; max-width: 720px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 40px;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: #1c1f26; border: 1px solid #2a2f3a; border-radius: 16px;
+    padding: 28px 26px 24px; transition: transform .18s ease, border-color .18s ease;
+  }
+  a.card:hover { transform: translateY(-4px); border-color: #4c566a; }
+  .tag {
+    display: inline-block; font-size: 12px; color: #0f1113;
+    background: #e8eaed; border-radius: 999px; padding: 3px 12px;
+    font-weight: 600; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .philo { font-size: 14px; color: #9aa1ad; line-height: 1.7; margin-bottom: 18px; }
+  .screens { font-size: 13px; color: #6f7684; line-height: 1.8; border-top: 1px solid #2a2f3a; padding-top: 14px; }
+  .screens b { color: #aab1bd; font-weight: 600; }
+  .open { margin-top: 16px; font-size: 13px; color: #7ea2f7; font-weight: 600; }
+  footer { margin-top: 56px; font-size: 13px; color: #5c6370; line-height: 1.8; }
+  footer code { background: #1c1f26; padding: 2px 8px; border-radius: 6px; color: #9aa1ad; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Adaptive PM Training · MVP</div>
+    <h1>概念原型评审（三选一）</h1>
+    <p class="sub">三个不同设计理念的 V1 高保真原型，均已剔除「能力测评」（V2 功能）。点击任意卡片在新标签页打开，进入后可通过页面顶部深色评审条切换「屏 1 / 屏 2」。</p>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="prototype-a-focus.html" target="_blank">
+      <span class="tag">原型 A</span>
+      <h2>思考舱 · 沉浸文档流</h2>
+      <p class="philo">一次只做一件事。训练就是全部界面，无侧边栏、无数据干扰，全部注意力压给案例、问题与书写。</p>
+      <div class="screens">
+        <b>屏 1</b>　今日训练主屏<br>
+        <b>屏 2</b>　训练反馈页（情感峰值页）
+      </div>
+      <div class="open">打开原型 →</div>
+    </a>
+
+    <a class="card" href="prototype-b-dashboard.html" target="_blank">
+      <span class="tag">原型 B</span>
+      <h2>成长驾驶舱 · 数据仪表盘</h2>
+      <p class="philo">把「AI 越来越懂我」做成肉眼可见的成长面板：首页即状态，每次打开都强化成长曲线感。</p>
+      <div class="screens">
+        <b>屏 1</b>　首页仪表盘<br>
+        <b>屏 2</b>　能力画像页
+      </div>
+      <div class="open">打开原型 →</div>
+    </a>
+
+    <a class="card" href="prototype-c-dialogue.html" target="_blank">
+      <span class="tag">原型 C</span>
+      <h2>产品总监在身边 · 对话陪练</h2>
+      <p class="philo">训练即与产品总监的结对讨论，没有答题卡，追问、提示、反馈都在对话流中发生，消灭考试感。</p>
+      <div class="screens">
+        <b>屏 1</b>　对话训练主屏<br>
+        <b>屏 2</b>　对话式收尾反馈
+      </div>
+      <div class="open">打开原型 →</div>
+    </a>
+  </div>
+
+  <footer>
+    设计基准：桌面 Web · 1440×900 · 浅色主题 · 单文件自包含可离线打开<br>
+    主会话模型 K3；原型制作由子代理在 K2.8 Preview 上完成（<code>[secondary_model]</code> 配置项）。
+  </footer>
+</div>
+</body>
+</html>

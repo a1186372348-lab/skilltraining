@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原型 A · 思考舱 — 自适应产品经理训练平台</title>
+<style>
+  :root{
+    --paper:#FAF9F6;
+    --card:#FFFFFF;
+    --ink:#26221C;
+    --ink-2:#57534A;
+    --ink-3:#8A8378;
+    --line:#E9E5DB;
+    --line-soft:#F0EDE5;
+    --accent:#0F766E;
+    --accent-dark:#0B5B55;
+    --accent-bg:#EDF5F3;
+    --accent-bg2:#E0EFEB;
+    --sans:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC","Segoe UI",sans-serif;
+    --serif:"Noto Serif SC","Songti SC","SimSun",serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  /* ===== 评审条（非设计稿部分） ===== */
+  .review-bar{
+    position:sticky;top:0;z-index:50;
+    background:#17140F;color:#B8B2A6;
+    min-height:46px;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:6px 20px;font-size:12.5px;
+    box-shadow:0 1px 0 rgba(0,0,0,.4);
+  }
+  .rb-left{display:flex;align-items:center;gap:12px;min-width:0}
+  .rb-badge{flex:none;background:#2A251D;color:#8F887A;border:1px solid #3A342A;border-radius:4px;padding:2px 7px;font-size:11px;letter-spacing:.12em}
+  .rb-name{flex:none;color:#EDE8DD;font-weight:600;letter-spacing:.02em}
+  .rb-concept{color:#8F887A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rb-tabs{display:flex;gap:6px;flex:none}
+  .rb-tab{
+    font-family:var(--sans);font-size:12.5px;
+    background:transparent;border:1px solid #3A342A;color:#B8B2A6;
+    border-radius:6px;padding:5px 14px;cursor:pointer;transition:all .15s ease;
+  }
+  .rb-tab:hover{color:#EDE8DD;border-color:#57503F}
+  .rb-tab.active{background:#EDE8DD;color:#17140F;border-color:#EDE8DD;font-weight:600}
+
+  /* ===== 屏幕切换 ===== */
+  .screen{display:none}
+  .screen.active{display:block}
+
+  /* ===== 顶部极简导航 ===== */
+  .topbar{
+    max-width:760px;margin:0 auto;padding:28px 24px 0;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .brand{font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:9px}
+  .brand-mark{color:var(--accent);font-size:12px}
+  .topnav{display:flex;gap:24px}
+  .nav-link{font-size:13px;color:var(--ink-3);cursor:pointer;transition:color .15s ease}
+  .nav-link:hover{color:var(--accent)}
+
+  .column{max-width:760px;margin:0 auto;padding:36px 24px 96px}
+
+  /* ===== 通用小标题 ===== */
+  .eyebrow{font-size:11.5px;letter-spacing:.14em;color:var(--ink-3);font-weight:600}
+
+  /* ===== 训练重点小卡 ===== */
+  .focus-card{
+    display:flex;gap:13px;align-items:flex-start;
+    background:var(--accent-bg);border:1px solid #D9E9E4;border-radius:12px;
+    padding:16px 20px;
+  }
+  .focus-icon{color:var(--accent);font-size:13px;line-height:1.7;flex:none}
+  .focus-eyebrow{font-size:11px;letter-spacing:.14em;color:var(--accent);font-weight:700}
+  .focus-name{font-size:16px;font-weight:700;margin-top:4px;letter-spacing:.02em}
+  .focus-desc{font-size:13px;color:var(--ink-2);margin-top:5px;line-height:1.65}
+
+  /* ===== 今日案例卡 ===== */
+  .case-card{
+    margin-top:20px;background:var(--card);
+    border:1px solid var(--line);border-radius:14px;
+    padding:28px 30px;
+    display:grid;grid-template-columns:1fr 226px;gap:32px;
+    box-shadow:0 1px 2px rgba(38,34,28,.03),0 10px 28px rgba(38,34,28,.045);
+  }
+  .case-name{font-size:21px;font-weight:700;margin-top:10px;letter-spacing:.01em}
+  .case-points{margin-top:20px;display:flex;flex-direction:column;gap:11px}
+  .case-point{display:flex;gap:16px;font-size:14px;line-height:1.6}
+  .case-point .k{flex:none;width:56px;color:var(--ink-3);font-size:12.5px;padding-top:2px;letter-spacing:.04em}
+  .case-point .v{color:var(--ink-2)}
+  .case-shot{
+    border:1px solid var(--line);border-radius:10px;min-height:176px;
+    background:repeating-linear-gradient(45deg,#F0EDE5 0 10px,#F7F5EF 10px 20px);
+    display:flex;align-items:center;justify-content:center;
+    color:#A39B8B;font-size:12px;letter-spacing:.28em;text-indent:.28em;
+  }
+
+  /* ===== 主问题 ===== */
+  .question{margin-top:56px}
+  .q-eyebrow{display:flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.16em;color:var(--accent);font-weight:700}
+  .q-eyebrow::before{content:"";width:8px;height:8px;background:var(--accent);border-radius:2px}
+  .q-text{
+    font-family:var(--serif);
+    font-size:28px;line-height:1.55;font-weight:600;
+    margin-top:16px;letter-spacing:.012em;color:var(--ink);
+  }
+
+  /* ===== 参考资料 ===== */
+  .refs{margin-top:48px}
+  .refs-title{font-size:15px;font-weight:700;display:flex;align-items:baseline;gap:8px}
+  .refs-sub{font-size:12.5px;font-weight:400;color:var(--ink-3)}
+  .refs-list{
+    margin-top:14px;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  }
+  .ref-row{display:flex;align-items:center;gap:14px;padding:13px 18px;border-top:1px solid var(--line-soft);transition:background .15s ease}
+  .ref-row:first-child{border-top:none}
+  .ref-row:hover{background:#FBFAF5}
+  .ref-tag{flex:none;width:62px;text-align:center;font-size:12px;border-radius:6px;padding:3px 0}
+  .tag-core{background:var(--accent-bg2);color:var(--accent-dark);font-weight:600}
+  .tag-ext{background:#F3F0E9;color:#8A8378}
+  .ref-title{flex:1;font-size:14px;color:var(--ink-2);line-height:1.5}
+  .ref-read{flex:none;font-size:13px;color:var(--accent);cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s ease}
+  .ref-read:hover{background:var(--accent-bg);text-decoration:underline;text-underline-offset:3px}
+
+  /* ===== 回答区 ===== */
+  .answer{margin-top:48px}
+  .answer-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px}
+  .answer-label{font-size:11.5px;letter-spacing:.16em;color:var(--ink-3);font-weight:600}
+  .hint-group{text-align:right}
+  .hint-btn{
+    font-family:var(--sans);font-size:13px;color:var(--accent);
+    background:var(--card);border:1px solid #CFE3DE;border-radius:8px;
+    padding:7px 15px;cursor:pointer;transition:all .15s ease;
+    box-shadow:0 1px 2px rgba(15,118,110,.06);
+  }
+  .hint-btn:hover{background:var(--accent-bg);border-color:var(--accent)}
+  .hint-coef{font-size:11.5px;color:var(--ink-3);margin-top:5px;letter-spacing:.02em}
+  .answer-input{
+    width:100%;height:200px;resize:vertical;
+    border:1px solid var(--line);border-radius:12px;background:var(--card);
+    padding:16px 18px;font-family:var(--sans);font-size:15px;line-height:1.75;color:var(--ink);
+    outline:none;transition:border-color .15s ease,box-shadow .15s ease;
+    box-shadow:0 1px 2px rgba(38,34,28,.03);
+  }
+  .answer-input::placeholder{color:#B4AC9C}
+  .answer-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,118,110,.12)}
+  .answer-foot{margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:18px}
+  .think-line{font-size:12.5px;color:var(--ink-3);line-height:1.65}
+
+  /* ===== 按钮 ===== */
+  .btn-primary{
+    font-family:var(--sans);font-size:15px;font-weight:600;color:#fff;
+    background:var(--accent);border:none;border-radius:10px;
+    padding:12px 30px;cursor:pointer;white-space:nowrap;
+    transition:background .15s ease,transform .15s ease;
+    box-shadow:0 1px 2px rgba(15,118,110,.25),0 5px 14px rgba(15,118,110,.18);
+  }
+  .btn-primary:hover{background:var(--accent-dark);transform:translateY(-1px)}
+  .btn-secondary{
+    font-family:var(--sans);font-size:15px;font-weight:600;color:var(--accent-dark);
+    background:var(--card);border:1px solid #CFE3DE;border-radius:10px;
+    padding:12px 28px;cursor:pointer;white-space:nowrap;transition:all .15s ease;
+  }
+  .btn-secondary:hover{background:var(--accent-bg);border-color:var(--accent)}
+
+  /* ===== 屏2：训练反馈 ===== */
+  .done-head{display:flex;align-items:center;gap:13px;margin-top:6px}
+  .done-check{flex:none;display:flex;align-items:center}
+  .done-title{font-size:24px;font-weight:700;letter-spacing:.01em}
+
+  .score-card{
+    margin-top:26px;background:var(--card);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(38,34,28,.03),0 10px 28px rgba(38,34,28,.045);
+  }
+  .score-head{display:flex;justify-content:space-between;align-items:center;padding:17px 26px;border-bottom:1px solid var(--line-soft)}
+  .score-head h2{font-size:15px;font-weight:700}
+  .calc-link{font-size:13px;color:var(--accent);cursor:pointer}
+  .calc-link:hover{text-decoration:underline;text-underline-offset:3px}
+  .score-row{padding:20px 26px 22px;border-top:1px solid var(--line-soft)}
+  .score-row.first{border-top:none}
+  .score-line{display:flex;align-items:baseline;gap:18px}
+  .score-name{flex:1;font-size:14.5px;font-weight:600}
+  .score-num{font-size:30px;font-weight:700;color:var(--accent-dark);line-height:1;font-variant-numeric:tabular-nums}
+  .score-note{width:246px;text-align:right;font-size:12px;color:var(--ink-3);line-height:1.55}
+  .score-bar{margin-top:13px;height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden}
+  .score-bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+
+  .key-card{
+    margin-top:28px;
+    background:#EFF6F3;border:1px solid #D8E8E2;border-left:4px solid var(--accent);
+    border-radius:12px;padding:24px 28px;
+  }
+  .key-label{font-size:12px;letter-spacing:.14em;font-weight:700;color:var(--accent-dark)}
+  .key-text{margin-top:11px;font-size:16px;line-height:1.85;color:var(--ink)}
+
+  .next-card{
+    margin-top:20px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:19px 26px;display:flex;gap:14px;align-items:flex-start;
+  }
+  .next-arrow{flex:none;color:var(--accent);font-size:13px;line-height:1.9}
+  .next-label{font-size:11.5px;letter-spacing:.14em;font-weight:700;color:var(--ink-3)}
+  .next-text{margin-top:6px;font-size:15px;line-height:1.7;font-weight:600}
+  .next-reason{display:block;margin-top:4px;font-size:13px;color:var(--ink-3);font-weight:400}
+
+  .survey{margin-top:28px;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .survey-row{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:19px 26px;border-top:1px solid var(--line-soft)}
+  .survey-row:first-child{border-top:none}
+  .survey-q{font-size:14.5px;line-height:1.6}
+  .stars{display:flex;gap:7px;flex:none}
+  .star{font-size:21px;color:#DCD5C6;cursor:pointer;line-height:1;user-select:none;transition:transform .12s ease,color .12s ease}
+  .star:hover{transform:scale(1.18)}
+  .star.on{color:var(--accent)}
+
+  .actions{margin-top:36px;display:flex;justify-content:flex-end;gap:14px}
+</style>
+</head>
+<body>
+
+<!-- 评审条：非设计稿部分 -->
+<div class="review-bar">
+  <div class="rb-left">
+    <span class="rb-badge">评审</span>
+    <span class="rb-name">原型 A · 思考舱</span>
+    <span class="rb-concept">沉浸式文档流 —— 一次只做一件事，注意力全部留给案例、问题与书写</span>
+  </div>
+  <div class="rb-tabs">
+    <button class="rb-tab active" data-target="screen-1">屏1 · 今日训练</button>
+    <button class="rb-tab" data-target="screen-2">屏2 · 训练反馈</button>
+  </div>
+</div>
+
+<!-- ==================== 屏1：今日训练主屏 ==================== -->
+<main class="screen active" id="screen-1">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">◇</span>今日训练 · 第 12 天</div>
+    <nav class="topnav">
+      <span class="nav-link">画像</span>
+      <span class="nav-link">历史</span>
+      <span class="nav-link">我的</span>
+    </nav>
+  </header>
+
+  <div class="column">
+
+    <!-- 训练重点 -->
+    <section class="focus-card">
+      <span class="focus-icon">◇</span>
+      <div>
+        <div class="focus-eyebrow">今日训练重点</div>
+        <div class="focus-name">产品取舍</div>
+        <div class="focus-desc">今天主要训练你识别一个产品决策同时带来的收益、成本和风险</div>
+      </div>
+    </section>
+
+    <!-- 今日案例 -->
+    <section class="case-card">
+      <div>
+        <div class="eyebrow">今日案例</div>
+        <h1 class="case-name">Cursor —— AI 代码编辑器</h1>
+        <div class="case-points">
+          <div class="case-point"><span class="k">服务谁</span><span class="v">开发者</span></div>
+          <div class="case-point"><span class="k">场景</span><span class="v">编写、修改、理解大型代码库</span></div>
+          <div class="case-point"><span class="k">相关功能</span><span class="v">代码补全、Agent 模式</span></div>
+          <div class="case-point"><span class="k">状态</span><span class="v">Agent 模式上线 3 个月</span></div>
+        </div>
+      </div>
+      <div class="case-shot">产品截图</div>
+    </section>
+
+    <!-- 主问题 -->
+    <section class="question">
+      <div class="q-eyebrow">主问题</div>
+      <p class="q-text">Cursor 为什么需要 Agent 模式，而不仅仅提供代码补全？</p>
+    </section>
+
+    <!-- 参考资料 -->
+    <section class="refs">
+      <div class="refs-title">参考资料<span class="refs-sub">（不必读完，先读两篇核心）</span></div>
+      <div class="refs-list">
+        <div class="ref-row">
+          <span class="ref-tag tag-core">★核心</span>
+          <span class="ref-title">Cursor 官方博客：Agent 模式发布说明</span>
+          <span class="ref-read">阅读</span>
+        </div>
+        <div class="ref-row">
+          <span class="ref-tag tag-core">★核心</span>
+          <span class="ref-title">创始人访谈：为什么补全还不够</span>
+          <span class="ref-read">阅读</span>
+        </div>
+        <div class="ref-row">
+          <span class="ref-tag tag-ext">○扩展</span>
+          <span class="ref-title">用户吐槽：Agent 犯错的瞬间</span>
+          <span class="ref-read">阅读</span>
+        </div>
+        <div class="ref-row">
+          <span class="ref-tag tag-ext">○扩展</span>
+          <span class="ref-title">竞品对比：Copilot Workspace</span>
+          <span class="ref-read">阅读</span>
+        </div>
+        <div class="ref-row">
+          <span class="ref-tag tag-ext">○扩展</span>
+          <span class="ref-title">第三方分析：自主性与风险的权衡</span>
+          <span class="ref-read">阅读</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 回答区 -->
+    <section class="answer">
+      <div class="answer-head">
+        <span class="answer-label">我的回答</span>
+        <div class="hint-group">
+          <button class="hint-btn">给我一个提示</button>
+          <div class="hint-coef">当前独立完成系数 ×1.0</div>
+        </div>
+      </div>
+      <textarea class="answer-input" placeholder="自由书写，想到哪写到哪"></textarea>
+      <div class="answer-foot">
+        <span class="think-line">思考方向（非必填）：用户任务 · 当前问题 · 新价值 · 成本 · 风险</span>
+        <button class="btn-primary">提交我的判断</button>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ==================== 屏2：训练反馈页 ==================== -->
+<main class="screen" id="screen-2">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">◇</span>今日训练 · 第 12 天</div>
+    <nav class="topnav">
+      <span class="nav-link">画像</span>
+      <span class="nav-link">历史</span>
+      <span class="nav-link">我的</span>
+    </nav>
+  </header>
+
+  <div class="column">
+
+    <!-- 完成标题 -->
+    <div class="done-head">
+      <span class="done-check">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="11" fill="#0F766E"/>
+          <path d="M7.5 12.2l3 3 6-6" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <h1 class="done-title">训练完成 · Cursor 的 Agent 模式</h1>
+    </div>
+
+    <!-- 有效得分 -->
+    <section class="score-card">
+      <div class="score-head">
+        <h2>本次有效得分</h2>
+        <span class="calc-link">查看计算过程</span>
+      </div>
+      <div class="score-row first">
+        <div class="score-line">
+          <span class="score-name">产品取舍</span>
+          <span class="score-num">68</span>
+          <span class="score-note">原始 85 × 系数 0.8（用了 2 次提示）</span>
+        </div>
+        <div class="score-bar"><i style="width:68%"></i></div>
+      </div>
+      <div class="score-row">
+        <div class="score-line">
+          <span class="score-name">用户理解</span>
+          <span class="score-num">82</span>
+          <span class="score-note">原始 82 × 系数 1.0（完全独立）</span>
+        </div>
+        <div class="score-bar"><i style="width:82%"></i></div>
+      </div>
+      <div class="score-row">
+        <div class="score-line">
+          <span class="score-name">产品价值判断</span>
+          <span class="score-num">74</span>
+          <span class="score-note">原始 74 × 系数 1.0（完全独立）</span>
+        </div>
+        <div class="score-bar"><i style="width:74%"></i></div>
+      </div>
+    </section>
+
+    <!-- 最需要优化的一个问题 -->
+    <section class="key-card">
+      <div class="key-label">最需要优化的一个问题</div>
+      <p class="key-text">你准确说明了 Agent 压缩操作步骤的收益，但两次忽略了自主性带来的错误风险与用户信任成本——这正是「取舍」的另一面。</p>
+    </section>
+
+    <!-- 下一步 -->
+    <section class="next-card">
+      <span class="next-arrow">▸</span>
+      <div>
+        <div class="next-label">下一步</div>
+        <div class="next-text">明天将训练「复杂决策中的成本识别」<span class="next-reason">基于你今天在产品取舍上的表现</span></div>
+      </div>
+    </section>
+
+    <!-- 反馈问卷 -->
+    <section class="survey">
+      <div class="survey-row">
+        <span class="survey-q">这次反馈是否让你更清楚自己的问题？</span>
+        <span class="stars">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+        </span>
+      </div>
+      <div class="survey-row">
+        <span class="survey-q">你是否清楚接下来最值得训练什么？</span>
+        <span class="stars">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+        </span>
+      </div>
+    </section>
+
+    <!-- 底部双按钮 -->
+    <div class="actions">
+      <button class="btn-secondary">查看能力画像</button>
+      <button class="btn-primary">再练一题</button>
+    </div>
+
+  </div>
+</main>
+
+<script>
+(function(){
+  var tabs = document.querySelectorAll('.rb-tab');
+  function show(id){
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++){
+      screens[i].classList.toggle('active', screens[i].id === id);
+    }
+    for (var j = 0; j < tabs.length; j++){
+      tabs[j].classList.toggle('active', tabs[j].getAttribute('data-target') === id);
+    }
+    window.scrollTo(0, 0);
+  }
+  for (var k = 0; k < tabs.length; k++){
+    tabs[k].addEventListener('click', function(){
+      show(this.getAttribute('data-target'));
+    });
+  }
+
+  var groups = document.querySelectorAll('.stars');
+  for (var g = 0; g < groups.length; g++){
+    (function(group){
+      var stars = group.querySelectorAll('.star');
+      for (var i = 0; i < stars.length; i++){
+        (function(idx){
+          stars[idx].addEventListener('click', function(){
+            for (var j = 0; j < stars.length; j++){
+              stars[j].classList.toggle('on', j <= idx);
+            }
+          });
+        })(i);
+      }
+    })(groups[g]);
+  }
+})();
+</script>
+</body>
+</html>

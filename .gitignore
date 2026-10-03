@@ -1,0 +1,24 @@
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 日志与临时文件
+*.log
+temp/
+tmp/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
