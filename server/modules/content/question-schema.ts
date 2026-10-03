@@ -37,13 +37,31 @@ const nonEmpty = (label: string) => z.string().min(1, `${label}不能为空`);
 
 const abilityTagSchema = z.enum(ABILITY_DIMENSIONS);
 
-// 案例背景：产品 / 服务谁 / 场景 / 相关功能 / 当前状态（T12 内容约定）
+// 案例背景单字段（T13 / BR-8）：事实文本 + 引用编号（指向 case_sources，逐字段可核验）
+// text  trim 后非空；citations 至少 1 个正整数编号（存在性由下方 superRefine 校验）
+const caseFieldSchema = z.strictObject({
+  text: z.string().trim().min(1, "案例背景字段 text 不能为空"),
+  citations: z
+    .array(z.number().int("引用编号必须是整数").positive("引用编号必须 ≥ 1"))
+    .min(1, "案例背景字段 citations 不能为空（BR-8：每字段必须有来源标记）"),
+});
+
+// 案例背景五要素：产品 / 服务谁 / 场景 / 相关功能 / 当前状态（T13 新契约键名）
 const caseBackgroundSchema = z.strictObject({
-  product: nonEmpty("case_background.product"),
-  audience: nonEmpty("case_background.audience"),
-  scenario: nonEmpty("case_background.scenario"),
-  related_features: nonEmpty("case_background.related_features"),
-  current_status: nonEmpty("case_background.current_status"),
+  product: caseFieldSchema,
+  audience: caseFieldSchema,
+  scenario: caseFieldSchema,
+  features: caseFieldSchema,
+  status: caseFieldSchema,
+});
+
+// 案例来源条目（T13 / BR-8）：id 从 1 连续编号（连续性由下方 superRefine 校验）；
+// url 限定 http(s) 真实可打开链接（来源政策：官方一手 > 权威媒体 > 其他，publisher 如实标注）
+const caseSourceSchema = z.strictObject({
+  id: z.number().int("case_sources id 必须是整数").positive("case_sources id 必须 ≥ 1"),
+  title: nonEmpty("case_sources title"),
+  publisher: nonEmpty("case_sources publisher"),
+  url: z.url({ protocol: /^https?$/, error: "case_sources url 必须是合法 http(s) 链接" }),
 });
 
 // 资料条目：标题 / 来源 / 原文链接 / 精编摘要
@@ -82,6 +100,7 @@ export const questionContentSchema = z
     title: nonEmpty("title"),
     case_title: nonEmpty("case_title"),
     case_background: caseBackgroundSchema,
+    case_sources: z.array(caseSourceSchema).min(1, "case_sources 至少 1 条（BR-8）"),
     main_question: nonEmpty("main_question"),
     ability_tags: z
       .array(abilityTagSchema)
@@ -130,6 +149,34 @@ export const questionContentSchema = z
           message: `提示树第 ${index + 1} 层 level 应为 ${index + 1}，实际为 ${layer.level}`,
         });
       }
+    });
+    // 案例来源 id 必须从 1 开始连续编号（BR-8：上标 [n] 与来源列表一一对应）
+    q.case_sources.forEach((source, index) => {
+      if (source.id !== index + 1) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["case_sources", index, "id"],
+          message: `case_sources 第 ${index + 1} 条 id 应为 ${index + 1}，实际为 ${source.id}（id 从 1 连续编号）`,
+        });
+      }
+    });
+    // 五字段的每个引用 id 必须存在于 case_sources（BR-8：标号必须可溯源）
+    const sourceIds = new Set(q.case_sources.map((source) => source.id));
+    (
+      Object.entries(q.case_background) as [
+        keyof typeof q.case_background,
+        { citations: number[] },
+      ][]
+    ).forEach(([field, value]) => {
+      value.citations.forEach((citationId, citationIndex) => {
+        if (!sourceIds.has(citationId)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["case_background", field, "citations", citationIndex],
+            message: `case_background.${field} 引用了不存在的来源 id ${citationId}`,
+          });
+        }
+      });
     });
   });
 

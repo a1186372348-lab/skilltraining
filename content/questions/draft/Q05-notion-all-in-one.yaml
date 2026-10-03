@@ -4,11 +4,46 @@ id: Q05
 title: "Notion 从文档工具走向 All-in-One 的边界判断"
 case_title: "工具箱的边界：Notion 该做到哪一步"
 case_background:
-  product: "Notion——Notion Labs 出品的协作工作空间，以 block（块）为基本单位，把文档、知识库（wiki）、数据库与项目管理组合在同一空间里。"
-  audience: "个人知识工作者与中小团队；其 all-in-one 叙事所对标的，是「在多个单点工具（文档、表格、项目管理、Wiki）间来回切换」的团队。"
-  scenario: "2016 年发布 1.0（以文档/笔记为主），2018 年 3 月发布 2.0 后明确 all-in-one workspace 定位，创始人 Ivan Zhao 称「Notion 2.0 is really the 1.0 for us」；此后持续向更多工作场景扩展（日历、邮件、AI 等，细节见 uncertainty）。"
-  related_features: "页面与 block 编辑器、数据库（表格/看板/日历视图）、wiki、模板生态、第三方集成与 API、AI 能力。"
-  current_status: "all-in-one 已是 Notion 的官方定位与公司愿景（让个人、团队与企业都能快速协作并自建所需工具）；同时争议始终存在：每个单点场景上都有体验更深的专业工具（如文档有 Google Docs、项目管理有 Jira/Linear）。"
+  product:
+    text: "Notion——Notion Labs 出品的协作工作空间，以 block（块）为基本单位，把文档、知识库（wiki）、数据库与项目管理组合在同一空间里。"
+    citations: [4, 6]
+  audience:
+    text: "个人知识工作者与中小团队；其 all-in-one 叙事所对标的，是「在多个单点工具（文档、表格、项目管理、Wiki）间来回切换」的团队——Notion 官方亦称多数工具彼此割裂，来回切换带来上下文切换成本。"
+    citations: [1, 4]
+  scenario:
+    text: "2016 年发布 1.0（以文档/笔记为主），2018 年 3 月发布 2.0 后明确 all-in-one workspace 定位，创始人 Ivan Zhao 称「Notion 2.0 is really the 1.0 for us」；此后持续向更多工作场景扩展：2024 年 1 月推出 Notion Calendar（由收购的 Cron 更名而来），2025 年 4 月上线 Notion Mail。"
+    citations: [4, 5, 1, 2]
+  features:
+    text: "页面与 block 编辑器、数据库（表格/看板/日历视图）、wiki、模板生态、第三方集成与 API、AI 能力（如 Notion Mail 的自动整理与起草邮件）。"
+    citations: [4, 6, 2]
+  status:
+    text: "all-in-one 已是 Notion 官方持续阐述的愿景（官方博客称希望把「时间层」带入 Notion 的各个方面：笔记、项目、任务）；但场景扩张有进有退——Notion Mail 上线约一年半后，Notion 宣布其于 2026 年 9 月 22 日停运，公司称将把重心转向 AI agents。"
+    citations: [1, 2, 3]
+case_sources:
+  - id: 1
+    title: "Introducing Notion Calendar（Cron is now Notion Calendar）"
+    publisher: "Notion 官方博客"
+    url: "https://www.notion.com/blog/introducing-notion-calendar"
+  - id: 2
+    title: "Notion 2.50: Meet Notion Mail"
+    publisher: "Notion 官方 Releases"
+    url: "https://www.notion.com/releases/2025-04-15"
+  - id: 3
+    title: "Notion Mail shuts down amid agent takeover"
+    publisher: "TechCrunch"
+    url: "https://techcrunch.com/2026/06/25/notion-mail-shuts-down-amid-agent-takeover/"
+  - id: 4
+    title: "How Notion Is Going After Atlassian and Why It Just Might Win"
+    publisher: "nira.com"
+    url: "https://nira.com/notion-history/"
+  - id: 5
+    title: "Notion：社区驱动增长"
+    publisher: "maxoxo.me"
+    url: "https://maxoxo.me/notion/"
+  - id: 6
+    title: "Notion 的团队与产品故事"
+    publisher: "飞书文档（公开 wiki）"
+    url: "https://docs.feishu.cn/v/wiki/wikcn05lCztyIIHGpg3H95TqdDb/a5"
 main_question: "Notion 从文档工具扩张为 all-in-one workspace 的合理性来自哪里，边界又在哪里？如果你是其产品负责人，面对「要不要进入某个新场景（如日历、邮件、表单）」的决策，你会用什么框架来判断？"
 ability_tags:
   - 问题定义
@@ -75,6 +110,6 @@ materials:
       url: "https://raymondhouch.com/lifehacker/digital-workflow/notion-pioneers/"
       summary: "介绍 Notion 设计思想渊源：Ivan Zhao 强调 Notion 不只是工具（tool）而是工具箱（toolbox），让用户按自己的需求自行组合使用。"
 uncertainty:
-  - "Notion 向日历（收购 Cron 后推出 Notion Calendar）、邮件（Notion Mail）等场景扩张的具体时间与细节未在本批检索中核实，评审时需确认后再定稿。"
+  - "「每个单点场景上都有体验更深的专业工具」为编辑性判断、无合格来源，已按 D18 政策从案例背景移除（在此保留备查）。"
   - "Notion 估值在不同来源间口径不一（约 100 亿~110 亿美元），案例未采用具体数字。"
 status: draft

@@ -16,12 +16,16 @@ function makeContent(id: string): QuestionContent {
     title: `题目 ${id}`,
     case_title: `案例 ${id}`,
     case_background: {
-      product: "p",
-      audience: "a",
-      scenario: "s",
-      related_features: "f",
-      current_status: "c",
+      product: { text: "p", citations: [1] },
+      audience: { text: "a", citations: [1] },
+      scenario: { text: "s", citations: [2] },
+      features: { text: "f", citations: [1, 2] },
+      status: { text: "c", citations: [2] },
     },
+    case_sources: [
+      { id: 1, title: "来源一", publisher: "官方", url: "https://example.com/s1" },
+      { id: 2, title: "来源二", publisher: "媒体", url: "https://example.com/s2" },
+    ],
     main_question: "问？",
     ability_tags: ["问题定义", "用户理解"],
     difficulty: "挑战",
@@ -87,11 +91,16 @@ describe("toQuestionUpsertArgs：YAML 内容到 questions 表行的映射", () =
     expect(JSON.stringify(args.create.rubric)).not.toContain("未核实数据");
   });
 
-  it("无 uncertainty 时 case_background 原样落库，不附加字段", () => {
+  it("无 uncertainty 时 case_background 与 case_sources 原样并入 jsonb 落库", () => {
     const content = makeContent("Q01");
     delete content.uncertainty;
     const args = toQuestionUpsertArgs(content);
-    expect(args.create.caseBackground).toEqual(content.case_background);
+    // T13 / BR-8：case_sources 并入 case_background jsonb（R6 预留扩展），
+    // 不新增表字段；历史/今日视图从同一 jsonb 中读取，保证归档会话也能回放来源
+    expect(args.create.caseBackground).toEqual({
+      ...content.case_background,
+      case_sources: content.case_sources,
+    });
   });
 
   it("uncertainty 随题目一起落库（并入结构化内容，不丢失评审信息）", () => {
@@ -99,6 +108,12 @@ describe("toQuestionUpsertArgs：YAML 内容到 questions 表行的映射", () =
     const args = toQuestionUpsertArgs(content);
     const flat = JSON.stringify(args.create);
     expect(flat).toContain("未核实数据");
+    // uncertainty 与 case_sources 并存于 case_background jsonb（各自键互不干扰）
+    expect(args.create.caseBackground).toEqual({
+      ...content.case_background,
+      case_sources: content.case_sources,
+      uncertainty: content.uncertainty,
+    });
   });
 });
 

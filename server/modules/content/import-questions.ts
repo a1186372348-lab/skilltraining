@@ -24,15 +24,18 @@ export interface ImportSummary {
 
 // YAML 内容 -> questions 表 upsert 入参
 // 字段映射对齐 prisma/schema.prisma 的 Question 模型：
-// 难度标签转 Int（2/3/4）；uncertainty 并入 case_background jsonb（R6：jsonb 预留扩展）
+// 难度标签转 Int（2/3/4）；case_sources（T13/BR-8）与 uncertainty 并入 case_background jsonb
+//（R6：jsonb 预留扩展；不新增表字段，今日/历史视图从同一 jsonb 读取，归档会话原样兼容）
 export function toQuestionUpsertArgs(content: QuestionContent): QuestionUpsertArgs {
   const id = questionUuid(content.id);
   const row: Record<string, unknown> = {
     id,
     caseTitle: content.case_title,
-    caseBackground: content.uncertainty
-      ? { ...content.case_background, uncertainty: content.uncertainty }
-      : content.case_background,
+    caseBackground: {
+      ...content.case_background,
+      case_sources: content.case_sources,
+      ...(content.uncertainty ? { uncertainty: content.uncertainty } : {}),
+    },
     mainQuestion: content.main_question,
     abilityTags: content.ability_tags,
     difficulty: DIFFICULTY_TO_INT[content.difficulty],

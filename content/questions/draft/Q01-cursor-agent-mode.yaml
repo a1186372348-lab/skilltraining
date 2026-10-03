@@ -4,11 +4,46 @@ id: Q01
 title: "Cursor 为什么需要 Agent 模式而不仅仅是代码补全"
 case_title: "从「帮你写」到「替你做」：Cursor 的 Agent 模式"
 case_background:
-  product: "Cursor——Anysphere 公司出品的 AI 原生代码编辑器，基于 VS Code 分叉构建，深度集成多家大模型。"
-  audience: "软件开发者（从独立开发者到企业研发团队），尤其是愿意让 AI 深度参与开发流程的早期采用者。"
-  scenario: "开发者完成一个真实编码任务的全过程：理解需求、定位代码、编写与修改多个文件、运行命令与测试、修复报错——而不只是在光标处续写下一行。"
-  related_features: "Tab 自动补全（多行连续补全）、Cmd+K 行内编辑、Chat/Ask 对话、Agent 模式（自主探索代码库、编辑多文件、运行终端命令）、Plan 模式、多 Agent 并行。"
-  current_status: "2025 年 Cursor 2.0 将编辑器重心转向多 Agent 管理（同一提示最多 8 个代理并行）；官方博客称用户主要工作正变为「为 Agent 提供完成任务所需的上下文」。据 2025 年媒体报道，母公司 Anysphere 成立约两年估值约 90 亿美元（数字未经官方确认，见 uncertainty）。"
+  product:
+    text: "Cursor——Anysphere 公司出品的 AI 代码编辑器，基于 VS Code 分叉构建，集成多家大模型并支持 Agent 智能体编码。"
+    citations: [2, 4, 5]
+  audience:
+    text: "软件开发者（从独立开发者到企业研发团队），尤其是愿意让 AI 深度参与开发流程的团队；Cursor 官方为企业团队提供沙箱终端管控、审计日志、团队共享规则等管理能力。"
+    citations: [2, 4]
+  scenario:
+    text: "开发者完成一个真实编码任务的全过程：理解需求、定位代码、编写与修改多个文件、运行命令与测试、修复报错——而不只是在光标处续写下一行；官方博客称，习惯由 Agent 写代码后，用户的主要工作变为「为每个 Agent 提供完成任务所需的上下文」。"
+    citations: [1, 2, 3]
+  features:
+    text: "Tab 自动补全、Chat/Ask 对话、Agent 模式（自主探索代码库、编辑多文件、在沙箱终端运行命令）、后台计划（Plan）模式、多 Agent 并行（同一提示最多 8 个，以 git worktrees 或远程机器隔离）、内嵌 Browser。"
+    citations: [2, 3, 6]
+  status:
+    text: "2025 年 Cursor 2.0 将编辑器重心转向多 Agent 管理；官方博客称用户主要工作正变为「为 Agent 提供完成任务所需的上下文」。据彭博社报道，2025 年 6 月 Anysphere 完成 9 亿美元融资，估值 99 亿美元、年化收入超 5 亿美元（数字未经公司官方确认）。"
+    citations: [1, 2, 4]
+case_sources:
+  - id: 1
+    title: "使用智能体编码的最佳实践"
+    publisher: "Cursor 官方博客"
+    url: "https://cursor.com/cn/blog/agent-best-practices"
+  - id: 2
+    title: "全新代码模型与 Agent 界面（Cursor 2.0）"
+    publisher: "Cursor 官网 Changelog"
+    url: "https://cursor.com/cn/changelog/2-0"
+  - id: 3
+    title: "Cursor 功能页"
+    publisher: "Cursor 官网"
+    url: "https://cursor.com/features"
+  - id: 4
+    title: "Cursor's Anysphere nabs $9.9B valuation, soars past $500M ARR"
+    publisher: "TechCrunch（Yahoo Finance 转载，引述彭博社报道）"
+    url: "https://finance.yahoo.com/news/cursors-anysphere-nabs-9-9b-221451672.html"
+  - id: 5
+    title: "免费 AI 编程助手实测对比：Copilot / Codeium / Cursor / Tabby"
+    publisher: "盛网科技博客"
+    url: "https://www.shengwang.cn/blog/blogdetail/free-ai-code-assistant/"
+  - id: 6
+    title: "Cursor 入门教程：三大核心 AI 功能"
+    publisher: "SegmentFault"
+    url: "https://segmentfault.com/a/1190000046916720"
 main_question: "以 Cursor 为例，从「代码补全」到「Agent 模式」的跨越，为什么是产品价值上的质变而不只是功能叠加？这一步跨越让产品付出了什么代价？"
 ability_tags:
   - 用户理解
@@ -75,6 +110,5 @@ materials:
       url: "https://www.shengwang.cn/blog/blogdetail/free-ai-code-assistant/"
       summary: "对比文章指出 Cursor 基于 VS Code 分叉，核心为 Tab 补全与内置 Chat；用户测试中 Tab 的多行连续补全在连贯性与准确度上优于 GitHub Copilot。"
 uncertainty:
-  - "Anysphere 融资金额、估值（约 90 亿美元）与年营收（约 5 亿美元）来自 2025 年 6 月媒体转载报道，非官方披露，可能已变化。"
-  - "Cursor Pro 定价（约 20 美元/月）来自第三方工具站，未在官网核实。"
+  - "Cursor Pro 定价（约 20 美元/月）未在官网核实；TechCrunch 2025 年 6 月报道（引述彭博社）亦提及 20 美元 Pro 与 40 美元 Business 两档定价，案例正文未采用。"
 status: draft

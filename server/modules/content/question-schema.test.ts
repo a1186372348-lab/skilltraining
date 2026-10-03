@@ -8,19 +8,24 @@ import {
   questionContentSchema,
 } from "./question-schema.ts";
 
-// 合法样本工厂：结构对齐 content/questions/draft/ 真实草案
+// 合法样本工厂：结构对齐 content/questions/draft/ 真实草案（T13 新契约：
+// 案例背景五字段均为 {text, citations[]}，配套 case_sources 编号来源列表）
 function validQuestion() {
   return {
     id: "Q99",
     title: "样例题：某产品为什么做某功能",
     case_title: "样例案例标题",
     case_background: {
-      product: "某产品介绍。",
-      audience: "目标用户。",
-      scenario: "典型场景。",
-      related_features: "相关功能。",
-      current_status: "当前状态。",
+      product: { text: "某产品介绍。", citations: [1, 2] },
+      audience: { text: "目标用户。", citations: [1] },
+      scenario: { text: "典型场景。", citations: [2] },
+      features: { text: "相关功能。", citations: [1, 2] },
+      status: { text: "当前状态。", citations: [2] },
     },
+    case_sources: [
+      { id: 1, title: "来源一", publisher: "官方博客", url: "https://example.com/a" },
+      { id: 2, title: "来源二", publisher: "权威媒体", url: "https://example.com/b" },
+    ],
     main_question: "如果你是该产品负责人，你会怎么做？",
     ability_tags: ["问题定义", "产品价值判断", "产品取舍"],
     difficulty: "中等",
@@ -278,7 +283,7 @@ describe("题库内容 schema", () => {
     it("案例背景缺字段被拒绝", () => {
       const q = validQuestion();
       const background: Record<string, unknown> = { ...q.case_background };
-      delete background.current_status;
+      delete background.status;
       expect(questionContentSchema.safeParse({ ...q, case_background: background }).success).toBe(false);
     });
 
@@ -290,6 +295,140 @@ describe("题库内容 schema", () => {
     it("未知顶层字段被拒绝（防止草案笔误静默通过）", () => {
       const q = { ...validQuestion(), typo_field: "x" };
       expect(questionContentSchema.safeParse(q).success).toBe(false);
+    });
+  });
+
+  describe("案例事实引用（T13 / BR-8：五字段 {text, citations[]} + case_sources）", () => {
+    /** 取首个 issue 的 path 字符串，用于精确断言是预期规则拦截 */
+    function firstIssuePath(q: unknown): string {
+      const r = questionContentSchema.safeParse(q);
+      if (r.success) return "";
+      return r.error.issues[0]?.path.join(".") ?? "";
+    }
+
+    it("字段仍为旧版字符串形被拒绝（必须升级为 {text, citations}）", () => {
+      const q = validQuestion();
+      const background = { ...q.case_background, product: "旧版纯字符串" };
+      const r = questionContentSchema.safeParse({ ...q, case_background: background });
+      expect(r.success).toBe(false);
+      expect(firstIssuePath({ ...q, case_background: background })).toContain("case_background.product");
+    });
+
+    it("字段缺 text 或 text 为空被拒绝", () => {
+      const q = validQuestion();
+      const noText = { ...q.case_background, audience: { citations: [1] } };
+      expect(questionContentSchema.safeParse({ ...q, case_background: noText }).success).toBe(false);
+
+      const emptyText = {
+        ...q.case_background,
+        audience: { text: "  ", citations: [1] },
+      };
+      // text 用空白串：min(1) 拦截的是空串；纯空白交给 trim 校验（见下方 GREEN 实现说明）
+      const r = questionContentSchema.safeParse({ ...q, case_background: emptyText });
+      expect(r.success).toBe(false);
+    });
+
+    it("字段缺 citations 或 citations 为空数组被拒绝", () => {
+      const q = validQuestion();
+      const noCitations = { ...q.case_background, scenario: { text: "有文本" } };
+      const r1 = questionContentSchema.safeParse({ ...q, case_background: noCitations });
+      expect(r1.success).toBe(false);
+
+      const emptyCitations = { ...q.case_background, scenario: { text: "有文本", citations: [] } };
+      const r2 = questionContentSchema.safeParse({ ...q, case_background: emptyCitations });
+      expect(r2.success).toBe(false);
+      expect(firstIssuePath({ ...q, case_background: emptyCitations })).toContain(
+        "case_background.scenario.citations",
+      );
+    });
+
+    it("citations 含非正整数编号被拒绝", () => {
+      const q = validQuestion();
+      const zero = { ...q.case_background, product: { text: "x", citations: [0] } };
+      expect(questionContentSchema.safeParse({ ...q, case_background: zero }).success).toBe(false);
+      const float = { ...q.case_background, product: { text: "x", citations: [1.5] } };
+      expect(questionContentSchema.safeParse({ ...q, case_background: float }).success).toBe(false);
+    });
+
+    it("引用 id 不存在于 case_sources 被拒绝（BR-8：标号必须可溯源）", () => {
+      const q = validQuestion();
+      const dangling = { ...q.case_background, status: { text: "x", citations: [9] } };
+      const r = questionContentSchema.safeParse({ ...q, case_background: dangling });
+      expect(r.success).toBe(false);
+      expect(firstIssuePath({ ...q, case_background: dangling })).toContain(
+        "case_background.status.citations",
+      );
+    });
+
+    it("缺 case_sources 或 case_sources 为空数组被拒绝", () => {
+      const q = validQuestion() as Record<string, unknown>;
+      delete q.case_sources;
+      expect(questionContentSchema.safeParse(q).success).toBe(false);
+
+      expect(questionContentSchema.safeParse({ ...validQuestion(), case_sources: [] }).success).toBe(
+        false,
+      );
+    });
+
+    it("case_sources id 必须从 1 开始连续编号", () => {
+      const q = validQuestion();
+      // 从 2 开始
+      const from2 = [
+        { id: 2, title: "来源一", publisher: "官方", url: "https://example.com/a" },
+        { id: 3, title: "来源二", publisher: "媒体", url: "https://example.com/b" },
+      ];
+      expect(questionContentSchema.safeParse({ ...q, case_sources: from2 }).success).toBe(false);
+      // 跳号不连续
+      const gap = [
+        { id: 1, title: "来源一", publisher: "官方", url: "https://example.com/a" },
+        { id: 3, title: "来源二", publisher: "媒体", url: "https://example.com/b" },
+      ];
+      expect(questionContentSchema.safeParse({ ...q, case_sources: gap }).success).toBe(false);
+      // 重复 id（同样破坏连续性）
+      const dup = [
+        { id: 1, title: "来源一", publisher: "官方", url: "https://example.com/a" },
+        { id: 1, title: "来源二", publisher: "媒体", url: "https://example.com/b" },
+      ];
+      expect(questionContentSchema.safeParse({ ...q, case_sources: dup }).success).toBe(false);
+    });
+
+    it("case_sources 缺 title / publisher 被拒绝", () => {
+      const q = validQuestion();
+      const noPublisher = [
+        { id: 1, title: "来源一", url: "https://example.com/a" },
+        { id: 2, title: "来源二", publisher: "媒体", url: "https://example.com/b" },
+      ];
+      expect(questionContentSchema.safeParse({ ...q, case_sources: noPublisher }).success).toBe(
+        false,
+      );
+      const noTitle = [
+        { id: 1, publisher: "官方", url: "https://example.com/a" },
+        { id: 2, title: "来源二", publisher: "媒体", url: "https://example.com/b" },
+      ];
+      expect(questionContentSchema.safeParse({ ...q, case_sources: noTitle }).success).toBe(false);
+    });
+
+    it("case_sources url 非法或非 http(s) 被拒绝", () => {
+      const q = validQuestion();
+      const notUrl = [
+        { id: 1, title: "来源一", publisher: "官方", url: "不是链接" },
+        { id: 2, title: "来源二", publisher: "媒体", url: "https://example.com/b" },
+      ];
+      expect(questionContentSchema.safeParse({ ...q, case_sources: notUrl }).success).toBe(false);
+      // ftp 等非 http(s) 协议不允许（BR-8：真实可打开的网页来源）
+      const ftp = [
+        { id: 1, title: "来源一", publisher: "官方", url: "ftp://example.com/a" },
+        { id: 2, title: "来源二", publisher: "媒体", url: "https://example.com/b" },
+      ];
+      const r = questionContentSchema.safeParse({ ...q, case_sources: ftp });
+      expect(r.success).toBe(false);
+      expect(firstIssuePath({ ...q, case_sources: ftp })).toContain("case_sources.0.url");
+    });
+
+    it("http 与 https 链接均接受", () => {
+      const q = validQuestion();
+      q.case_sources[0].url = "http://example.com/a";
+      expect(questionContentSchema.safeParse(q).success).toBe(true);
     });
   });
 });
