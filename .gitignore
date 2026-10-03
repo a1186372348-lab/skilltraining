@@ -4,11 +4,13 @@ node_modules/
 out/
 dist/
 build/
+coverage/
 
 # 环境与密钥
 .env
 .env.*
 !.env.example
+*.pem
 
 # 日志与临时文件
 *.log
@@ -22,3 +24,10 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+
+# 部署
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,205 @@
+// Prisma 数据模型：对应 Prd.md 3.4 的 11 张表
+// 命名约定：模型用 PascalCase，表名/字段名用 snake_case（@@map / @map）
+// jsonb 字段按 Prd.md 3.4 标注，用于 Rubric、提示树等结构化内容（R6：预留扩展）
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 训练会话状态机（Prd.md 3.4 / R4：显式状态枚举，服务端单一事实源）
+enum TrainingSessionState {
+  reading   // 阅读案例与资料
+  answering // 自由作答（可请求提示）
+  followup  // 首答已提交，AI 追问中
+  scored    // 终答已评分
+}
+
+// 题目上架状态（R3：每题试运行后方可上架，仅上架题参与出题）
+enum QuestionStatus {
+  draft     // 草稿（生产中/评审中）
+  published // 上架
+  archived  // 下架归档
+}
+
+// 用户主表（D17：与登录身份分离，新增登录方式无需改本表）
+model User {
+  id              String           @id @default(uuid()) @db.Uuid
+  email           String           @unique
+  createdAt       DateTime         @default(now()) @map("created_at")
+  identities      AuthIdentity[]
+  profile         UserProfile?
+  profileDraft    ProfileDraft?
+  sessions        TrainingSession[]
+  abilityProfiles AbilityProfile[]
+
+  @@map("users")
+}
+
+// 登录身份（V1 仅 email_magic_link；预留 email_code / wechat 等 provider）
+model AuthIdentity {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  provider        String           // 身份提供方：email_magic_link / email_code / wechat ...
+  providerUid     String           @map("provider_uid") // 该提供方下的唯一标识（如邮箱地址）
+  createdAt       DateTime         @default(now()) @map("created_at")
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  magicLinkTokens MagicLinkToken[]
+
+  @@unique([provider, providerUid])
+  @@index([userId])
+  @@map("auth_identities")
+}
+
+// 魔法链接令牌（3.5：哈希存储、一次性使用、15 分钟过期）
+model MagicLinkToken {
+  id         String       @id @default(uuid()) @db.Uuid
+  identityId String       @map("identity_id") @db.Uuid
+  tokenHash  String       @unique @map("token_hash") // 仅存哈希，不存明文 token
+  expiresAt  DateTime     @map("expires_at") // 签发后 15 分钟过期
+  usedAt     DateTime?    @map("used_at") // 核销时间；非空即已使用，不可复用
+  createdIp  String?      @map("created_ip") // 签发请求来源 IP（审计用）
+  identity   AuthIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@index([identityId])
+  @@map("magic_link_tokens")
+}
+
+// 初始用户画像（US-001 问卷；user_id 即主键，与 users 一对一）
+model UserProfile {
+  userId            String   @id @map("user_id") @db.Uuid
+  position          String   // 职位
+  yearsExperience   String   @map("years_experience") // 年限
+  industry          String   // 行业
+  projectExperience String?  @map("project_experience") // 项目经验
+  familiarProducts  Json     @map("familiar_products") // jsonb：熟悉产品列表（首题优先匹配，D11）
+  interestAreas     Json     @map("interest_areas") // jsonb：兴趣领域列表
+  learningGoal      String?  @map("learning_goal") // 学习目标
+  selfAssessment    Json     @map("self_assessment") // jsonb：自评方向（维度 -> 自评）
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+// 画像问卷草稿（T04：提交前暂存，刷新不丢；提交成功后由服务端清除）
+model ProfileDraft {
+  userId    String   @id @map("user_id") @db.Uuid
+  payload   Json // jsonb：草稿表单内容（zod 部分校验后的快照，允许字段缺失）
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profile_drafts")
+}
+
+// 训练题（D1：预置精品题库；内容由 YAML 导入，见 scripts/import-content）
+model Question {
+  id             String            @id @default(uuid()) @db.Uuid
+  caseTitle      String            @map("case_title") // 案例标题
+  caseBackground Json              @map("case_background") // jsonb：案例背景（结构化要点）
+  mainQuestion   String            @map("main_question") // 单一主问题
+  abilityTags    Json              @map("ability_tags") // jsonb：能力标签（2~4 个）
+  difficulty     Int               // 难度（1~5，供出题难度梯度匹配）
+  rubric         Json              // jsonb：评分细则（FR-10：不下发前端）
+  hintTree       Json              @map("hint_tree") // jsonb：5 层渐进提示树（D5）
+  materials      Json              // jsonb：{ core: [核心 2], extended: [扩展 3] }（D9）
+  status         QuestionStatus    @default(draft)
+  sessions       TrainingSession[]
+
+  @@map("questions")
+}
+
+// 训练会话（每日一题 + 加练；各环节时间戳支持中断恢复与历史回放）
+model TrainingSession {
+  id               String               @id @default(uuid()) @db.Uuid
+  userId           String               @map("user_id") @db.Uuid
+  questionId       String               @map("question_id") @db.Uuid
+  date             DateTime             @db.Date // 训练日期（每日一题归属日）
+  isExtra          Boolean              @default(false) @map("is_extra") // 是否加练（D3：同等计入画像）
+  state            TrainingSessionState @default(reading)
+  firstAnswer      String?              @map("first_answer") // 首次答案
+  finalAnswer      String?              @map("final_answer") // 最终答案
+  hintCount        Int                  @default(0) @map("hint_count") // 首次提交前的提示次数（服务端记录为准）
+  followups        Json?                // jsonb：追问对话记录（1~2 轮，BR-4）
+  startedAt        DateTime             @default(now()) @map("started_at") // 进入训练
+  firstSubmittedAt DateTime?            @map("first_submitted_at") // 首次提交（此后提示按钮消失，D7）
+  finalSubmittedAt DateTime?            @map("final_submitted_at") // 最终提交
+  scoredAt         DateTime?            @map("scored_at") // 完成评分
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question         Question             @relation(fields: [questionId], references: [id])
+  hintEvents       HintEvent[]
+  scores           Score[]
+  feedback         SessionFeedback?
+  survey           FeedbackSurvey?
+
+  @@index([userId, date])
+  @@index([questionId])
+  @@map("training_sessions")
+}
+
+// 提示事件（BR-3：逐级请求，每次落库；提示次数以服务端记录为准）
+model HintEvent {
+  id          String          @id @default(uuid()) @db.Uuid
+  sessionId   String          @map("session_id") @db.Uuid
+  layer       Int             // 提示层级 1~5
+  requestedAt DateTime        @default(now()) @map("requested_at")
+  session     TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("hint_events")
+}
+
+// 评分记录（D8：四元组分开存储原始值，V2 可重算历史，R6）
+model Score {
+  id             String          @id @default(uuid()) @db.Uuid
+  sessionId      String          @map("session_id") @db.Uuid
+  dimension      String          // 能力维度（仅该题能力标签覆盖的维度，BR-1）
+  rawScore       Float           @map("raw_score") // 原始表现分（AI 按 Rubric 评）
+  hintCount      Int             @map("hint_count") // 首次提交前的提示次数
+  coefficient    Float           // 独立完成系数（BR-2：max(0.6, 1 − 0.1 × n)）
+  effectiveScore Float           @map("effective_score") // 有效得分 = 原始分 × 系数
+  diagnosisText  String?         @map("diagnosis_text") // 诊断文本
+  session        TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("scores")
+}
+
+// 会话反馈（BR-7：一个具体可行动的最需优化问题 + 下一步方向；与会话一对一）
+model SessionFeedback {
+  sessionId     String          @id @map("session_id") @db.Uuid
+  topIssueText  String          @map("top_issue_text") // 最需要优化的一个问题
+  nextFocusText String          @map("next_focus_text") // 下一步训练方向
+  session       TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_feedback")
+}
+
+// 能力画像（BR-6：current_score 可空表示"未知"，不显示 0 分；复合主键 user_id + dimension）
+model AbilityProfile {
+  userId           String   @map("user_id") @db.Uuid
+  dimension        String   // 8 个一级维度之一
+  currentScore     Float?   @map("current_score") // 当前分 = 历史有效分简单平均；null 即未知
+  observationCount Int      @default(0) @map("observation_count") // 观察次数
+  hintDependency   Float?   @map("hint_dependency") // 提示依赖特征（供"同分不同病"诊断）
+  trend            String?  // 近期趋势（上升 / 稳定 / 下降）
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, dimension])
+  @@map("ability_profiles")
+}
+
+// 感知问卷（D16：训练后两问必填；周期性一问每 5 次训练触发一次，可空）
+model FeedbackSurvey {
+  sessionId  String          @id @map("session_id") @db.Uuid
+  q1Clarity  Int             @map("q1_clarity") // 训练后问 1：反馈是否说清问题（1~5）
+  q2Next     Int             @map("q2_next") // 训练后问 2：下一步是否明确（1~5）
+  periodicQ3 Int?            @map("periodic_q3") // 周期性一问：训练是否越来越"针对自己"（1~5，可空）
+  session    TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("feedback_surveys")
+}

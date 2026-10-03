@@ -1,0 +1,24 @@
+# 本地开发基础设施：PostgreSQL 16
+# 注意：本机原生 PostgreSQL 已占用 5432，故容器映射到宿主机 5433。
+# 以下账号密码仅用于本地开发环境，严禁在生产环境复用。
+services:
+  postgres:
+    image: postgres:16
+    container_name: skilltraining-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: skilltraining
+      POSTGRES_PASSWORD: skilltraining_local_only
+      POSTGRES_DB: skilltraining
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skilltraining -d skilltraining"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  pgdata:
