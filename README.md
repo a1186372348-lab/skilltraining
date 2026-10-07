@@ -69,5 +69,6 @@ npm run dev
 
 - **端口**：本机若已有原生 PostgreSQL 占用 5432，容器映射在宿主机 **5433**；`DATABASE_URL` 请使用 `127.0.0.1` 而非 `localhost`（Windows 下 `localhost` 可能解析到 IPv6，Docker 端口映射仅生效于 IPv4）。
 - **密钥**：`MIMO_API_KEY` / `MIMO_BASE_URL` 仅占位，接入 AI 网关（T05）时填写；严禁提交真实密钥。
+- **测试隔离**：全部测试运行于独立库 `skilltraining_test`（`.env` 中的 `TEST_DATABASE_URL`），与开发库 `skilltraining` 完全隔离；`npm run test` 的 `pretest` 钩子自动完成建库与迁移（幂等，可重复执行），测试播种不会改动开发库数据。
 - **类型生成**：`app/layout.tsx` 等使用的 `LayoutProps` 等路由类型由 Next 生成到 `.next/`（不提交仓库）；`npm run typecheck` 已内置 `next typegen`，全新克隆可直接运行。
 - 本地开发数据库账号密码仅用于本机容器，禁止在生产环境复用。
