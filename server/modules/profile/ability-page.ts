@@ -90,10 +90,25 @@ export function overallHintDependencyOf(
   return { average, band: hintDependencyBand(average) as HintDependencyBand };
 }
 
-/** 页面用的单维度视图：画像视图 + 状态标签 + 火花线序列 */
+/** 页面用的单维度视图：画像视图 + 状态标签 + 火花线序列 + 最近评估记录（T18 网络图弹窗数据源） */
+export interface RecentEvaluation {
+  /** 训练会话 id（弹窗「查看评估」跳转 /training/feedback/[sessionId]，T25 路径） */
+  sessionId: string;
+  /** 该次评分的有效分 */
+  score: number;
+  /** 评分完成时间 */
+  scoredAt: Date;
+  /** 关联题目的案例标题（一句话简介） */
+  caseTitle: string;
+}
+
 export interface AbilityDimensionPageView extends AbilityProfileDimensionView {
   statusLabel: AbilityStatusLabel | null;
   sparkline: number[];
+  /** 该维度最近评分记录列表（时间倒序，上限 SPARKLINE_MAX_POINTS 条）；未观测为空数组（T18 / D21） */
+  recentEvaluations: RecentEvaluation[];
+  /** 近 N 次有效分序列（时间升序，与火花线同口径），供网络图弹窗趋势（T16） */
+  recentScores: number[];
 }
 
 export interface AbilityPageView {
@@ -129,6 +144,15 @@ export const abilityPageViewSchema = z.object({
       updatedAt: z.date().nullable(),
       statusLabel: z.enum(["稳定", "样本较少", "↑ 上升中", "↓ 下降中"]).nullable(),
       sparkline: z.array(z.number()),
+      recentEvaluations: z.array(
+        z.object({
+          sessionId: z.string().min(1),
+          score: z.number(),
+          scoredAt: z.date(),
+          caseTitle: z.string().min(1),
+        }),
+      ),
+      recentScores: z.array(z.number()),
     }),
   ),
   hintDependencyOverall: z
@@ -136,19 +160,44 @@ export const abilityPageViewSchema = z.object({
     .nullable(),
 });
 
-/** 读取指定维度近 N 次有效分（时间升序），作为火花线序列 */
-async function recentSparkline(
+/** 指定维度近 N 次有效评分的读取结果（时间升序） */
+interface RecentScoreSeries {
+  /** 有效分序列（火花线与 recentScores 共用同一口径） */
+  scores: number[];
+  /** 该维度最近评分记录列表（时间倒序，与查询同序），供弹窗「最近评估记录」（T18） */
+  recentEvaluations: RecentEvaluation[];
+}
+
+/** 读取指定维度近 N 次有效评分：火花线/趋势序列（时间升序）+ 最近评估记录列表（时间倒序，T18） */
+async function recentScoreSeries(
   db: AbilityDbClient,
   userId: string,
   dimension: string,
-): Promise<number[]> {
+): Promise<RecentScoreSeries> {
   const recent = await db.score.findMany({
-    where: { dimension, session: { userId } },
+    // 只取已完成评分的会话（scoredAt 为空者不构成评估记录）
+    where: { dimension, session: { userId, scoredAt: { not: null } } },
     orderBy: { session: { scoredAt: "desc" } },
     take: SPARKLINE_MAX_POINTS,
-    select: { effectiveScore: true },
+    select: {
+      effectiveScore: true,
+      session: {
+        select: { id: true, scoredAt: true, question: { select: { caseTitle: true } } },
+      },
+    },
   });
-  return recent.map((row) => row.effectiveScore).reverse();
+  return {
+    scores: recent.map((row) => row.effectiveScore).reverse(),
+    // scoredAt 已按 where 过滤非空；此处仍做空值守卫以满足类型
+    recentEvaluations: recent
+      .filter((row) => row.session.scoredAt !== null)
+      .map((row) => ({
+        sessionId: row.session.id,
+        score: row.effectiveScore,
+        scoredAt: row.session.scoredAt as Date,
+        caseTitle: row.session.question.caseTitle,
+      })),
+  };
 }
 
 /** 读取并装配画像页完整视图（统一响应封装的 data 负载） */
@@ -159,11 +208,16 @@ export async function getAbilityPageView(
   const profileView = await getAbilityProfileView(db, userId);
   const dimensions: AbilityDimensionPageView[] = await Promise.all(
     profileView.map(async (dim) => {
-      if (!dim.observed) return { ...dim, statusLabel: null, sparkline: [] };
+      if (!dim.observed) {
+        return { ...dim, statusLabel: null, sparkline: [], recentEvaluations: [], recentScores: [] };
+      }
+      const series = await recentScoreSeries(db, userId, dim.dimension);
       return {
         ...dim,
         statusLabel: statusLabelOf(dim.observationCount, dim.trend),
-        sparkline: await recentSparkline(db, userId, dim.dimension),
+        sparkline: series.scores,
+        recentEvaluations: series.recentEvaluations,
+        recentScores: series.scores,
       };
     }),
   );

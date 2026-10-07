@@ -12,6 +12,18 @@ export type HintDependencyBand = "低" | "中" | "高";
 /** 维度状态标签（US-008；「样本较少」优先于趋势，观察 < 3 次时不解读趋势） */
 export type AbilityStatusLabel = "稳定" | "样本较少" | "↑ 上升中" | "↓ 下降中";
 
+/** 单条评估记录（T18 / D21）：弹窗「最近评估记录」列表项，可跳转对应训练反馈页 */
+export interface RecentEvaluation {
+  /** 训练会话 id（跳转 /training/feedback/[sessionId]，T25 路径） */
+  sessionId: string;
+  /** 该次评分的有效分 */
+  score: number;
+  /** 评分完成时间（ISO 字符串） */
+  scoredAt: string;
+  /** 关联题目的案例标题（一句话简介） */
+  caseTitle: string;
+}
+
 /** 单维度画像视图：未观测维度为未知态（observed=false，数值字段全 null，不显示 0 分） */
 export interface AbilityDimensionView {
   dimension: string;
@@ -25,6 +37,10 @@ export interface AbilityDimensionView {
   statusLabel: AbilityStatusLabel | null;
   /** 近 N 次有效分（时间升序），用于趋势火花线；未观测为空数组 */
   sparkline: number[];
+  /** 该维度最近评分记录列表（时间倒序，上限 6 条；scoredAt 为 ISO 字符串）；未观测为空数组（T18 / D21 网络图弹窗） */
+  recentEvaluations: RecentEvaluation[];
+  /** 近 N 次有效分序列（时间升序，与 sparkline 同口径），供 3D 网络图弹窗趋势（T16） */
+  recentScores: number[];
   /** JSON 序列化后为 ISO 字符串；未观测为 null */
   updatedAt: string | null;
 }

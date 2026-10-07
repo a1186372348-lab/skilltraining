@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchAbilityProfile } from "./api";
+import { AbilityNetwork } from "./ability-network";
 import type { AbilityDimensionView, AbilityPageView } from "./contract";
+import { NodeDetailModal } from "./node-detail-modal";
 import { ProfileShell } from "./shell";
 import {
   diagnosisLineOf,
@@ -116,6 +118,14 @@ function ProfileContent({ view }: { view: AbilityPageView }) {
   const [expandedDimension, setExpandedDimension] = useState<string | null>(
     weakest?.dimension ?? null,
   );
+  /** 主视图 Tab：3D 网络图（默认，D20）/ 列表；3D 加载失败自动降级为列表 */
+  const [activeView, setActiveView] = useState<"network" | "list">("network");
+  const [networkFailed, setNetworkFailed] = useState(false);
+  /** 网络图节点弹窗：当前选中的维度名 */
+  const [selectedDimension, setSelectedDimension] = useState<string | null>(null);
+  const selectedDim = selectedDimension
+    ? (view.dimensions.find((d) => d.dimension === selectedDimension) ?? null)
+    : null;
 
   return (
     <div className="flex flex-col gap-5 pb-4">
@@ -132,6 +142,46 @@ function ProfileContent({ view }: { view: AbilityPageView }) {
         </span>
       </div>
 
+      {/* 视图 Tab：网络图（默认）/ 列表 */}
+      <div className="flex items-center gap-2">
+        {(
+          [
+            { key: "network", label: "网络图" },
+            { key: "list", label: "列表" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            aria-pressed={activeView === tab.key}
+            onClick={() => setActiveView(tab.key)}
+            className={`rounded-full border px-4 py-1.5 text-[13px] font-semibold transition-colors ${
+              activeView === tab.key
+                ? "border-[#2563EB] bg-[#2563EB] text-white"
+                : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#BFDBFE] hover:text-[#1D4ED8]"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+        {networkFailed ? (
+          <span className="ml-2 text-xs text-[#94A3B8]">3D 网络图加载失败，已切换到列表视图</span>
+        ) : null}
+      </div>
+
+      {activeView === "network" ? (
+        <AbilityNetwork
+          dimensions={view.dimensions}
+          onSelectDimension={setSelectedDimension}
+          onFallback={() => {
+            setNetworkFailed(true);
+            setActiveView("list");
+          }}
+        />
+      ) : null}
+
+      {activeView === "list" ? (
+        <>
       {isGuideState(view) ? (
         <GuideCard />
       ) : (
@@ -181,6 +231,17 @@ function ProfileContent({ view }: { view: AbilityPageView }) {
 
       {!isGuideState(view) ? (
         <HintDependencyGauge view={view} />
+      ) : null}
+        </>
+      ) : null}
+
+      {/* 网络图节点弹窗：评估依据 / 观察次数与趋势 / 提示依赖特征 / 下一步训练方向 */}
+      {selectedDim ? (
+        <NodeDetailModal
+          dim={selectedDim}
+          nextFocus={view.insight.nextFocus}
+          onClose={() => setSelectedDimension(null)}
+        />
       ) : null}
     </div>
   );
@@ -341,7 +402,7 @@ function GuideCard() {
         AI 会基于你的每次作答，逐步观测 8 个产品能力维度：分数、趋势、提示依赖特征与针对性诊断。
         未知维度不会被当作 0 分。
       </p>
-      <Link href="/today" className={`${PRIMARY_BTN} mt-6`}>
+      <Link href="/training" className={`${PRIMARY_BTN} mt-6`}>
         去今日训练
         <span aria-hidden className="text-xs">▸</span>
       </Link>

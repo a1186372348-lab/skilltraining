@@ -31,6 +31,8 @@ function dim(dimension: string, overrides: Partial<AbilityDimensionView> = {}): 
     trend: null,
     statusLabel: null,
     sparkline: [],
+    recentEvaluations: [],
+    recentScores: [],
     updatedAt: null,
     ...overrides,
   };

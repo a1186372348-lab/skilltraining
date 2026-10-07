@@ -9,7 +9,7 @@ import type {
 /**
  * 能力画像页视图模型（纯函数，T09）。
  * 把"画像数据 → 界面"的全部判定集中在这里，组件只负责渲染；
- * 无 DOM/React 依赖，可在 node 环境用 vitest 直接覆盖（同 app/today/view-model.ts 模式）。
+ * 无 DOM/React 依赖，可在 node 环境用 vitest 直接覆盖（同 app/training/session/view-model.ts 模式）。
  */
 
 /** 整页降级（T09 失败与回滚）：8 维全部未观测时显示「开始第一次训练后生成」引导态 */

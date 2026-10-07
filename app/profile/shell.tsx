@@ -1,19 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { navItemsFor } from "@/app/_shared/nav-items";
+
 /**
- * 能力画像页外壳：复制自 app/today/shell.tsx 的侧边栏模式并微调
+ * 能力画像页外壳：复制自 app/training/session/shell.tsx 的侧边栏模式并微调
  * （当前页「能力画像」高亮；侧栏底部改为画像进度）。
  * 后续由主代理抽取共享组件后统一替换。
  */
 
-const NAV_ITEMS = [
-  { label: "今日训练", href: "/today", active: false },
-  { label: "首页", href: "/", active: false },
-  { label: "能力画像", href: "/profile", active: true },
-  { label: "训练历史", href: "/history", active: false },
-  { label: "我的", href: "/settings", active: false },
-] as const;
+const NAV_ITEMS = navItemsFor("能力画像");
 
 export function ProfileShell({
   progressText,

@@ -3,7 +3,7 @@ import type { AbilityPageView } from "./contract";
 /**
  * 能力画像页 API 适配层（T09）。
  * 页面组件只调用本文件的函数，不直接 fetch；
- * 按统一响应封装 { success, data, error } 解析（同 app/today/api.ts 模式）。
+ * 按统一响应封装 { success, data, error } 解析（同 app/training/session/api.ts 模式）。
  */
 
 /** 统一响应封装的服务端错误形状（与 server/lib/api-response.ts 对齐） */

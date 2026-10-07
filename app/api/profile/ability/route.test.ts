@@ -69,14 +69,15 @@ async function newUser(): Promise<{ id: string; email: string }> {
   return { id: user.id, email };
 }
 
-/** 直接写一条有效评分（构造画像数据源，绕过评分主链路） */
+/** 直接写一条有效评分（构造画像数据源，绕过评分主链路），返回会话 id 供断言 */
 async function seedScore(
   userId: string,
   dimension: string,
   effectiveScore: number,
   hintCount: number,
   scoredAt: Date,
-): Promise<void> {
+  diagnosisText: string | null = "诊断",
+): Promise<string> {
   const session = await prisma.trainingSession.create({
     data: {
       userId,
@@ -98,9 +99,10 @@ async function seedScore(
       hintCount,
       coefficient: 1.0,
       effectiveScore,
-      diagnosisText: "诊断",
+      diagnosisText,
     },
   });
+  return session.id;
 }
 
 function buildRequest(email: string): Request {
@@ -150,6 +152,8 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
         statusLabel: null,
         sparkline: [],
         updatedAt: null,
+        recentEvaluations: [],
+        recentScores: [],
       });
     }
   });
@@ -164,7 +168,7 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
     await refreshAbilityProfile(prisma, userId, ["用户理解"]);
     await seedScore(userId, "用户理解", 70, 1, day(2));
     await seedScore(userId, "用户理解", 80, 1, day(3));
-    await seedScore(userId, "用户理解", 90, 2, day(4));
+    const latestSessionId = await seedScore(userId, "用户理解", 90, 2, day(4), "最近一次诊断原文");
     await refreshAbilityProfile(prisma, userId, ["用户理解"]);
 
     // 产品取舍：2 次观测 → 样本较少
@@ -198,6 +202,19 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
     });
     // 火花线时间升序，取最近若干次有效分
     expect(comprehension.sparkline).toEqual([60, 70, 80, 90]);
+    // T16：recentScores 与火花线同口径（近 N 次有效分，时间升序），供 3D 网络图弹窗趋势
+    expect(comprehension.recentScores).toEqual([60, 70, 80, 90]);
+    // T18：recentEvaluations = 该维度最近评分记录列表（时间倒序），含 sessionId/有效分/日期/案例标题
+    expect(comprehension.recentEvaluations).toHaveLength(4);
+    expect(comprehension.recentEvaluations[0]).toEqual({
+      sessionId: latestSessionId,
+      score: 90,
+      scoredAt: day(4).toISOString(),
+      caseTitle: "T09 集成测试种子题",
+    });
+    expect(
+      comprehension.recentEvaluations.map((e: { score: number }) => e.score),
+    ).toEqual([90, 80, 70, 60]);
 
     const tradeoff = json.data.dimensions.find(
       (d: { dimension: string }) => d.dimension === "产品取舍",
@@ -209,6 +226,11 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
       hintDependencyBand: "高", // 近几次平均 3 次提示
     });
     expect(tradeoff.sparkline).toEqual([55, 65]);
+    expect(tradeoff.recentScores).toEqual([55, 65]);
+    // T18：recentEvaluations 时间倒序，与 sparkline 口径一致
+    expect(
+      tradeoff.recentEvaluations.map((e: { score: number }) => e.score),
+    ).toEqual([65, 55]);
 
     // 未观测维度保持未知态（不显示 0 分）
     const unknown = json.data.dimensions.find(
@@ -218,6 +240,33 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
 
     // 整体提示依赖 = 已观测维度提示依赖平均：((0+1+1+2)/4=1, 3) → (1+3)/2=2 → 中
     expect(json.data.hintDependencyOverall).toEqual({ average: 2, band: "中" });
+  });
+
+  it("最近评估记录上限 6 条（SPARKLINE_MAX_POINTS），时间倒序，字段齐全", async () => {
+    const { id: userId, email } = await newUser();
+    await ensureSeedQuestion();
+    for (let d = 1; d <= 7; d += 1) {
+      await seedScore(userId, "方案设计", 50 + d, 0, new Date(Date.UTC(2026, 9, d)));
+    }
+    await refreshAbilityProfile(prisma, userId, ["方案设计"]);
+
+    const res = await GET(buildRequest(email));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    const design = json.data.dimensions.find(
+      (d: { dimension: string }) => d.dimension === "方案设计",
+    );
+    expect(design.recentEvaluations).toHaveLength(6);
+    expect(design.recentEvaluations.map((e: { score: number }) => e.score)).toEqual([
+      57, 56, 55, 54, 53, 52,
+    ]);
+    for (const entry of design.recentEvaluations) {
+      expect(entry.sessionId).toEqual(expect.any(String));
+      expect(entry.caseTitle).toBe("T09 集成测试种子题");
+      expect(new Date(entry.scoredAt).getTime()).not.toBeNaN();
+    }
   });
 
   it("生产环境（T03 未接入）无会话：401，不放行", async () => {
