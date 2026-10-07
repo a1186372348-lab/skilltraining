@@ -3,7 +3,7 @@
  *
  * 与 server/modules/feedback/view.ts、survey.ts 的响应形状对齐；
  * 统一响应封装沿用 server/lib/api-response.ts：{ success: true, data } / { success: false, error }。
- * 若联调时服务端字段有出入，只需修改本文件与 app/today/feedback/[id]/api.ts，页面组件不感知。
+ * 若联调时服务端字段有出入，只需修改本文件与 app/training/feedback/[id]/api.ts，页面组件不感知。
  */
 
 /** 各维度得分四元组（D8：原始分/提示次数/系数/有效分） */

@@ -1,47 +1,14 @@
 /**
- * 训练历史页 API 契约（前端视角，T10 / US-009 / FR-9）。
+ * 训练历史回放 API 契约（前端视角，T10 / US-009 / FR-9；T25 / D27 迁入产品训练模块）。
  *
  * 与 server/modules/history/view.ts 的响应形状对齐；
  * 统一响应封装沿用 server/lib/api-response.ts：{ success: true, data } / { success: false, error }。
- * 若联调时服务端字段有出入，只需修改本文件与 app/history/api.ts，页面组件不感知。
+ * 若联调时服务端字段有出入，只需修改本文件与 app/training/history/api.ts，页面组件不感知。
+ *（列表契约已随旧 /history 列表页删除——大厅历史列表契约见 app/training/contract.ts）
  */
 
 /** 会话状态（与 prisma TrainingSessionState 枚举一致） */
 export type HistorySessionState = "reading" | "answering" | "followup" | "scored";
-
-/** 列表项的有效分摘要（各维度有效分） */
-export interface HistoryScoreSummary {
-  dimension: string;
-  effectiveScore: number;
-}
-
-/** 列表项：日期 / 案例名 / 训练重点 / 有效分摘要 / 状态 */
-export interface HistoryListItem {
-  sessionId: string;
-  /** ISO 日期（YYYY-MM-DD，每日一题归属日） */
-  date: string;
-  caseTitle: string;
-  /** 训练重点：能力标签（2~4 个） */
-  abilityTags: string[];
-  /** 是否加练（D3） */
-  isExtra: boolean;
-  state: HistorySessionState;
-  scores: HistoryScoreSummary[];
-}
-
-/** 分页元数据（页码 / 每页 / 总数 / 总页数） */
-export interface HistoryPagination {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-}
-
-/** GET /api/history 的 data 负载 */
-export interface HistoryListView {
-  items: HistoryListItem[];
-  pagination: HistoryPagination;
-}
 
 /** 提示使用回放：层数 + 请求时间（ISO） */
 export interface HistoryHintEventView {

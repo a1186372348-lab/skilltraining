@@ -1,8 +1,10 @@
-import type { TodayTaskCardData, WeekDayView } from "@/server/modules/dashboard/contract";
+import type { WeekDayView } from "@/server/modules/dashboard/contract";
 
 /**
  * 首页仪表盘 view-model（T08-Page）：展示判定全部下沉为纯函数，
- * 组件只负责渲染与调用适配层（与 app/today/view-model.ts 同一模式）。
+ * 组件只负责渲染与调用适配层（与 app/training/session/view-model.ts 同一模式）。
+ * （T26：ctaLabel / sessionStateLabel 已随「今日任务」卡下线——侧栏「今日状态」
+ * 改用 app/training/view-model.ts 的 sidebarStageText，与大厅同一口径，D28。）
  */
 
 /** 问候语按小时分档 */
@@ -17,30 +19,6 @@ export function greetingByHour(hour: number): string {
 /** 问候副行：有连续天数突出节奏感；新用户引导完成第一题 */
 export function greetingSubline(streakDays: number): string {
   return streakDays > 0 ? `今日训练 · 第 ${streakDays} 天` : "今天，从第一题开始";
-}
-
-/** 今日任务主按钮：已完成 → 再练一题（加练同等计入画像，D3） */
-export function ctaLabel(state: TodayTaskCardData["state"], completed: boolean): string {
-  if (completed) return "再练一题";
-  return state === "reading" ? "开始今日训练" : "继续今日训练";
-}
-
-/** 侧栏今日状态文案（与今日训练页阶段语义一致） */
-export function sessionStateLabel(
-  state: TodayTaskCardData["state"],
-  completed: boolean,
-): string {
-  if (completed) return "已完成";
-  switch (state) {
-    case "reading":
-      return "待开始";
-    case "answering":
-      return "作答中";
-    case "followup":
-      return "追问中";
-    case "scored":
-      return "已完成";
-  }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

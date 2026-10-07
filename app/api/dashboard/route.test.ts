@@ -101,14 +101,8 @@ describe("GET /api/dashboard（US-002）", () => {
     expect(body.success).toBe(true);
     const view = body.data;
 
-    // 今日任务卡：复用每日一题会话（首次访问自动创建），未完成
-    expect(view.todayTask.caseTitle).toBe("T05 集成测试种子题");
-    expect(view.todayTask.state).toBe("reading");
-    expect(view.todayTask.completed).toBe(false);
-    expect(view.todayTask.abilityTags).toEqual(["用户理解", "产品价值判断", "产品取舍"]);
-    expect(view.todayTask.whyText.length).toBeGreaterThan(0);
-    // 新用户 3 个标签维度均未解锁 → 占位规则命中「优先探索」
-    expect(view.todayTask.whyText).toContain("尚未解锁");
+    // 当前训练卡（T26 / D28②）：与大厅同源判定——新用户无任何会话 → 未开始（不再自动建会话，纯读装配）
+    expect(view.currentTraining).toEqual({ kind: "not_started", dateKey: view.todayDateKey });
 
     // 统计条：0 连续、本周 0/7，7 段分段完整且仅今日一段为今天
     expect(view.stats.streakDays).toBe(0);
@@ -182,10 +176,13 @@ describe("GET /api/dashboard（US-002）", () => {
     expect(view.stats.weekTrainedCount).toBeGreaterThanOrEqual(1);
     expect(view.stats.weekDays.find((d: { isToday: boolean }) => d.isToday).trained).toBe(true);
 
-    // 今日任务卡：已完成 → 前端展示「再练一题」
-    expect(view.todayTask.sessionId).toBe(todaySession.id);
-    expect(view.todayTask.state).toBe("scored");
-    expect(view.todayTask.completed).toBe(true);
+    // 当前训练卡：今日 daily 已评分 → 已完成（无维度评分行 → 得分摘要为空）
+    expect(view.currentTraining).toEqual({
+      kind: "completed",
+      sessionId: todaySession.id,
+      caseTitle: "T05 集成测试种子题",
+      scores: [],
+    });
 
     // 能力总览：2/8，按分数降序取整，趋势透传
     expect(view.ability.unlockedCount).toBe(2);

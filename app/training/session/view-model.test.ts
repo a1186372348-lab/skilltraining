@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { FollowupRound } from "./contract";
 import {
+  FOLLOWUP_GENERATING_WINDOW_MS,
   MAX_HINT_LAYERS,
   THINKING_DIRECTIONS,
   buildFollowupMessages,
   canSubmitAnswer,
   coefficientForHintCount,
+  followupEmptyState,
   formatCoefficient,
   hintMicrocopy,
   isHintButtonVisible,
@@ -184,6 +186,34 @@ describe("思考方向提示（非强制）", () => {
       "成本",
       "风险",
     ]);
+  });
+});
+
+describe("追问为空时的状态判定（T22 / D25：生成中/失败分离）", () => {
+  const now = Date.parse("2026-10-07T12:00:00.000Z");
+
+  it("窗口常量：首答提交后 120 秒", () => {
+    expect(FOLLOWUP_GENERATING_WINDOW_MS).toBe(120_000);
+  });
+
+  it("firstSubmittedAt 为 null：按失败兜底（数据异常）", () => {
+    expect(followupEmptyState(null, now)).toBe("failed");
+  });
+
+  it("首答提交后 120 秒窗口内：生成中", () => {
+    expect(followupEmptyState("2026-10-07T11:59:30.000Z", now)).toBe("generating"); // 30 秒前
+    expect(followupEmptyState("2026-10-07T12:00:00.000Z", now)).toBe("generating"); // 刚好提交
+    expect(followupEmptyState("2026-10-07T11:58:01.000Z", now)).toBe("generating"); // 窗口内 1 秒
+  });
+
+  it("恰过窗口（≥120 秒）：失败", () => {
+    expect(followupEmptyState("2026-10-07T11:58:00.000Z", now)).toBe("failed"); // 恰好 120 秒
+    expect(followupEmptyState("2026-10-07T11:00:00.000Z", now)).toBe("failed"); // 远超窗口
+  });
+
+  it("非法日期字符串：按失败兜底", () => {
+    expect(followupEmptyState("不是日期", now)).toBe("failed");
+    expect(followupEmptyState("", now)).toBe("failed");
   });
 });
 

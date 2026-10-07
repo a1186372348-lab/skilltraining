@@ -1,36 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildPagination,
   computeMissingSections,
   parseAbilityTags,
   toHistoryDetailView,
-  toHistoryListItem,
   type HistorySessionDetailRow,
-  type HistorySessionListRow,
 } from "./view";
 
-// 历史回放装配纯函数测试（T10 / US-009 / FR-9）：
-// 列表项映射、分页元数据、详情六区完整性、缺失字段标记（而非报错）、
+// 历史回放装配纯函数测试（T10 / US-009 / FR-9；T25 起仅保留详情——
+// 列表装配已随 GET /api/history 删除，大厅列表见 server/modules/training/hub-view.test.ts）：
+// 详情六区完整性、缺失字段标记（而非报错）、
 // FR-10 出口防线（rubric / hintTree 不进入任何历史视图）。
-
-function listRow(overrides: Partial<HistorySessionListRow> = {}): HistorySessionListRow {
-  return {
-    id: "session-1",
-    date: new Date(Date.UTC(2026, 9, 3)),
-    isExtra: false,
-    state: "scored",
-    question: {
-      caseTitle: "从「帮你写」到「替你做」：Cursor 的 Agent 模式",
-      abilityTags: ["用户理解", "产品价值判断", "产品取舍"],
-    },
-    scores: [
-      { dimension: "用户理解", effectiveScore: 68 },
-      { dimension: "产品价值判断", effectiveScore: 72 },
-    ],
-    ...overrides,
-  };
-}
 
 function detailRow(overrides: Partial<HistorySessionDetailRow> = {}): HistorySessionDetailRow {
   return {
@@ -90,53 +70,6 @@ describe("能力标签防御解析", () => {
     expect(parseAbilityTags("用户理解")).toEqual([]);
     expect(parseAbilityTags(null)).toEqual([]);
     expect(parseAbilityTags(undefined)).toEqual([]);
-  });
-});
-
-describe("分页元数据", () => {
-  it("totalPages 向上取整；0 条记录时 totalPages 为 0", () => {
-    expect(buildPagination(25, 1, 10)).toEqual({
-      page: 1,
-      pageSize: 10,
-      total: 25,
-      totalPages: 3,
-    });
-    expect(buildPagination(20, 2, 10).totalPages).toBe(2);
-    expect(buildPagination(0, 1, 10).totalPages).toBe(0);
-    expect(buildPagination(1, 1, 50).totalPages).toBe(1);
-  });
-});
-
-describe("列表项装配（日期 / 案例名 / 训练重点 / 有效分摘要 / 状态）", () => {
-  it("完整映射五个字段，日期取 ISO 前 10 位", () => {
-    const item = toHistoryListItem(listRow());
-    expect(item).toEqual({
-      sessionId: "session-1",
-      date: "2026-10-03",
-      caseTitle: "从「帮你写」到「替你做」：Cursor 的 Agent 模式",
-      abilityTags: ["用户理解", "产品价值判断", "产品取舍"],
-      isExtra: false,
-      state: "scored",
-      scores: [
-        { dimension: "用户理解", effectiveScore: 68 },
-        { dimension: "产品价值判断", effectiveScore: 72 },
-      ],
-    });
-  });
-
-  it("未评分会话 scores 为空数组；加练标记透传", () => {
-    const item = toHistoryListItem(
-      listRow({ state: "answering", scores: [], isExtra: true }),
-    );
-    expect(item.scores).toEqual([]);
-    expect(item.isExtra).toBe(true);
-  });
-
-  it("能力标签脏数据不报错，仅保留字符串项", () => {
-    const item = toHistoryListItem(
-      listRow({ question: { caseTitle: "题", abilityTags: ["用户理解", 7] } }),
-    );
-    expect(item.abilityTags).toEqual(["用户理解"]);
   });
 });
 
@@ -206,6 +139,16 @@ describe("详情回放装配完整性（US-009：案例/两版答案/提示/追�
       detailRow({ followups: [{ round: 1, question: "有效追问" }, "坏数据", { round: "x" }] }),
     );
     expect(view.followups).toEqual([{ round: 1, question: "有效追问" }]);
+  });
+
+  it("T19：落库的追问提示字段不下发历史回放（FR-10）", () => {
+    const view = toHistoryDetailView(
+      detailRow({
+        followups: [{ round: 1, question: "追问", hint: "绝密追问提示", hintReleased: false }],
+      }),
+    );
+    expect(view.followups).toEqual([{ round: 1, question: "追问" }]);
+    expect(JSON.stringify(view)).not.toContain("绝密追问提示");
   });
 });
 

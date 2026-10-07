@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ctaLabel,
   greetingByHour,
   greetingSubline,
   relativeDayText,
   scorePercent,
-  sessionStateLabel,
   trendMark,
   weekSegmentClass,
 } from "./view-model";
@@ -43,29 +41,6 @@ describe("greetingSubline：问候副行", () => {
 
   it("新用户 → 引导文案", () => {
     expect(greetingSubline(0)).toContain("第一题");
-  });
-});
-
-describe("ctaLabel：今日任务主按钮", () => {
-  it("未完成：reading → 开始今日训练；进行中 → 继续今日训练", () => {
-    expect(ctaLabel("reading", false)).toBe("开始今日训练");
-    expect(ctaLabel("answering", false)).toBe("继续今日训练");
-    expect(ctaLabel("followup", false)).toBe("继续今日训练");
-  });
-
-  it("已完成 → 再练一题", () => {
-    expect(ctaLabel("scored", true)).toBe("再练一题");
-    expect(ctaLabel("followup", true)).toBe("再练一题");
-  });
-});
-
-describe("sessionStateLabel：侧栏今日状态", () => {
-  it("按会话状态映射；已完成优先", () => {
-    expect(sessionStateLabel("reading", false)).toBe("待开始");
-    expect(sessionStateLabel("answering", false)).toBe("作答中");
-    expect(sessionStateLabel("followup", false)).toBe("追问中");
-    expect(sessionStateLabel("scored", true)).toBe("已完成");
-    expect(sessionStateLabel("followup", true)).toBe("已完成");
   });
 });
 

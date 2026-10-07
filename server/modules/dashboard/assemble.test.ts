@@ -6,11 +6,8 @@ import {
   addDays,
   buildAbilityOverview,
   buildStatsCard,
-  buildTodayTaskCard,
-  buildWhyText,
   computeStreakDays,
   computeWeekProgress,
-  parseAbilityTags,
   toDateKeyUtc,
   truncateText,
 } from "./assemble";
@@ -155,78 +152,6 @@ describe("truncateText：诊断截断", () => {
     expect(result).toHaveLength(91);
     expect(result.endsWith("…")).toBe(true);
     expect(result.startsWith("一".repeat(90))).toBe(true);
-  });
-});
-
-describe("parseAbilityTags：能力标签防御性解析", () => {
-  it("字符串数组原样返回", () => {
-    expect(parseAbilityTags(["用户理解", "产品取舍"])).toEqual(["用户理解", "产品取舍"]);
-  });
-
-  it("过滤非字符串元素；非数组返回空", () => {
-    expect(parseAbilityTags(["用户理解", 1, null, "产品取舍"])).toEqual(["用户理解", "产品取舍"]);
-    expect(parseAbilityTags(null)).toEqual([]);
-    expect(parseAbilityTags("用户理解")).toEqual([]);
-  });
-});
-
-describe("buildWhyText：为什么是它（T11 前的占位规则）", () => {
-  it("题目覆盖未解锁维度 → 优先探索文案", () => {
-    const text = buildWhyText(["根因分析", "用户理解"], ["根因分析", "方案设计"]);
-    expect(text).toContain("根因分析");
-    expect(text).toContain("尚未解锁");
-    expect(text).not.toContain("用户理解");
-  });
-
-  it("全部已解锁 → 画像推荐占位文案", () => {
-    const text = buildWhyText(["产品取舍"], ["根因分析"]);
-    expect(text).toContain("产品取舍");
-    expect(text).toContain("能力画像");
-  });
-
-  it("无标签 → 通用占位文案", () => {
-    expect(buildWhyText([], ["根因分析"])).toContain("今日");
-  });
-});
-
-describe("buildTodayTaskCard", () => {
-  const base = {
-    sessionId: "session-1",
-    caseTitle: "案例标题",
-    mainQuestion: "主问题？",
-    abilityTags: ["用户理解", "产品价值判断"],
-    unobservedDimensions: ["根因分析"],
-  };
-
-  it("进行中（无终答）→ 未完成", () => {
-    const card = buildTodayTaskCard({ ...base, state: "reading", finalSubmittedAt: null });
-    expect(card.completed).toBe(false);
-    expect(card.state).toBe("reading");
-    expect(card.caseTitle).toBe("案例标题");
-    expect(card.abilityTags).toEqual(["用户理解", "产品价值判断"]);
-    expect(card.focusText).toContain("用户理解");
-    expect(card.whyText).toContain("能力画像");
-  });
-
-  it("已提交终答（未评分）→ 已完成", () => {
-    const card = buildTodayTaskCard({
-      ...base,
-      state: "followup",
-      finalSubmittedAt: new Date("2026-10-03T02:00:00Z"),
-    });
-    expect(card.completed).toBe(true);
-  });
-
-  it("scored → 已完成", () => {
-    const card = buildTodayTaskCard({ ...base, state: "scored", finalSubmittedAt: null });
-    expect(card.completed).toBe(true);
-  });
-
-  it("能力标签数据异常 → 空标签通用文案", () => {
-    const card = buildTodayTaskCard({ ...base, state: "reading", finalSubmittedAt: null, abilityTags: null });
-    expect(card.abilityTags).toEqual([]);
-    expect(card.focusText.length).toBeGreaterThan(0);
-    expect(card.whyText.length).toBeGreaterThan(0);
   });
 });
 

@@ -6,7 +6,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   formatScore,
   scoreBreakdownText,
-} from "../../today/feedback/[id]/view-model";
+} from "../../feedback/[id]/view-model";
 import { fetchHistoryDetail } from "../api";
 import type { HistoryDetailView, HistoryMissingSection } from "../contract";
 import { HistoryShell } from "../shell";
@@ -24,10 +24,10 @@ import {
 } from "./view-model";
 
 /**
- * 训练历史详情回放页交互主体（P5 / T10：US-009 / FR-9）。
+ * 训练历史详情回放页交互主体（P5 / T10：US-009 / FR-9；T25 / D27 迁入产品训练模块）。
  * 分区顺序按任务契约：案例 → 我的两版答案 → 提示 → 追问 → 评分 → 反馈。
  * 单条记录数据缺失时渲染「记录缺失」徽标与占位，而非整页报错；
- * 记录不存在 / 无权查看（404）时展示错误态并提供返回列表入口。
+ * 记录不存在 / 无权查看（404）时展示错误态并提供返回大厅入口。
  * 全部数据→视图判定走 view-model 纯函数，本组件只负责渲染与调用适配层。
  */
 
@@ -77,7 +77,7 @@ export function HistoryDetailFlow({ sessionId }: { sessionId: string }) {
     <HistoryShell countText="历史回放">
       <div className="mx-auto w-full max-w-4xl">
         <header className="mb-6 flex flex-wrap items-center gap-3">
-          <Link href="/history" className="text-xs font-bold tracking-[0.16em] text-[#2563EB] hover:underline">
+          <Link href="/training" className="text-xs font-bold tracking-[0.16em] text-[#2563EB] hover:underline">
             ← 训练历史
           </Link>
           {view ? (
@@ -102,7 +102,7 @@ export function HistoryDetailFlow({ sessionId }: { sessionId: string }) {
                 重新加载
               </button>
               <Link
-                href="/history"
+                href="/training"
                 className="rounded-xl border border-[#2563EB] bg-white px-6 py-3 text-sm font-bold text-[#2563EB] transition-colors hover:bg-[#EFF5FF]"
               >
                 返回列表

@@ -4,14 +4,12 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  countHistorySessions,
   findHistorySessionDetail,
-  findHistorySessionPage,
 } from "./repository";
 
-// 历史模块数据访问集成测试（T10）：真实数据库。
-// 覆盖：分页正确性（日期倒序 + 页码/总数）、用户隔离（仅当前用户记录）、
-// 详情行携带回放所需的全部关联（题目 / 提示事件 / 评分 / 反馈）。
+// 历史模块数据访问集成测试（T10；T25 起仅保留详情——
+// 列表分页查询已随 GET /api/history 删除）：真实数据库。
+// 覆盖：详情行携带回放所需的全部关联（题目 / 提示事件 / 评分 / 反馈）。
 
 const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
@@ -86,59 +84,6 @@ beforeAll(ensureSeedQuestion);
 afterAll(async () => {
   await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   await prisma.$disconnect();
-});
-
-describe("历史列表分页（按日期倒序）", () => {
-  it("跨页顺序正确：第 1 页取最新 10 条，第 2 页取其余，total 为全量", async () => {
-    const user = await newUser("t10-page");
-    // 12 条：2026-10-01 ~ 2026-10-12 逐日一条
-    for (let day = 0; day < 12; day += 1) {
-      await newSession(user.id, day);
-    }
-
-    const total = await countHistorySessions(prisma, user.id);
-    expect(total).toBe(12);
-
-    const page1 = await findHistorySessionPage(prisma, user.id, 1, 10);
-    const page2 = await findHistorySessionPage(prisma, user.id, 2, 10);
-    expect(page1).toHaveLength(10);
-    expect(page2).toHaveLength(2);
-
-    // 日期倒序：第 1 页最新（10-12 → 10-03），第 2 页最早（10-02 → 10-01）
-    const dates = [...page1, ...page2].map((row) => row.date.toISOString().slice(0, 10));
-    expect(dates[0]).toBe("2026-10-12");
-    expect(dates[9]).toBe("2026-10-03");
-    expect(dates[10]).toBe("2026-10-02");
-    expect(dates[11]).toBe("2026-10-01");
-    const sorted = [...dates].sort().reverse();
-    expect(dates).toEqual(sorted);
-
-    // 列表行携带装配所需字段
-    expect(page1[0]?.question.caseTitle).toBe("T10 集成测试种子题");
-    expect(Array.isArray(page1[0]?.question.abilityTags)).toBe(true);
-    expect(page1[0]?.scores).toEqual([]);
-  });
-
-  it("超出末页返回空数组，total 不受影响", async () => {
-    const user = await newUser("t10-empty-page");
-    await newSession(user.id, 0);
-    const page = await findHistorySessionPage(prisma, user.id, 5, 10);
-    expect(page).toEqual([]);
-    expect(await countHistorySessions(prisma, user.id)).toBe(1);
-  });
-
-  it("用户隔离：列表与计数仅含当前用户记录", async () => {
-    const mine = await newUser("t10-own");
-    const stranger = await newUser("t10-stranger");
-    await newSession(mine.id, 0);
-    await newSession(mine.id, 1);
-    await newSession(stranger.id, 2);
-
-    expect(await countHistorySessions(prisma, mine.id)).toBe(2);
-    const page = await findHistorySessionPage(prisma, mine.id, 1, 10);
-    expect(page).toHaveLength(2);
-    expect(page.every((row) => row.question.caseTitle === "T10 集成测试种子题")).toBe(true);
-  });
 });
 
 describe("历史详情行（回放数据完整性）", () => {

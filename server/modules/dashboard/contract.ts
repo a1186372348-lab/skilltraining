@@ -28,20 +28,25 @@ export const statsCardSchema = z.object({
   weekDays: z.array(weekDaySchema).length(7),
 });
 
-/** 今日任务主卡（复用每日一题会话；completed 时前端展示「再练一题」） */
-export const todayTaskCardSchema = z.object({
-  sessionId: z.string(),
-  state: z.enum(["reading", "answering", "followup", "scored"]),
-  /** 已提交终答（或已评分）即视为今日已完成 */
-  completed: z.boolean(),
-  caseTitle: z.string(),
-  mainQuestion: z.string(),
-  /** 训练重点：本题能力标签（BR-1，本次仅按它们评分） */
-  abilityTags: z.array(z.string()),
-  focusText: z.string(),
-  /** 「为什么是它」占位文案（真实自适应理由 T11 接入） */
-  whyText: z.string(),
-});
+/**
+ * 当前训练卡三态（T26 / D28②：与 server/modules/training/hub-view.ts 的 HubCurrentCard
+ * 形状逐一对应——同一判定数据源的出口校验；大厅与首页共用，两处永不漂移）。
+ */
+export const hubCurrentCardSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("in_progress"),
+    sessionId: z.string(),
+    caseTitle: z.string(),
+    stage: z.enum(["answering", "followup", "scoring"]),
+  }),
+  z.object({ kind: z.literal("not_started"), dateKey: dateKeySchema }),
+  z.object({
+    kind: z.literal("completed"),
+    sessionId: z.string(),
+    caseTitle: z.string(),
+    scores: z.array(z.object({ dimension: z.string(), effectiveScore: z.number() })),
+  }),
+]);
 
 /** 能力总览条形（已观测维度） */
 export const abilityBarSchema = z.object({
@@ -69,14 +74,15 @@ export const latestDiagnosisSchema = z.object({
 export const dashboardViewSchema = z.object({
   todayDateKey: dateKeySchema,
   stats: statsCardSchema.nullable(),
-  todayTask: todayTaskCardSchema.nullable(),
+  /** 当前训练卡（T26 / D28：首页与大厅同一张三态卡，单一事实源） */
+  currentTraining: hubCurrentCardSchema.nullable(),
   ability: abilityOverviewSchema.nullable(),
   latestDiagnosis: latestDiagnosisSchema.nullable(),
 });
 
 export type WeekDayView = z.infer<typeof weekDaySchema>;
 export type StatsCardData = z.infer<typeof statsCardSchema>;
-export type TodayTaskCardData = z.infer<typeof todayTaskCardSchema>;
+export type HubCurrentCardView = z.infer<typeof hubCurrentCardSchema>;
 export type AbilityBarView = z.infer<typeof abilityBarSchema>;
 export type AbilityOverviewData = z.infer<typeof abilityOverviewSchema>;
 export type LatestDiagnosisData = z.infer<typeof latestDiagnosisSchema>;

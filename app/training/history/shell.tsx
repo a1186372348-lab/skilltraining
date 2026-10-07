@@ -1,19 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { navItemsFor } from "@/app/_shared/nav-items";
+
 /**
- * 训练历史页外壳：深色侧边栏 + 主区浅灰底（原型 B 设计语言）。
- * 复制自 app/today/shell.tsx 并微调（当前页「训练历史」高亮、底部卡改为训练计数）；
- * 后续由主代理抽取共享组件统一收敛。
+ * 训练历史回放页外壳：深色侧边栏 + 主区浅灰底（原型 B 设计语言）。
+ * 复制自 app/training/session/shell.tsx 并微调（底部卡改为训练计数）；
+ * T25 / D27：迁入产品训练模块，当前页「产品训练」高亮。
  */
 
-const NAV_ITEMS = [
-  { label: "训练历史", href: "/history", active: true },
-  { label: "首页", href: "/", active: false },
-  { label: "今日训练", href: "/today", active: false },
-  { label: "能力画像", href: "/profile", active: false },
-  { label: "我的", href: "/settings", active: false },
-] as const;
+const NAV_ITEMS = navItemsFor("产品训练");
 
 export function HistoryShell({
   countText,

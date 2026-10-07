@@ -1,6 +1,8 @@
 import type {
+  ExtraSessionResponse,
   FinalAnswerResponse,
   FirstAnswerResponse,
+  FollowupHintResponse,
   FollowupRound,
   HintResponse,
   ReleasedHint,
@@ -15,7 +17,7 @@ import { coefficientForHintCount } from "./view-model";
  * ★★★ 联调接入点 ★★★
  * 服务端（app/api/training/*，T05 后端任务并行开发）就绪后：
  *   1. 将 USE_MOCK 置为 false（或删除 mock 分支与本文件中的 mock 代码）；
- *   2. 契约形状已与 server/modules/training 的测试草案对齐（见 app/today/contract.ts），
+ *   2. 契约形状已与 server/modules/training 的测试草案对齐（见 app/training/session/contract.ts），
  *      若联调仍有出入，只需调整本文件的 normalize* 解析，页面组件不感知；
  *   3. 真实分支按统一响应封装 { success, data, error } 解析。
  * 页面组件只调用本文件的四个函数，不直接 fetch。
@@ -29,7 +31,21 @@ interface ApiEnvelope<T> {
   error?: { code: string; message: string };
 }
 
-/** 真实接口调用：解析统一响应封装，失败时抛出带服务端 message 的错误 */
+/**
+ * 带服务端错误码的 API 错误：页面按 code 分支处理
+ *（T25：BASELINE_SESSION → 工作台重定向 /baseline；SESSION_NOT_FOUND → 会话不存在态）。
+ */
+export class ApiError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+  }
+}
+
+/** 真实接口调用：解析统一响应封装，失败时抛出带服务端 code 与 message 的错误 */
 async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { "content-type": "application/json" },
@@ -37,37 +53,52 @@ async function callApi<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const json = (await res.json()) as ApiEnvelope<T>;
   if (!res.ok || !json.success) {
-    throw new Error(json.error?.message ?? "请求失败，请稍后重试");
+    throw new ApiError(
+      json.error?.code ?? "UNKNOWN",
+      json.error?.message ?? "请求失败，请稍后重试",
+    );
   }
   return json.data as T;
 }
 
 /**
- * 归一化追问记录：服务端 service 层结果为 string[]，落库/today 视图是
- * { round, question }[]，两种形态都兼容（联调接入点：以最终路由响应为准收敛）。
+ * 归一化追问记录：服务端 today 视图/首答响应均为 { round, question, hasHint, hintReleased, hint }，
+ * 历史联调期的 string[] 形态也兼容（按无提示处理）。
  */
 function normalizeFollowups(raw: unknown): FollowupRound[] {
   if (!Array.isArray(raw)) return [];
   const rounds: FollowupRound[] = [];
   raw.forEach((item, index) => {
     if (typeof item === "string" && item.trim()) {
-      rounds.push({ round: index + 1, question: item });
+      rounds.push({ round: index + 1, question: item, hasHint: false, hintReleased: false, hint: null });
     } else if (
       item !== null &&
       typeof item === "object" &&
       typeof (item as { question?: unknown }).question === "string"
     ) {
-      const entry = item as { round?: unknown; question: string };
+      const entry = item as {
+        round?: unknown;
+        question: string;
+        hasHint?: unknown;
+        hintReleased?: unknown;
+        hint?: unknown;
+      };
+      const hintReleased = entry.hintReleased === true;
+      const hint = typeof entry.hint === "string" ? entry.hint : null;
       rounds.push({
         round: typeof entry.round === "number" ? entry.round : index + 1,
         question: entry.question,
+        hasHint: entry.hasHint === true || (hintReleased && hint !== null),
+        hintReleased,
+        // FR-10：未释放时不保留下发侧 hint 字段（服务端本就不下发，这里再兜一层）
+        hint: hintReleased ? hint : null,
       });
     }
   });
   return rounds;
 }
 
-/** 归一化 today 视图：补齐可能缺失的派生字段（hintCount / canRequestHint / followups / caseSources） */
+/** 归一化 today 视图：补齐可能缺失的派生字段（hintCount / canRequestHint / followups / caseSources / firstSubmittedAt） */
 function normalizeTodayView(raw: TodayView): TodayView {
   const releasedHints = Array.isArray(raw.releasedHints) ? raw.releasedHints : [];
   const hintCount = typeof raw.hintCount === "number" ? raw.hintCount : releasedHints.length;
@@ -76,6 +107,8 @@ function normalizeTodayView(raw: TodayView): TodayView {
     hintCount,
     releasedHints,
     followups: normalizeFollowups(raw.followups),
+    // T22：追问生成中/失败判定依据；联调期服务端未下发时兜底 null（按失败处理）
+    firstSubmittedAt: typeof raw.firstSubmittedAt === "string" ? raw.firstSubmittedAt : null,
     // T13：案例来源为新增字段，联调期服务端未下发时兜底为空列表（案例卡退化为无引用态）
     caseSources: Array.isArray(raw.caseSources) ? raw.caseSources : [],
     canRequestHint:
@@ -89,6 +122,15 @@ function normalizeTodayView(raw: TodayView): TodayView {
 export async function fetchTodaySession(): Promise<TodayView | null> {
   if (USE_MOCK) return mockFetchTodaySession();
   const data = await callApi<TodayView | null>("/api/training/today");
+  return data ? normalizeTodayView(data) : null;
+}
+
+/**
+ * GET /api/training/:id（T25 / D27）：单会话工作台载荷（/training/session/[id] 按会话寻址）。
+ * 与 today 载荷同构；基线会话抛 ApiError(BASELINE_SESSION)，调用方据此重定向 /baseline。
+ */
+export async function fetchSessionById(sessionId: string): Promise<TodayView | null> {
+  const data = await callApi<TodayView | null>(`/api/training/${sessionId}`);
   return data ? normalizeTodayView(data) : null;
 }
 
@@ -126,6 +168,23 @@ export async function submitFinalAnswer(
     body: JSON.stringify({ answer }),
   });
   return { ...data, finalAnswer: data.finalAnswer ?? answer };
+}
+
+/** POST /api/training/:id/followup-hint：释放某轮追问的预生成提示（T19 / D22，幂等） */
+export async function requestFollowupHint(
+  sessionId: string,
+  round: number,
+): Promise<FollowupHintResponse> {
+  if (USE_MOCK) return mockRequestFollowupHint(sessionId, round);
+  return callApi<FollowupHintResponse>(`/api/training/${sessionId}/followup-hint`, {
+    method: "POST",
+    body: JSON.stringify({ round }),
+  });
+}
+
+/** POST /api/training/extra：创建/复用加练会话（T21 / D3），返回 { sessionId }（T25：调用方拿 sessionId 直达新工作台） */
+export async function startExtraSession(): Promise<ExtraSessionResponse> {
+  return callApi<ExtraSessionResponse>("/api/training/extra", { method: "POST" });
 }
 
 /* ======================================================================
@@ -185,6 +244,12 @@ const MOCK_FOLLOWUPS: FollowupRound[] = [
   },
 ];
 
+/** mock 追问的预生成提示（T19 / D22：点击时读库零等待） */
+const MOCK_FOLLOWUP_HINTS: Record<number, string> = {
+  1: "先不急着维护结论——列出用户让渡清单：控制权、可预期性、出错时的排查成本，逐项对照「仍成立 / 需限定条件」。",
+  2: "区分「功能使用率」与「任务完成时长」两类指标：想想哪类能直接反驳「噱头」，以及你会在哪个用户群体上观察它。",
+};
+
 /** mock 会话的可变部分（持久化到 localStorage 的最小状态） */
 interface MockSessionStore {
   state: TrainingSessionState;
@@ -192,6 +257,8 @@ interface MockSessionStore {
   firstAnswer: string | null;
   finalAnswer: string | null;
   followups: FollowupRound[];
+  /** 已释放追问提示的轮次（T19 / D22） */
+  releasedFollowupHints: number[];
 }
 
 function initialMockStore(): MockSessionStore {
@@ -201,6 +268,7 @@ function initialMockStore(): MockSessionStore {
     firstAnswer: null,
     finalAnswer: null,
     followups: [],
+    releasedFollowupHints: [],
   };
 }
 
@@ -234,7 +302,11 @@ function loadMockStore(): MockSessionStore {
     const raw = window.localStorage.getItem(MOCK_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as MockSessionStore;
-      if (isValidMockStore(parsed)) return parsed;
+      if (isValidMockStore(parsed)) {
+        // T19 前持久化的旧数据无 releasedFollowupHints 字段：按空数组兜底
+        if (!Array.isArray(parsed.releasedFollowupHints)) parsed.releasedFollowupHints = [];
+        return parsed;
+      }
     }
   } catch {
     // localStorage 不可用或数据损坏：退回内存态
@@ -255,18 +327,30 @@ function saveMockStore(store: MockSessionStore): void {
 /** 组装完整负载：不可变题目内容 + 可变会话状态（扁平 today 视图） */
 function buildMockPayload(store: MockSessionStore): TodayView {
   const hintCount = store.releasedHints.length;
+  const followupHintCount = store.releasedFollowupHints.length;
   return {
     sessionId: MOCK_SESSION_ID,
     state: store.state,
     hintCount,
-    coefficient: coefficientForHintCount(hintCount),
+    followupHintCount,
+    coefficient: coefficientForHintCount(hintCount, followupHintCount),
     canRequestHint:
       (store.state === "reading" || store.state === "answering") &&
       hintCount < MOCK_HINT_TREE.length,
     releasedHints: store.releasedHints,
     firstAnswer: store.firstAnswer,
     finalAnswer: store.finalAnswer,
-    followups: store.followups,
+    // T22：mock 不追踪首答提交时间，恒为 null（追问为空时按失败兜底）
+    firstSubmittedAt: null,
+    followups: store.followups.map((round) => {
+      const released = store.releasedFollowupHints.includes(round.round);
+      return {
+        ...round,
+        hasHint: round.round in MOCK_FOLLOWUP_HINTS,
+        hintReleased: released,
+        hint: released ? MOCK_FOLLOWUP_HINTS[round.round] : null,
+      };
+    }),
     caseTitle: "从「帮你写」到「替你做」：Cursor 的 Agent 模式",
     caseBackground: {
       product: {
@@ -405,8 +489,13 @@ async function mockSubmitFirstAnswer(
   return {
     state: "followup",
     firstAnswer: answer,
-    followups: MOCK_FOLLOWUPS,
-    coefficient: coefficientForHintCount(updated.releasedHints.length),
+    followups: MOCK_FOLLOWUPS.map((round) => ({
+      ...round,
+      hasHint: round.round in MOCK_FOLLOWUP_HINTS,
+      hintReleased: false,
+      hint: null,
+    })),
+    coefficient: coefficientForHintCount(updated.releasedHints.length, 0),
   };
 }
 
@@ -425,4 +514,31 @@ async function mockSubmitFinalAnswer(
   // 对齐 T05 服务端行为：终答落库后状态仍为 followup，scored 由 T06 评分写入
   saveMockStore({ ...store, finalAnswer: answer });
   return { state: "followup", finalAnswer: answer };
+}
+
+/** mock 释放追问提示：幂等（同一轮重复请求不重复计数），响应携带组合系数 */
+async function mockRequestFollowupHint(
+  sessionId: string,
+  round: number,
+): Promise<FollowupHintResponse> {
+  await mockDelay();
+  if (sessionId !== MOCK_SESSION_ID) throw new Error("会话不存在或已过期");
+  const store = loadMockStore();
+  if (store.state !== "followup") throw new Error("当前状态不可请求追问提示");
+  const hint = MOCK_FOLLOWUP_HINTS[round];
+  if (!store.followups.some((item) => item.round === round)) throw new Error("追问轮次不存在");
+  if (!hint) throw new Error("该轮追问没有可用提示");
+  const released = store.releasedFollowupHints.includes(round)
+    ? store
+    : { ...store, releasedFollowupHints: [...store.releasedFollowupHints, round] };
+  if (released !== store) saveMockStore(released);
+  return {
+    round,
+    hint,
+    followupHintCount: released.releasedFollowupHints.length,
+    coefficient: coefficientForHintCount(
+      released.releasedHints.length,
+      released.releasedFollowupHints.length,
+    ),
+  };
 }

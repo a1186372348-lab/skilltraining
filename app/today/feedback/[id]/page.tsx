@@ -1,22 +1,12 @@
-import type { Metadata } from "next";
-
-import { FeedbackFlow } from "./feedback-flow";
-
-export const metadata: Metadata = {
-  title: "训练反馈 · 训练台",
-};
+import { redirect } from "next/navigation";
 
 /**
- * 训练反馈页（P4 / T07：US-007，产品的"情感峰值页"）。
- * 链路：有效得分行（含"原始分 × 系数"小字与"查看计算过程"）→ 最需要优化的
- * 一个问题强调卡 → 下一步卡 → 星级问卷（D16：每 5 次训练追加周期性一问）
- * → 双按钮（查看能力画像 / 再练一题）。
- * 评分进行中显示"总监评分中"等待态并轮询（真实延迟 35~49 秒，R5 异步设计）。
- * 视觉以 prototypes/prototype-b-dashboard.html 为基准，复用侧边栏外壳。
+ * T25 / D27⑥：反馈页已迁入「产品训练」模块——
+ * 旧地址 307 重定向到 /training/feedback/[id]（外部书签不失效）。
  */
-export default async function FeedbackPage({
+export default async function TodayFeedbackRedirectPage({
   params,
 }: PageProps<"/today/feedback/[id]">) {
   const { id } = await params;
-  return <FeedbackFlow sessionId={id} />;
+  redirect(`/training/feedback/${id}`);
 }

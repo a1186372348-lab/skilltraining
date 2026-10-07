@@ -3,7 +3,7 @@ import type { FeedbackDimensionScore } from "./contract";
 /**
  * 训练反馈页视图模型（纯函数，T07）。
  * 把"反馈数据 → 界面"的全部判定集中在这里，组件只负责渲染；
- * 无 DOM/React 依赖，可在 node 环境用 vitest 直接覆盖（同 app/today/view-model.ts 模式）。
+ * 无 DOM/React 依赖，可在 node 环境用 vitest 直接覆盖（同 app/training/session/view-model.ts 模式）。
  */
 
 /** 评分轮询间隔（真实评分延迟 35~49 秒，R5：3 秒一跳，进度感知与请求压力折中） */

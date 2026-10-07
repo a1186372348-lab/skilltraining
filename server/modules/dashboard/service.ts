@@ -1,13 +1,12 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { getAbilityProfileView } from "@/server/modules/profile/ability";
-import { ABILITY_DIMENSIONS } from "@/server/modules/profile/schema";
-import { getOrCreateTodaySession, todayUtc } from "@/server/modules/training/service";
+import { getCurrentTrainingCard } from "@/server/modules/training/hub-view";
+import { todayUtc } from "@/server/modules/training/service";
 
 import {
   buildAbilityOverview,
   buildStatsCard,
-  buildTodayTaskCard,
   toDateKeyUtc,
   truncateText,
 } from "./assemble";
@@ -16,16 +15,15 @@ import type {
   DashboardView,
   LatestDiagnosisData,
   StatsCardData,
-  TodayTaskCardData,
 } from "./contract";
 
 /**
  * 首页仪表盘装配服务（T08 / US-002）。
  *
- * 四个卡片（统计条 / 今日任务 / 能力总览 / 最近诊断）独立装配：
+ * 四个卡片（统计条 / 当前训练 / 能力总览 / 最近诊断）独立装配：
  * 单卡失败仅记录审计日志并降级为 null（前端空态），不拖垮整页
- * （T08 失败与回滚约定）。今日任务卡复用 training 模块的每日一题会话
- * （与 /api/training/today 同源，选题逻辑保持单一事实源，T11 只改一处）。
+ * （T08 失败与回滚约定）。当前训练卡复用 training 模块大厅同源查询
+ * （T26 / D28②：getCurrentTrainingCard 单一事实源，首页与大厅永不漂移）。
  */
 
 type DbClient = PrismaClient;
@@ -43,25 +41,6 @@ async function loadStats(db: DbClient, userId: string): Promise<StatsCardData> {
     sessions.map((session) => toDateKeyUtc(session.date)),
     toDateKeyUtc(todayUtc()),
   );
-}
-
-/** 今日任务卡：复用每日一题会话；「为什么是它」占位规则需要未解锁维度 */
-async function loadTodayTask(db: DbClient, userId: string): Promise<TodayTaskCardData> {
-  const { session, question } = await getOrCreateTodaySession(db, userId);
-  const observedRows = await db.abilityProfile.findMany({
-    where: { userId, currentScore: { not: null } },
-    select: { dimension: true },
-  });
-  const observed = new Set(observedRows.map((row) => row.dimension));
-  return buildTodayTaskCard({
-    sessionId: session.id,
-    state: session.state,
-    finalSubmittedAt: session.finalSubmittedAt,
-    caseTitle: question.caseTitle,
-    mainQuestion: question.mainQuestion,
-    abilityTags: question.abilityTags,
-    unobservedDimensions: ABILITY_DIMENSIONS.filter((dimension) => !observed.has(dimension)),
-  });
 }
 
 /** 能力总览：全 8 维画像视图（未观测补齐未知态）→ 条形 + 待解锁 */
@@ -109,11 +88,11 @@ async function safeCard<T>(card: string, load: () => Promise<T>): Promise<T | nu
 
 /** 装配首页仪表盘视图：四卡并行、各自独立降级 */
 export async function getDashboardView(db: DbClient, userId: string): Promise<DashboardView> {
-  const [stats, todayTask, ability, latestDiagnosis] = await Promise.all([
+  const [stats, currentTraining, ability, latestDiagnosis] = await Promise.all([
     safeCard("stats", () => loadStats(db, userId)),
-    safeCard("todayTask", () => loadTodayTask(db, userId)),
+    safeCard("currentTraining", () => getCurrentTrainingCard(db, userId)),
     safeCard("ability", () => loadAbility(db, userId)),
     safeCard("latestDiagnosis", () => loadLatestDiagnosis(db, userId)),
   ]);
-  return { todayDateKey: toDateKeyUtc(todayUtc()), stats, todayTask, ability, latestDiagnosis };
+  return { todayDateKey: toDateKeyUtc(todayUtc()), stats, currentTraining, ability, latestDiagnosis };
 }

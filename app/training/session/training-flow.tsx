@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  ApiError,
+  fetchSessionById,
   fetchTodaySession,
+  requestFollowupHint,
   requestHint,
+  startExtraSession,
   submitFinalAnswer,
   submitFirstAnswer,
 } from "./api";
-import type { TodayView } from "./contract";
+import type { FollowupRound, TodayView } from "./contract";
 import { TodayShell } from "./shell";
 import type { ChatMessage, MaterialView } from "./view-model";
 import {
@@ -17,6 +22,7 @@ import {
   THINKING_DIRECTIONS,
   buildFollowupMessages,
   canSubmitAnswer,
+  followupEmptyState,
   formatCoefficient,
   hintMicrocopy,
   isHintButtonVisible,
@@ -28,9 +34,13 @@ import {
 } from "./view-model";
 
 /**
- * 今日训练交互主体（P3，T05-Page）。
- * 状态流：作答（可请求提示）→ 首答提交 → 总监追问 → 终答提交 → 完成；
- * 刷新后由 GET /api/training/today 返回的会话状态恢复到对应阶段（R4）。
+ * 训练工作台交互主体（P3；T25 / D27 起按会话寻址：/training/session/[id]）。
+ * 状态流：作答（可请求提示）→ 首答提交 → 总监追问 → 终答提交 → 直接跳转反馈页
+ * （2026-10-07 修正，对齐 Prd.md 核心链路与原型屏 2，取代内嵌完成卡过渡实现；
+ * 基线测评复用时置 redirectToFeedbackOnDone=false，由 BaselineFlow 轮询推进）；
+ * 刷新后由 GET /api/training/[id] 返回的会话状态恢复到对应阶段（R4）——
+ * 已完成阶段重访仍渲染内嵌完成卡，作为回看入口（附反馈页链接）。
+ * 基线会话由服务端拒绝（BASELINE_SESSION），本组件据 code 重定向 /baseline。
  * 全部状态→视图判定走 view-model 纯函数，本组件只负责渲染与调用适配层。
  */
 
@@ -41,9 +51,23 @@ const PRIMARY_BTN =
 const TEXTAREA =
   "w-full resize-y rounded-xl border border-[#E9EDF4] bg-white px-4 py-3 text-sm leading-6 text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus:border-[#2563EB]";
 
-type PendingAction = "hint" | "first" | "final" | null;
+type PendingAction = "hint" | "first" | "final" | "followup-hint" | "extra" | null;
 
-export function TrainingFlow() {
+export function TrainingFlow({
+  withShell = true,
+  redirectToFeedbackOnDone = true,
+  sessionId,
+}: {
+  withShell?: boolean;
+  /** 终答提交成功后直接跳转反馈页 P4；基线测评复用时置 false（由 BaselineFlow 轮询推进下一题/跳画像页） */
+  redirectToFeedbackOnDone?: boolean;
+  /**
+   * T25 / D27：按会话寻址（/training/session/[id]，GET /api/training/[id]）；
+   * 缺省走 GET /api/training/today（baseline 复用路径：基线门禁下 today 返回当前基线会话）
+   */
+  sessionId?: string;
+}) {
+  const router = useRouter();
   const [payload, setPayload] = useState<TodayView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -51,18 +75,30 @@ export function TrainingFlow() {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [draft, setDraft] = useState("");
   const [finalDraft, setFinalDraft] = useState("");
+  // T22：提交首答的响应追问为空（服务端重试已耗尽的确定失败）时置 true，直接按失败渲染；
+  // 会话变化/重新 load 后重置
+  const [followupFailed, setFollowupFailed] = useState(false);
+  // T22：最近一次 load 完成的时间戳，作为「生成中」窗口判定的当前时间基准（渲染期不调 Date.now）
+  const [payloadLoadedAt, setPayloadLoadedAt] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      setPayload(await fetchTodaySession());
+      setPayload(sessionId ? await fetchSessionById(sessionId) : await fetchTodaySession());
+      setPayloadLoadedAt(Date.now());
+      setFollowupFailed(false);
     } catch (error) {
+      // T25：基线会话不属于日常工作台（服务端 409 BASELINE_SESSION）→ 回基线独立入口
+      if (error instanceof ApiError && error.code === "BASELINE_SESSION") {
+        router.replace("/baseline");
+        return;
+      }
       setLoadError(error instanceof Error ? error.message : "加载失败，请稍后重试");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sessionId, router]);
 
   useEffect(() => {
     // 首屏加载延迟到 effect 同步阶段之后执行，避免同步 setState 引发级联渲染
@@ -103,6 +139,8 @@ export function TrainingFlow() {
     setActionError(null);
     try {
       const res = await submitFirstAnswer(payload.sessionId, draft.trim());
+      // T22：响应追问为空 = 服务端重试已耗尽的确定失败，直接按失败渲染（不走 120 秒窗口）
+      setFollowupFailed(res.followups.length === 0);
       setPayload((prev) =>
         prev
           ? {
@@ -122,7 +160,7 @@ export function TrainingFlow() {
     }
   }, [payload, pendingAction, draft]);
 
-  /** 提交终答：进入评分等待；接口幂等，重复点击不覆盖不重复计分 */
+  /** 提交终答：日常训练直接跳转反馈页（评分等待态由反馈页承接）；接口幂等，重复点击不覆盖不重复计分 */
   const onSubmitFinal = useCallback(async () => {
     if (!payload || pendingAction || !canSubmitAnswer(finalDraft)) return;
     setPendingAction("final");
@@ -132,27 +170,104 @@ export function TrainingFlow() {
       setPayload((prev) =>
         prev ? { ...prev, state: res.state, finalAnswer: res.finalAnswer } : prev,
       );
+      if (redirectToFeedbackOnDone) {
+        router.push(`/training/feedback/${payload.sessionId}`);
+      }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "提交失败，请重试");
     } finally {
       setPendingAction(null);
     }
-  }, [payload, pendingAction, finalDraft]);
+  }, [payload, pendingAction, finalDraft, redirectToFeedbackOnDone, router]);
+
+  /** 释放某轮追问的预生成提示（T19 / D22）：读库响应零等待；就地展开并同步组合系数 */
+  const onRequestFollowupHint = useCallback(
+    async (round: number) => {
+      if (!payload || pendingAction) return;
+      setPendingAction("followup-hint");
+      setActionError(null);
+      try {
+        const res = await requestFollowupHint(payload.sessionId, round);
+        setPayload((prev) =>
+          prev
+            ? {
+                ...prev,
+                coefficient: res.coefficient,
+                followupHintCount: res.followupHintCount,
+                followups: prev.followups.map((item) =>
+                  item.round === round ? { ...item, hintReleased: true, hint: res.hint } : item,
+                ),
+              }
+            : prev,
+        );
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : "请求提示失败，请重试");
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [payload, pendingAction],
+  );
+
+  /** 再练一题（T21 / D3）：创建/复用加练会话后进入新题工作台；失败行内提示 */
+  const onStartExtra = useCallback(async () => {
+    if (pendingAction) return;
+    setPendingAction("extra");
+    setActionError(null);
+    try {
+      const res = await startExtraSession();
+      if (sessionId) {
+        // 按会话寻址模式（T25）：直接跳新加练会话的工作台
+        router.push(`/training/session/${res.sessionId}`);
+      } else {
+        // today 加载模式（baseline 复用路径）：重新拉取即返回新加练会话
+        await load();
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "创建加练失败，请重试");
+    } finally {
+      setPendingAction(null);
+    }
+  }, [pendingAction, load, sessionId, router]);
 
   const stage = payload ? stageOfSession(payload.state, payload.finalAnswer) : "answering";
   const stageText = loading && !payload ? "加载中" : stageLabel(stage);
+  // T20 交付项 9：自然高度 + 封顶——卡片一律保持自然内容高度，xl 起各栏 max-h-full 封顶；左右栏超高时卡片内容区内滚（外壳与标题不动），
+  // 中栏作答/完成阶段栏级滚动，仅追问阶段改为整体对话卡（栏锁定，滚动在消息区内部，输入条钉在卡底）
+  const isFollowup = stage === "followup";
 
-  return (
-    <TodayShell stageText={stageText}>
-      <div className="mx-auto w-full max-w-6xl">
+  // T22：追问为空时区分生成中/失败——提交响应即空直接失败；否则按首答提交后 120 秒窗口判定
+  // （当前时间取最近一次 load 完成时间：渲染期保持纯净，每次轮询重拉后窗口自动重估）
+  const followupEmpty =
+    payload && isFollowup && payload.followups.length === 0
+      ? followupFailed
+        ? "failed"
+        : followupEmptyState(payload.firstSubmittedAt, payloadLoadedAt)
+      : null;
+
+  // T22：生成中每 5 秒重拉；追问到达或超窗后 followupEmpty 转非 generating，依赖变化自动停止轮询
+  useEffect(() => {
+    if (followupEmpty !== "generating") return;
+    const timer = setInterval(() => void load(), 5000);
+    return () => clearInterval(timer);
+  }, [followupEmpty, load]);
+
+  const content = (
+    <div className="mx-auto w-full max-w-6xl xl:flex xl:min-h-0 xl:max-w-7xl xl:flex-1 xl:flex-col xl:overflow-hidden">
         {loading && !payload ? <LoadingView /> : null}
 
         {loadError ? (
           <div className={`${CARD} p-10 text-center`}>
             <p className="text-sm text-[#475569]">{loadError}</p>
-            <button type="button" onClick={() => void load()} className={`${PRIMARY_BTN} mt-5`}>
-              重新加载
-            </button>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
+              <button type="button" onClick={() => void load()} className={PRIMARY_BTN}>
+                重新加载
+              </button>
+              {/* T25：按会话寻址新增「会话不存在」场景（404）——给出回大厅的出口 */}
+              <Link href="/training" className="text-sm font-medium text-[#2563EB] hover:underline">
+                返回产品训练 →
+              </Link>
+            </div>
           </div>
         ) : null}
 
@@ -171,29 +286,21 @@ export function TrainingFlow() {
 
         {payload ? (
           <>
-            <header className="mb-6 flex flex-wrap items-center gap-3">
-              <span className="text-xs font-bold tracking-[0.16em] text-[#2563EB]">今日训练</span>
-              <span className="rounded-full border border-[#E9EDF4] bg-white px-3 py-1 text-xs text-[#475569]">
-                {stageLabel(stage)}
-              </span>
-              {stage === "answering" ? (
-                <span className="text-xs text-[#94A3B8]">
-                  作答后，AI 产品总监将追问并给出诊断
-                </span>
-              ) : null}
-            </header>
-
-            <div className="grid items-start gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-              {/* 左栏：案例卡 / 训练重点小卡 / 参考资料 */}
-              <div className="flex flex-col gap-5">
+            {/* 三栏工作台（D23）：xl 起锁定单行高度、各栏自然排布 + 封顶内滚；xl 以下 order 恢复原有纵向堆叠次序 */}
+            <div className="grid items-start gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[320px_minmax(0,1fr)_288px] xl:grid-rows-1">
+              {/* 左栏：案例卡 + 训练重点自然竖排；xl 起封顶，超高时案例卡内容区内滚（重点小卡 shrink-0 始终完整） */}
+              <div className="order-1 flex min-h-0 flex-col gap-5 xl:order-none xl:max-h-full">
                 <CaseCard payload={payload} />
                 <FocusCard abilityTags={payload.abilityTags} />
-                <MaterialsCard materials={toMaterialViews(payload.materials)} />
               </div>
 
-              {/* 右栏：主问题 + 各阶段交互区 */}
-              <div className="flex min-w-0 flex-col gap-5">
-                <section className={`${CARD} p-7`}>
+              {/* 中栏：今日问题卡 + 各阶段交互区自然排布；xl 起封顶——作答/完成阶段栏内滚动，追问阶段栏锁定、滚动在对话消息区内部 */}
+              <div
+                className={`order-3 flex min-w-0 flex-col gap-5 xl:order-none xl:max-h-full ${
+                  isFollowup ? "xl:overflow-hidden" : "scrollbar-subtle xl:overflow-y-auto"
+                }`}
+              >
+                <section className={`${CARD} p-7 xl:shrink-0`}>
                   <span className="mb-3 block text-[11px] font-bold tracking-[0.14em] text-[#7C8AA5]">
                     今日问题
                   </span>
@@ -216,15 +323,28 @@ export function TrainingFlow() {
                 {stage === "followup" ? (
                   <FollowupSection
                     payload={payload}
+                    emptyState={followupEmpty}
                     finalDraft={finalDraft}
                     pendingAction={pendingAction}
                     onFinalDraftChange={setFinalDraft}
                     onSubmitFinal={() => void onSubmitFinal()}
+                    onRequestFollowupHint={(round) => void onRequestFollowupHint(round)}
                   />
                 ) : null}
 
                 {stage === "done" ? (
-                  <DoneSection sessionId={payload.sessionId} finalAnswer={payload.finalAnswer} />
+                  <DoneSection
+                    sessionId={payload.sessionId}
+                    finalAnswer={payload.finalAnswer}
+                    pendingAction={pendingAction}
+                    // 基线复用模式（kind=baseline）不出「再练一题」入口（T21：加练不影响基线流程；
+                    // kind 为服务端 today 视图下发字段，窄化读取同 BaselineFlow.viewKind）
+                    onStartExtra={
+                      (payload as TodayView & { kind?: string }).kind === "baseline"
+                        ? null
+                        : () => void onStartExtra()
+                    }
+                  />
                 ) : null}
 
                 <ReleasedHintsCard payload={payload} />
@@ -235,37 +355,56 @@ export function TrainingFlow() {
                   </p>
                 ) : null}
               </div>
+
+              {/* 右栏：参考资料卡自然高度（D23 自左栏底部迁入；xl 以下经 order 仍排在案例/重点之后、问题区之前）；xl 起封顶，超高时卡内容区内滚 */}
+              <div className="order-2 flex min-h-0 flex-col gap-5 xl:order-none xl:max-h-full">
+                <MaterialsCard materials={toMaterialViews(payload.materials)} />
+              </div>
             </div>
           </>
         ) : null}
       </div>
+  );
+
+  // /baseline 复用时外层 BaselineFlow 已带 TodayShell，避免嵌套出双重侧边栏
+  if (!withShell) {
+    return content;
+  }
+
+  return (
+    <TodayShell stageText={stageText} lockViewport>
+      {content}
     </TodayShell>
   );
 }
 
-/** 加载骨架（评分等待同样克制，R5 骨架屏原则） */
+/** 加载骨架（评分等待同样克制，R5 骨架屏原则）；自然高度版本，与三栏同构（左案例+重点、中问题+交互、右资料），避免骨架跳动 */
 function LoadingView() {
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-      <div className={`${CARD} h-72 animate-pulse bg-[#EDF1F7]`} />
+    <div className="grid items-start gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[320px_minmax(0,1fr)_288px] xl:grid-rows-1">
+      <div className="flex flex-col gap-5">
+        <div className={`${CARD} h-72 animate-pulse bg-[#EDF1F7]`} />
+        <div className={`${CARD} h-28 animate-pulse bg-[#EDF1F7]`} />
+      </div>
       <div className="flex flex-col gap-5">
         <div className={`${CARD} h-32 animate-pulse bg-[#EDF1F7]`} />
         <div className={`${CARD} h-64 animate-pulse bg-[#EDF1F7]`} />
       </div>
+      <div className={`${CARD} h-80 animate-pulse bg-[#EDF1F7]`} />
     </div>
   );
 }
 
-/** 今日案例卡：五字段事实（字段结尾内联引用链接，T13 / BR-8） */
+/** 今日案例卡：五字段事实（字段结尾内联引用链接，T13 / BR-8）；xl 起外壳与标题固定、超高时字段区内滚（pr-2 避让非悬浮滚动条） */
 function CaseCard({ payload }: { payload: TodayView }) {
   const fields = toCaseFieldViews(payload.caseBackground, toCaseSourceViews(payload.caseSources));
   return (
-    <section className={`${CARD} p-6`}>
-      <span className="mb-3 block text-xs font-bold tracking-[0.16em] text-[#2563EB]">
+    <section className={`${CARD} p-6 xl:flex xl:min-h-0 xl:flex-col`}>
+      <span className="mb-3 block text-xs font-bold tracking-[0.16em] text-[#2563EB] xl:shrink-0">
         今日案例
       </span>
-      <h2 className="mb-4 text-base leading-7 font-bold">{payload.caseTitle}</h2>
-      <dl className="flex flex-col gap-3">
+      <h2 className="mb-4 text-base leading-7 font-bold xl:shrink-0">{payload.caseTitle}</h2>
+      <dl className="scrollbar-subtle flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2">
         {fields.map((field) => (
           <div key={field.key} className="grid grid-cols-[64px_1fr] gap-2 text-xs leading-5">
             <dt className="shrink-0 text-[#94A3B8]">{field.label}</dt>
@@ -293,10 +432,10 @@ function CaseCard({ payload }: { payload: TodayView }) {
   );
 }
 
-/** 训练重点小卡：今天练什么（能力标签即评分维度，BR-1） */
+/** 训练重点小卡：今天练什么（能力标签即评分维度，BR-1）；xl 起 shrink-0 永远完整可见，不参与左栏收缩 */
 function FocusCard({ abilityTags }: { abilityTags: string[] }) {
   return (
-    <section className="rounded-2xl border border-[#D9E7FD] bg-[#EFF5FF] p-6">
+    <section className="rounded-2xl border border-[#D9E7FD] bg-[#EFF5FF] p-6 xl:shrink-0">
       <span className="mb-2 block text-[13px] font-bold text-[#1D4ED8]">
         <span className="mr-1">★</span>训练重点
       </span>
@@ -317,15 +456,15 @@ function FocusCard({ abilityTags }: { abilityTags: string[] }) {
   );
 }
 
-/** 参考资料卡：★核心 2 篇在前，○扩展 3 篇在后；阅读不扣分（BR-3） */
+/** 参考资料卡：★核心 2 篇在前，○扩展 3 篇在后；阅读不扣分（BR-3）；xl 起外壳与标题行固定、超高时列表区内滚（pr-2 避让非悬浮滚动条） */
 function MaterialsCard({ materials }: { materials: MaterialView[] }) {
   return (
-    <section className={`${CARD} p-6`}>
-      <div className="mb-4 flex items-baseline justify-between gap-2">
+    <section className={`${CARD} p-6 xl:flex xl:min-h-0 xl:flex-col`}>
+      <div className="mb-4 flex items-baseline justify-between gap-2 xl:shrink-0">
         <h3 className="text-[15px] font-bold">参考资料</h3>
         <span className="text-[11px] whitespace-nowrap text-[#94A3B8]">阅读不扣分</span>
       </div>
-      <ul className="flex flex-col gap-4">
+      <ul className="scrollbar-subtle flex flex-col gap-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2">
         {materials.map((item) => (
           <li key={`${item.kind}-${item.title}`} className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
@@ -378,7 +517,10 @@ function AnsweringSection({
   const hintVisible = isHintButtonVisible("answering", payload.hintCount, payload.canRequestHint);
   return (
     <section className={`${CARD} p-7`}>
-      <h3 className="mb-3 text-[15px] font-bold">我的回答</h3>
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h3 className="text-[15px] font-bold">我的回答</h3>
+        <span className="text-xs text-[#94A3B8]">作答后，AI 产品总监将追问并给出诊断</span>
+      </div>
       <textarea
         className={`${TEXTAREA} min-h-40`}
         placeholder="想好就写，不设格式。卡住时可以逐级请求提示。"
@@ -424,53 +566,84 @@ function AnsweringSection({
   );
 }
 
-/** 追问阶段：对话气泡（总监左、用户右）+ 补充输入 + 提交最终答案 */
+/** 追问阶段：单一对话卡（T20 追加改版）——标题行 + 消息历史区（xl 起内部滚动、自动滚底）+ 底部紧凑输入条（shrink-0，始终完整可见）；每轮追问提示入口保留在对应消息旁（T19/D22）；追问为空时按 emptyState 区分生成中等待卡/失败兜底（T22） */
 function FollowupSection({
   payload,
+  emptyState,
   finalDraft,
   pendingAction,
   onFinalDraftChange,
   onSubmitFinal,
+  onRequestFollowupHint,
 }: {
   payload: TodayView;
+  /** 追问为空时的状态（T22：generating 显示等待卡并轮询，failed 显示兜底）；null 表示追问非空或不适用 */
+  emptyState: "generating" | "failed" | null;
   finalDraft: string;
   pendingAction: PendingAction;
   onFinalDraftChange: (value: string) => void;
   onSubmitFinal: () => void;
+  onRequestFollowupHint: (round: number) => void;
 }) {
   const messages = buildFollowupMessages(payload.firstAnswer, payload.followups);
-  const hasDirectorMessage = messages.some((message) => message.role === "director");
+  const userBubble = messages.find((message) => message.role === "user");
+  const hasDirectorMessage = payload.followups.length > 0;
+  // T20 交付项 7：进入追问阶段或新追问到达时消息区滚到底部；仅消息数变化触发，用户手动上翻不回弹
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const messageCount = messages.length;
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messageCount]);
+  // 对话卡随中栏封顶（xl:min-h-0 可被压缩）：对话短时整卡自然高；对话长时卡被压缩、消息区独立滚动；底部输入条 shrink-0 始终完整可见
   return (
-    <>
-      <section className={`${CARD} p-7`}>
-        <div className="mb-5 flex items-baseline justify-between">
-          <h3 className="text-[15px] font-bold">总监追问</h3>
-          <span className="text-xs text-[#94A3B8]">追问不扣分，放心补充</span>
-        </div>
-        <div className="flex flex-col gap-5">
-          {messages.map((message, index) => (
-            <ChatBubble key={index} message={message} />
-          ))}
-          {!hasDirectorMessage ? (
-            <p className="rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3 text-xs leading-5 text-[#475569]">
-              总监暂时离开（追问生成失败），不影响本次训练——可直接提交最终答案。
+    <section className={`${CARD} p-7 xl:flex xl:min-h-0 xl:flex-col`}>
+      <div className="mb-5 flex items-baseline justify-between xl:shrink-0">
+        <h3 className="text-[15px] font-bold">总监追问</h3>
+        <span className="text-xs text-[#94A3B8]">追问不扣分，放心补充</span>
+      </div>
+      <div
+        ref={messageListRef}
+        className="scrollbar-subtle flex flex-col gap-5 xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+      >
+        {userBubble ? <ChatBubble message={userBubble} /> : null}
+        {payload.followups.map((round) => (
+          <Fragment key={round.round}>
+            <ChatBubble
+              message={{ role: "director", content: round.question, isFollowup: true }}
+            />
+            <FollowupHintBlock
+              round={round}
+              pendingAction={pendingAction}
+              onRequest={() => onRequestFollowupHint(round.round)}
+            />
+          </Fragment>
+        ))}
+        {!hasDirectorMessage && emptyState === "generating" ? (
+          <div className="rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3 text-xs leading-5 text-[#475569]">
+            <p className="font-semibold text-[#12233F]">总监思考中…</p>
+            <p className="mt-1">
+              正在针对你的回答设计追问，通常 20 秒内，高负载时约 1 分钟。页面会自动刷新，无需操作。
             </p>
-          ) : null}
-        </div>
-      </section>
-
-      <section className={`${CARD} p-7`}>
-        <h3 className="mb-3 text-[15px] font-bold">补充你的判断</h3>
+          </div>
+        ) : null}
+        {!hasDirectorMessage && emptyState !== "generating" ? (
+          <p className="rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3 text-xs leading-5 text-[#475569]">
+            总监暂时离开（追问生成失败），不影响本次训练——可直接提交最终答案。若追问稍后生成成功，刷新页面即可看到。
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-5 border-t border-[#E9EDF4] pt-5 xl:shrink-0">
         <textarea
-          className={`${TEXTAREA} min-h-32`}
+          className={`${TEXTAREA} min-h-20`}
           placeholder="回应追问，修正或深化你的结论……"
           value={finalDraft}
           onChange={(event) => onFinalDraftChange(event.target.value)}
         />
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
           <span className="text-xs text-[#94A3B8]">
-            本题提示 {payload.hintCount} 次 · 独立完成系数{" "}
-            {formatCoefficient(payload.coefficient)}
+            本题提示 {payload.hintCount} 次 · 追问提示 {payload.followupHintCount ?? 0} 次 ·
+            独立完成系数 {formatCoefficient(payload.coefficient)}
           </span>
           <button
             type="button"
@@ -481,9 +654,52 @@ function FollowupSection({
             {pendingAction === "final" ? "提交中…" : "提交最终答案"}
           </button>
         </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
+}
+
+/**
+ * 单轮追问的提示区（T19 / D22）：
+ * - 未释放且该轮有预生成提示：显示「◇ 给我一个提示」入口（点击读库展开，无二次 AI 等待）；
+ * - 已释放：提示随会话持久展示（刷新后仍在）；
+ * - 该轮无预生成提示（AI 降级/老数据）：不渲染任何入口。
+ */
+function FollowupHintBlock({
+  round,
+  pendingAction,
+  onRequest,
+}: {
+  round: FollowupRound;
+  pendingAction: PendingAction;
+  onRequest: () => void;
+}) {
+  if (round.hintReleased && round.hint) {
+    return (
+      <div className="ml-12 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-xs leading-6 text-[#92400E]">
+        <span className="mr-2 rounded border border-[#FDE68A] bg-white px-1.5 py-0.5 text-[10px] font-medium text-[#B45309]">
+          提示
+        </span>
+        {round.hint}
+      </div>
+    );
+  }
+  if (round.hasHint) {
+    return (
+      <div className="ml-12 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onRequest}
+          disabled={pendingAction !== null}
+          className="rounded-lg border border-dashed border-[#2563EB]/50 px-3 py-1.5 text-xs font-semibold text-[#2563EB] transition-colors hover:bg-[#EFF5FF] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {pendingAction === "followup-hint" ? "释放中…" : "◇ 给我一个提示"}
+        </button>
+        <span className="text-[11px] text-[#94A3B8]">追问提示 · 系数 −0.05</span>
+      </div>
+    );
+  }
+  return null;
 }
 
 /** 追问对话气泡（吸收原型 C：总监左气泡、用户右气泡） */
@@ -523,13 +739,18 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-/** 完成阶段：终答已提交，评分与诊断由反馈页（T07）承接 */
+/** 完成阶段：终答已提交，评分与诊断由反馈页（T07）承接；T21 起日常模式附「再练一题」（加练入口） */
 function DoneSection({
   sessionId,
   finalAnswer,
+  pendingAction,
+  onStartExtra,
 }: {
   sessionId: string;
   finalAnswer: string | null;
+  pendingAction: PendingAction;
+  /** null 时隐藏加练入口（基线复用模式） */
+  onStartExtra: (() => void) | null;
 }) {
   return (
     <section className={`${CARD} p-8 text-center`}>
@@ -545,12 +766,24 @@ function DoneSection({
           {finalAnswer}
         </p>
       ) : null}
-      <Link
-        href={`/today/feedback/${sessionId}`}
-        className="mt-6 inline-block text-sm font-medium text-[#2563EB] hover:underline"
-      >
-        查看训练反馈 →
-      </Link>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+        <Link
+          href={`/training/feedback/${sessionId}`}
+          className="text-sm font-medium text-[#2563EB] hover:underline"
+        >
+          查看训练反馈 →
+        </Link>
+        {onStartExtra ? (
+          <button
+            type="button"
+            onClick={onStartExtra}
+            disabled={pendingAction !== null}
+            className={PRIMARY_BTN}
+          >
+            {pendingAction === "extra" ? "创建中…" : "再练一题"}
+          </button>
+        ) : null}
+      </div>
     </section>
   );
 }

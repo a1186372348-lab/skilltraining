@@ -3,7 +3,7 @@ import type { DashboardView } from "@/server/modules/dashboard/contract";
 /**
  * 首页仪表盘 API 适配层（T08-Page）。
  * 页面组件只调用本文件函数，不直接 fetch；统一响应封装 { success, data, error }
- * 的解析集中在这里（与 app/today/api.ts 同一模式）。
+ * 的解析集中在这里（与 app/training/session/api.ts 同一模式）。
  */
 
 /** 统一响应封装的服务端错误形状（与 server/lib/api-response.ts 对齐） */

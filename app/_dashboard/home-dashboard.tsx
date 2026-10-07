@@ -3,25 +3,26 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { CurrentTrainingCard } from "@/app/training/current-training-card";
+import { sidebarStageText } from "@/app/training/view-model";
 import type { DashboardView } from "@/server/modules/dashboard/contract";
 
 import { fetchDashboard } from "./api";
 import { HomeShell } from "./home-shell";
 import {
-  ctaLabel,
   greetingByHour,
   greetingSubline,
   relativeDayText,
   scorePercent,
-  sessionStateLabel,
   trendMark,
   weekSegmentClass,
 } from "./view-model";
 
 /**
  * 首页仪表盘交互主体（P1 / T08：US-002，原型 B 屏 1）。
- * 布局：问候行 + 统计条（连续天数、本周 n/7 分段）→ 左列「今日任务」主卡 +
+ * 布局：问候行 + 统计条（连续天数、本周 n/7 分段）→ 左列「当前训练」三态卡 +
  * 「最近一条诊断」引用卡，右列「能力总览」卡（条形 + 待解锁虚态）。
+ * 「当前训练」卡与产品训练大厅同一张共享组件、同一判定数据源（T26 / D28）；
  * 四卡数据独立装配：单卡为 null 渲染空态虚线卡，不拖垮整页（T08 失败与回滚约定）。
  * 视觉基准：#F5F6F8 浅灰底、白色卡片、主色 #2563EB。
  */
@@ -62,11 +63,12 @@ export function HomeDashboard() {
   }, [load]);
 
   const streakDays = view?.stats?.streakDays ?? 0;
+  // 侧栏「今日状态」与大厅同一口径（T26 / D28）：三态卡数据源 → sidebarStageText
   const stageText =
     loading && !view
       ? "加载中"
-      : view?.todayTask
-        ? sessionStateLabel(view.todayTask.state, view.todayTask.completed)
+      : view?.currentTraining
+        ? sidebarStageText(view.currentTraining)
         : "待开始";
 
   return (
@@ -132,7 +134,7 @@ export function HomeDashboard() {
 
             <div className="grid items-stretch gap-6 xl:grid-cols-[1.55fr_1fr]">
               <div className="flex min-w-0 flex-col gap-6">
-                <TaskCard view={view} onRetry={() => void load()} />
+                <CurrentTrainingSlot view={view} onRetry={() => void load()} />
                 <DiagnosisCard view={view} />
               </div>
               <AbilityCard view={view} />
@@ -157,13 +159,15 @@ function LoadingView() {
   );
 }
 
-/** 今日任务主卡：案例、训练重点、「为什么是它」（占位文案）、开始/再练按钮 */
-function TaskCard({ view, onRetry }: { view: DashboardView; onRetry: () => void }) {
-  const task = view.todayTask;
-  if (!task) {
+/**
+ * 「当前训练」卡位（T26 / D28①）：与产品训练大厅同一张共享三态卡，
+ * 内容与动作逐字一致；currentTraining 为 null（加载失败降级）时按 T08 约定渲染空态虚线卡。
+ */
+function CurrentTrainingSlot({ view, onRetry }: { view: DashboardView; onRetry: () => void }) {
+  if (!view.currentTraining) {
     return (
       <section className={`${EMPTY_CARD} flex-1`}>
-        <h2 className="text-base font-bold text-[#7A8AA3]">今日任务暂未就绪</h2>
+        <h2 className="text-base font-bold text-[#7A8AA3]">今日训练暂未就绪</h2>
         <p className="mt-2 text-xs text-[#A6B2C6]">题库准备中或加载失败，请稍后再试。</p>
         <button
           type="button"
@@ -175,69 +179,7 @@ function TaskCard({ view, onRetry }: { view: DashboardView; onRetry: () => void 
       </section>
     );
   }
-
-  const dayBadge =
-    view.stats && view.stats.streakDays > 0
-      ? `今日训练 · 第 ${view.stats.streakDays} 天`
-      : "今日训练";
-
-  return (
-    <section className={`${CARD} flex flex-1 flex-col p-8`}>
-      <div className="mb-4 flex items-center justify-between">
-        <span className="text-xs font-bold tracking-[0.16em] text-[#2563EB]">今日任务</span>
-        <span className="rounded-full border border-[#E6EAF1] bg-[#F1F5F9] px-3 py-1 text-xs text-[#475569]">
-          {dayBadge}
-        </span>
-      </div>
-      <h2 className="mb-4 text-2xl font-bold tracking-wide">{task.caseTitle}</h2>
-
-      {task.abilityTags.length > 0 ? (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {task.abilityTags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-lg border border-[#E9EDF3] bg-[#F5F7FA] px-2.5 py-1 text-xs text-[#475569]"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="mb-3 rounded-xl border border-[#D9E7FD] bg-[#EFF5FF] px-4 py-3.5">
-        <span className="mb-1 block text-[13px] font-bold text-[#1D4ED8]">
-          <span className="mr-1">★</span>训练重点
-        </span>
-        <p className="text-[13px] leading-relaxed text-[#3D5A90]">{task.focusText}</p>
-      </div>
-
-      <div className="mb-4 flex items-center gap-2 rounded-lg border border-[#FBE9C4] bg-[#FFFBEB] px-4 py-2.5 text-[13px] text-[#8A5A12]">
-        <span className="text-xs text-[#D97706]">◇</span>
-        {task.whyText}
-      </div>
-
-      <div className="mb-6 rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3.5">
-        <span className="mb-1.5 block text-[11px] font-bold tracking-[0.14em] text-[#7C8AA5]">
-          今日问题
-        </span>
-        <p className="text-[15px] leading-relaxed font-semibold text-[#12233F]">
-          {task.mainQuestion}
-        </p>
-      </div>
-
-      <div className="mt-auto flex flex-wrap items-center gap-4">
-        <Link href="/today" className={PRIMARY_BTN}>
-          {ctaLabel(task.state, task.completed)}
-          <span className="text-xs">▸</span>
-        </Link>
-        <span className="text-xs text-[#94A3B8]">
-          {task.completed
-            ? "今日训练已完成，加练同等计入画像"
-            : "作答后，AI 产品总监将追问并给出诊断"}
-        </span>
-      </div>
-    </section>
-  );
+  return <CurrentTrainingCard current={view.currentTraining} />;
 }
 
 /** 最近一条诊断引用卡（session_feedback.top_issue_text，截断展示） */
@@ -264,7 +206,7 @@ function DiagnosisCard({ view }: { view: DashboardView }) {
               —— {relativeDayText(diagnosis.dateKey, view.todayDateKey)}
             </span>
             <Link
-              href={`/today/feedback/${diagnosis.sessionId}`}
+              href={`/training/feedback/${diagnosis.sessionId}`}
               className="text-xs font-medium text-[#2563EB] hover:underline"
             >
               查看训练反馈 →

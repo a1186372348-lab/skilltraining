@@ -1,19 +1,14 @@
 import type { PrismaClient, TrainingSessionState } from "@prisma/client";
 
-import {
-  parseFollowupRecords,
-  type FollowupRecord,
-} from "@/server/modules/training/today-view";
+import { parseFollowupRecords } from "@/server/modules/training/today-view";
 
 import { HISTORY_ERROR_CODES as CODES, HistoryError } from "./errors";
-import {
-  countHistorySessions,
-  findHistorySessionDetail,
-  findHistorySessionPage,
-} from "./repository";
+import { findHistorySessionDetail } from "./repository";
 
 /**
- * 训练历史视图装配（T10 / US-009 / FR-9，Prd.md 2.3 页面 P5）。
+ * 训练历史回放视图装配（T10 / US-009 / FR-9，Prd.md 2.3 页面 P5；
+ * T25 / D27：列表视图已随 GET /api/history 删除——大厅历史列表
+ * 由 server/modules/training/hub-view.ts 承接，本模块只保留详情回放）。
  *
  * FR-10 出口防线：rubric、hintTree 一律不进入历史视图（repository 层不查询，
  * 本层不装配）；提示只回放"层数 + 时间"（hint_events 落库事实），不下发提示文案。
@@ -25,38 +20,6 @@ import {
 type DbClient = PrismaClient;
 
 /* ============================== 视图类型 ============================== */
-
-/** 列表项的有效分摘要（各维度有效分） */
-export interface HistoryScoreSummary {
-  dimension: string;
-  effectiveScore: number;
-}
-
-/** 列表项：日期 / 案例名 / 训练重点 / 有效分摘要 / 状态 */
-export interface HistoryListItem {
-  sessionId: string;
-  date: string; // ISO 日期（每日一题归属日）
-  caseTitle: string;
-  /** 训练重点：能力标签（2~4 个） */
-  abilityTags: string[];
-  isExtra: boolean;
-  state: TrainingSessionState;
-  scores: HistoryScoreSummary[];
-}
-
-/** 分页元数据（页码 / 每页 / 总数 / 总页数） */
-export interface HistoryPagination {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-}
-
-/** GET /api/history 的 data 负载 */
-export interface HistoryListView {
-  items: HistoryListItem[];
-  pagination: HistoryPagination;
-}
 
 /** 提示使用回放：层数 + 请求时间 */
 export interface HistoryHintEventView {
@@ -97,8 +60,8 @@ export interface HistoryDetailView {
   // 提示使用
   hintCount: number;
   hintEvents: HistoryHintEventView[];
-  // 追问对话记录（BR-4）
-  followups: FollowupRecord[];
+  // 追问对话记录（BR-4；T19 起落库含预生成提示，历史回放只下发轮次与问题，FR-10）
+  followups: { round: number; question: string }[];
   // 评分四元组
   scores: HistoryScoreView[];
   // 反馈（BR-7：最需优化问题 + 下一步；null = 缺失）
@@ -108,15 +71,6 @@ export interface HistoryDetailView {
 }
 
 /* ============================== 装配输入行 ============================== */
-
-export interface HistorySessionListRow {
-  id: string;
-  date: Date;
-  isExtra: boolean;
-  state: TrainingSessionState;
-  question: { caseTitle: string; abilityTags: unknown };
-  scores: { dimension: string; effectiveScore: number }[];
-}
 
 export interface HistorySessionDetailRow {
   id: string;
@@ -155,35 +109,6 @@ export interface HistorySessionDetailRow {
 export function parseAbilityTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((item): item is string => typeof item === "string");
-}
-
-/** 分页元数据：totalPages 向上取整，0 条记录时为 0 */
-export function buildPagination(
-  total: number,
-  page: number,
-  pageSize: number,
-): HistoryPagination {
-  return {
-    page,
-    pageSize,
-    total,
-    totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
-  };
-}
-
-export function toHistoryListItem(row: HistorySessionListRow): HistoryListItem {
-  return {
-    sessionId: row.id,
-    date: row.date.toISOString().slice(0, 10),
-    caseTitle: row.question.caseTitle,
-    abilityTags: parseAbilityTags(row.question.abilityTags),
-    isExtra: row.isExtra,
-    state: row.state,
-    scores: row.scores.map((score) => ({
-      dimension: score.dimension,
-      effectiveScore: score.effectiveScore,
-    })),
-  };
 }
 
 /**
@@ -228,7 +153,10 @@ export function toHistoryDetailView(row: HistorySessionDetailRow): HistoryDetail
       layer: event.layer,
       requestedAt: event.requestedAt.toISOString(),
     })),
-    followups: parseFollowupRecords(row.followups),
+    followups: parseFollowupRecords(row.followups).map(({ round, question }) => ({
+      round,
+      question,
+    })),
     scores: row.scores.map((score) => ({
       dimension: score.dimension,
       rawScore: score.rawScore,
@@ -245,23 +173,6 @@ export function toHistoryDetailView(row: HistorySessionDetailRow): HistoryDetail
 }
 
 /* ============================== 查询编排 ============================== */
-
-/** 历史列表：当前用户记录按日期倒序分页，响应含分页元数据 */
-export async function getHistoryList(
-  db: DbClient,
-  userId: string,
-  page: number,
-  pageSize: number,
-): Promise<HistoryListView> {
-  const [total, rows] = await Promise.all([
-    countHistorySessions(db, userId),
-    findHistorySessionPage(db, userId, page, pageSize),
-  ]);
-  return {
-    items: rows.map(toHistoryListItem),
-    pagination: buildPagination(total, page, pageSize),
-  };
-}
 
 /** 详情回放：不存在或不属于当前用户一律 404（不泄露存在性） */
 export async function getHistoryDetail(

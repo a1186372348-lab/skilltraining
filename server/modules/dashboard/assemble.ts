@@ -3,7 +3,6 @@ import type { AbilityProfileDimensionView } from "@/server/modules/profile/abili
 import type {
   AbilityOverviewData,
   StatsCardData,
-  TodayTaskCardData,
   WeekDayView,
 } from "./contract";
 
@@ -13,6 +12,8 @@ import type {
  * 与 DB 解耦：输入为日期键（YYYY-MM-DD，UTC）与画像视图，输出为卡片数据，
  * 便于 vitest 覆盖连续天数、本周进度、空态（新用户全未知）等核心规则。
  * 日期一律按 UTC 处理，与 training_sessions.date（@db.Date）的零点对齐。
+ * （T26：今日任务卡的 buildTodayTaskCard/buildWhyText/parseAbilityTags 已随
+ * 「当前训练」三态卡同构下线，题面预览由大厅与工作台承接，D28③。）
  */
 
 /** Date → UTC 日期键（YYYY-MM-DD） */
@@ -75,53 +76,6 @@ export function truncateText(text: string, maxLength: number): string {
   const trimmed = text.trim();
   if (trimmed.length <= maxLength) return trimmed;
   return `${trimmed.slice(0, maxLength)}…`;
-}
-
-/** 能力标签防御性解析（questions.ability_tags jsonb） */
-export function parseAbilityTags(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((tag): tag is string => typeof tag === "string");
-}
-
-/**
- * 「为什么是它」占位文案（T08 任务契约：真实自适应理由 T11 接入）：
- * 本题覆盖尚未解锁的维度 → 优先探索；否则 → 结合画像推荐的通用占位。
- */
-export function buildWhyText(abilityTags: string[], unobservedDimensions: string[]): string {
-  const unexplored = abilityTags.filter((tag) => unobservedDimensions.includes(tag));
-  if (unexplored.length > 0) {
-    return `为什么是它：「${unexplored.join("」「")}」等你尚未解锁的维度，优先安排探索`;
-  }
-  if (abilityTags.length > 0) {
-    return `为什么是它：结合你的能力画像，今天练「${abilityTags.join("」「")}」（自适应出题理由将在后续版本细化）`;
-  }
-  return "为什么是它：今日推荐训练（自适应出题理由将在后续版本细化）";
-}
-
-/** 今日任务主卡装配（completed 判定：已提交终答或已评分） */
-export function buildTodayTaskCard(input: {
-  sessionId: string;
-  state: TodayTaskCardData["state"];
-  finalSubmittedAt: Date | null;
-  caseTitle: string;
-  mainQuestion: string;
-  abilityTags: unknown;
-  unobservedDimensions: string[];
-}): TodayTaskCardData {
-  const tags = parseAbilityTags(input.abilityTags);
-  return {
-    sessionId: input.sessionId,
-    state: input.state,
-    completed: input.finalSubmittedAt !== null || input.state === "scored",
-    caseTitle: input.caseTitle,
-    mainQuestion: input.mainQuestion,
-    abilityTags: tags,
-    focusText:
-      tags.length > 0
-        ? `今天主要训练 ${tags.join("、")}，本次仅按它们评分。`
-        : "今天完成一次完整作答，AI 产品总监将追问并给出诊断。",
-    whyText: buildWhyText(tags, input.unobservedDimensions),
-  };
 }
 
 /** 能力总览装配：已观测按分数降序（同分保持维度固定序），未观测列入「待解锁」 */

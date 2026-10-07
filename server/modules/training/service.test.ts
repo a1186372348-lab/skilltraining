@@ -5,10 +5,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { TRAINING_ERROR_CODES as CODES, TrainingError } from "./errors";
 import {
+  getLatestDailySession,
+  getOrCreateExtraSession,
   getOrCreateTodaySession,
+  requestFollowupHint,
   requestHint,
   submitFinalAnswer,
   submitFirstAnswer,
+  todayUtc,
 } from "./service";
 
 // 训练会话服务集成测试：打真实数据库（docker PostgreSQL:5433），AI 追问以注入假实现 mock。
@@ -85,11 +89,12 @@ async function seedSession(
   overrides: Partial<{
     state: "reading" | "answering" | "followup" | "scored";
     hintCount: number;
+    followupHintCount: number;
     firstAnswer: string;
     firstSubmittedAt: Date;
     finalAnswer: string;
     finalSubmittedAt: Date;
-    followups: { round: number; question: string }[];
+    followups: { round: number; question: string; hint?: string; hintReleased?: boolean }[];
   }> = {},
 ) {
   return prisma.trainingSession.create({
@@ -99,11 +104,62 @@ async function seedSession(
       date: new Date(Date.UTC(2026, 9, 3)),
       state: overrides.state ?? "reading",
       hintCount: overrides.hintCount ?? 0,
+      followupHintCount: overrides.followupHintCount ?? 0,
       firstAnswer: overrides.firstAnswer ?? null,
       firstSubmittedAt: overrides.firstSubmittedAt ?? null,
       finalAnswer: overrides.finalAnswer ?? null,
       finalSubmittedAt: overrides.finalSubmittedAt ?? null,
       followups: overrides.followups ?? undefined,
+    },
+  });
+}
+
+// T21 加练链路专用：第二道上架种子题（验证「终答后再练选下一道不同题」）与基线题（kind 过滤验证）
+const EXTRA_SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000a2";
+const BASELINE_KIND_QUESTION_ID = "00000000-0000-4000-8000-0000000000b1";
+
+/** 第二道上架种子题入池（tags/难度与 a1 一致，排序只看 id 升序；afterAll 统一清理） */
+async function ensureExtraSeedQuestion(): Promise<void> {
+  const data = { ...SEED_QUESTION_DATA, id: EXTRA_SEED_QUESTION_ID, caseTitle: "T21 加练第二种子题" };
+  const { id, ...rest } = data;
+  await prisma.question.upsert({ where: { id }, create: data, update: rest });
+}
+
+/** 基线题（kind=baseline；draft 状态双保险不入日常选题池，仅作会话关联） */
+async function ensureBaselineKindQuestion(): Promise<void> {
+  const data = {
+    ...SEED_QUESTION_DATA,
+    id: BASELINE_KIND_QUESTION_ID,
+    caseTitle: "T21 基线题（排除验证用）",
+    status: "draft" as const,
+    kind: "baseline" as const,
+  };
+  const { id, ...rest } = data;
+  await prisma.question.upsert({ where: { id }, create: data, update: rest });
+}
+
+/** 造一个归属于今天的会话（T21 加练链路用；与 seedSession 的固定历史日期区分） */
+async function seedTodaySession(
+  userId: string,
+  overrides: Partial<{
+    questionId: string;
+    isExtra: boolean;
+    state: "reading" | "answering" | "followup" | "scored";
+    finalAnswer: string;
+    finalSubmittedAt: Date;
+    startedAt: Date;
+  }> = {},
+) {
+  return prisma.trainingSession.create({
+    data: {
+      userId,
+      questionId: overrides.questionId ?? SEED_QUESTION_ID,
+      date: todayUtc(),
+      isExtra: overrides.isExtra ?? false,
+      state: overrides.state ?? "reading",
+      finalAnswer: overrides.finalAnswer ?? null,
+      finalSubmittedAt: overrides.finalSubmittedAt ?? null,
+      startedAt: overrides.startedAt ?? new Date(),
     },
   });
 }
@@ -114,6 +170,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } }); // 级联清理会话与提示事件
+  // T21 第二种子题恢复为归档（不删除：并行文件的会话可能引用它，删除会触发外键冲突；
+  // 与共享种子题 a1 同一处置——留库、下次 upsert 复用）
+  await prisma.question.updateMany({
+    where: { id: EXTRA_SEED_QUESTION_ID },
+    data: { status: "archived" },
+  });
   await prisma.$disconnect();
 });
 
@@ -213,32 +275,53 @@ describe("requestHint：5 层逐层释放（D5/BR-3/FR-3）", () => {
   });
 });
 
-describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4）", () => {
-  it("首答落库、状态推进 followup、追问（1~2 轮）存入 followups jsonb；提示随之禁用", async () => {
+describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4/D22）", () => {
+  it("首答落库、状态推进 followup、追问（1~2 轮，含预生成提示）存入 followups jsonb；提示随之禁用", async () => {
     const userId = await newUser();
     const { session } = await getOrCreateTodaySession(prisma, userId);
-    const generateFollowups = async () => ["你的证据是什么？", "反方如何反驳？"];
+    const generateFollowups = async () => [
+      { question: "你的证据是什么？", hint: "想想可衡量的指标" },
+      { question: "反方如何反驳？", hint: "站在反方立场找论据" },
+    ];
 
     const result = await submitFirstAnswer(prisma, session.id, userId, "我的首次答案", {
       generateFollowups,
     });
 
     expect(result.state).toBe("followup");
-    expect(result.followups).toEqual(["你的证据是什么？", "反方如何反驳？"]);
+    expect(result.followups).toEqual([
+      { round: 1, question: "你的证据是什么？", hasHint: true, hintReleased: false, hint: null },
+      { round: 2, question: "反方如何反驳？", hasHint: true, hintReleased: false, hint: null },
+    ]);
     expect(result.coefficient).toBe(1.0);
 
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
     expect(row.firstAnswer).toBe("我的首次答案");
     expect(row.firstSubmittedAt).not.toBeNull();
     expect(row.state).toBe("followup");
+    // 预生成提示随追问落库（D22：点击时读库零等待），初始未释放
     expect(row.followups).toEqual([
-      { round: 1, question: "你的证据是什么？" },
-      { round: 2, question: "反方如何反驳？" },
+      { round: 1, question: "你的证据是什么？", hint: "想想可衡量的指标", hintReleased: false },
+      { round: 2, question: "反方如何反驳？", hint: "站在反方立场找论据", hintReleased: false },
     ]);
+    expect(row.followupHintCount).toBe(0);
 
     await expect(requestHint(prisma, session.id, userId)).rejects.toMatchObject({
       code: CODES.HINT_DISABLED,
     });
+  });
+
+  it("AI 未给出提示（hint 空串）：追问保留、按无提示落库", async () => {
+    const userId = await newUser();
+    const session = await seedSession(userId);
+    const generateFollowups = async () => [{ question: "追问一", hint: "" }];
+
+    const result = await submitFirstAnswer(prisma, session.id, userId, "首答", { generateFollowups });
+    expect(result.followups).toEqual([
+      { round: 1, question: "追问一", hasHint: false, hintReleased: false, hint: null },
+    ]);
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.followups).toEqual([{ round: 1, question: "追问一", hint: "", hintReleased: false }]);
   });
 
   it("幂等：重复提交不覆盖首答、不重复生成追问", async () => {
@@ -247,7 +330,7 @@ describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4）", () => {
     let calls = 0;
     const generateFollowups = async () => {
       calls += 1;
-      return ["追问一"];
+      return [{ question: "追问一", hint: "提示一" }];
     };
 
     const first = await submitFirstAnswer(prisma, session.id, userId, "原始首答", { generateFollowups });
@@ -264,7 +347,7 @@ describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4）", () => {
   it("AI 追问失败：不阻塞训练，状态照推进、followups 为空（失败计入日志）", async () => {
     const userId = await newUser();
     const session = await seedSession(userId);
-    const generateFollowups = async (): Promise<string[]> => {
+    const generateFollowups = async (): Promise<{ question: string; hint: string }[]> => {
       throw new Error("网关不可用");
     };
 
@@ -337,10 +420,263 @@ describe("submitFinalAnswer：终答落库与幂等", () => {
   });
 });
 
+describe("requestFollowupHint：追问阶段提示释放（T19 / D22 / BR-2 修订）", () => {
+  /** 造一个 followup 状态、两轮追问各带预生成提示的会话 */
+  async function seedFollowupSession(
+    userId: string,
+    overrides: Parameters<typeof seedSession>[1] = {},
+  ) {
+    return seedSession(userId, {
+      state: "followup",
+      firstAnswer: "首答",
+      firstSubmittedAt: new Date(),
+      followups: [
+        { round: 1, question: "追问一", hint: "追问提示一", hintReleased: false },
+        { round: 2, question: "追问二", hint: "追问提示二", hintReleased: false },
+      ],
+      ...overrides,
+    });
+  }
+
+  it("成功释放：返回该轮 hint，followupHintCount 自增，系数按组合公式重算", async () => {
+    const userId = await newUser();
+    const session = await seedFollowupSession(userId, { hintCount: 1 });
+
+    const result = await requestFollowupHint(prisma, session.id, userId, 1);
+    expect(result).toEqual({
+      round: 1,
+      hint: "追问提示一",
+      followupHintCount: 1,
+      coefficient: 0.85, // max(0.6, 1 − 0.1×1 − 0.05×1)
+    });
+
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.followupHintCount).toBe(1);
+    expect(row.followups).toEqual([
+      { round: 1, question: "追问一", hint: "追问提示一", hintReleased: true },
+      { round: 2, question: "追问二", hint: "追问提示二", hintReleased: false },
+    ]);
+  });
+
+  it("幂等：同一 round 重复请求返回同一 hint，不重复计数", async () => {
+    const userId = await newUser();
+    const session = await seedFollowupSession(userId);
+
+    const first = await requestFollowupHint(prisma, session.id, userId, 1);
+    const second = await requestFollowupHint(prisma, session.id, userId, 1);
+
+    expect(second.hint).toBe(first.hint);
+    expect(second.followupHintCount).toBe(1); // 未重复计数
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.followupHintCount).toBe(1);
+  });
+
+  it("不同 round 各释放一次：计数 2，系数含两个半价项", async () => {
+    const userId = await newUser();
+    const session = await seedFollowupSession(userId);
+
+    await requestFollowupHint(prisma, session.id, userId, 1);
+    const second = await requestFollowupHint(prisma, session.id, userId, 2);
+
+    expect(second.followupHintCount).toBe(2);
+    expect(second.coefficient).toBe(0.9); // max(0.6, 1 − 0.05×2)
+  });
+
+  it("并发双击同一 round：只计 1 次（守卫条件原子自增）", async () => {
+    const userId = await newUser();
+    const session = await seedFollowupSession(userId);
+
+    const [a, b] = await Promise.all([
+      requestFollowupHint(prisma, session.id, userId, 1),
+      requestFollowupHint(prisma, session.id, userId, 1),
+    ]);
+    expect(a.hint).toBe("追问提示一");
+    expect(b.hint).toBe("追问提示一");
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.followupHintCount).toBe(1);
+  });
+
+  it("round 不存在：404 FOLLOWUP_NOT_FOUND", async () => {
+    const userId = await newUser();
+    const session = await seedFollowupSession(userId);
+    await expect(requestFollowupHint(prisma, session.id, userId, 3)).rejects.toMatchObject({
+      code: CODES.FOLLOWUP_NOT_FOUND,
+      httpStatus: 404,
+    });
+  });
+
+  it("该轮无预生成提示（AI 降级/老数据）：409 FOLLOWUP_HINT_NOT_AVAILABLE，不计数", async () => {
+    const userId = await newUser();
+    const session = await seedFollowupSession(userId, {
+      followups: [
+        { round: 1, question: "老追问无提示字段" }, // 存量老记录
+        { round: 2, question: "降级追问", hint: "", hintReleased: false }, // AI 降级空 hint
+      ],
+    });
+    await expect(requestFollowupHint(prisma, session.id, userId, 1)).rejects.toMatchObject({
+      code: CODES.FOLLOWUP_HINT_NOT_AVAILABLE,
+    });
+    await expect(requestFollowupHint(prisma, session.id, userId, 2)).rejects.toMatchObject({
+      code: CODES.FOLLOWUP_HINT_NOT_AVAILABLE,
+    });
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.followupHintCount).toBe(0);
+  });
+
+  it("越状态：非 followup 状态（reading/scored）409 拒绝", async () => {
+    const userId = await newUser();
+    const reading = await seedSession(userId, { state: "reading" });
+    await expect(requestFollowupHint(prisma, reading.id, userId, 1)).rejects.toMatchObject({
+      code: CODES.INVALID_STATE,
+      httpStatus: 409,
+    });
+
+    const scored = await seedFollowupSession(userId, { state: "scored" });
+    await expect(requestFollowupHint(prisma, scored.id, userId, 1)).rejects.toMatchObject({
+      code: CODES.INVALID_STATE,
+    });
+  });
+
+  it("越权：他人会话按不存在处理（404，不泄露存在性）", async () => {
+    const ownerId = await newUser();
+    const strangerId = await newUser();
+    const session = await seedFollowupSession(ownerId);
+    await expect(requestFollowupHint(prisma, session.id, strangerId, 1)).rejects.toMatchObject({
+      code: CODES.SESSION_NOT_FOUND,
+      httpStatus: 404,
+    });
+  });
+});
+
 describe("错误类型", () => {
   it("TrainingError 携带 code 与 httpStatus", () => {
     const error = new TrainingError(CODES.SESSION_NOT_FOUND, 404, "不存在");
     expect(error).toBeInstanceOf(Error);
     expect(error.httpStatus).toBe(404);
+  });
+});
+
+describe("getOrCreateExtraSession：加练会话创建与幂等（T21 / D3）", () => {
+  it("当天无任何会话：经选题引擎新建加练会话（isExtra=true、state=reading、归属今天）", async () => {
+    const userId = await newUser();
+    const { session, question } = await getOrCreateExtraSession(prisma, userId);
+
+    expect(session.isExtra).toBe(true);
+    expect(session.state).toBe("reading");
+    expect(session.date).toEqual(todayUtc());
+    expect(session.questionId).toBe(SEED_QUESTION_ID);
+    expect(question.id).toBe(SEED_QUESTION_ID);
+  });
+
+  it("每日一题已终答：新建加练会话", async () => {
+    const userId = await newUser();
+    const daily = await seedTodaySession(userId, {
+      state: "followup",
+      finalAnswer: "终答",
+      finalSubmittedAt: new Date(),
+    });
+
+    const { session } = await getOrCreateExtraSession(prisma, userId);
+    expect(session.id).not.toBe(daily.id);
+    expect(session.isExtra).toBe(true);
+    expect(session.state).toBe("reading");
+  });
+
+  it("加练进行中：重复调用幂等复用同一会话（防连点重复建题）", async () => {
+    const userId = await newUser();
+    const first = await getOrCreateExtraSession(prisma, userId);
+    const second = await getOrCreateExtraSession(prisma, userId);
+
+    expect(second.session.id).toBe(first.session.id);
+    expect(await prisma.trainingSession.count({ where: { userId } })).toBe(1);
+  });
+
+  it("加练已终答：再调用创建下一道会话（未练题优先，不重练刚完成的题）", async () => {
+    const userId = await newUser();
+    // a1 已由每日一题练过
+    await seedTodaySession(userId, {
+      state: "followup",
+      finalAnswer: "终答",
+      finalSubmittedAt: new Date(),
+      startedAt: new Date(Date.now() - 60_000),
+    });
+    await ensureExtraSeedQuestion();
+
+    const first = await getOrCreateExtraSession(prisma, userId);
+    // 已练 a1 被引擎排除 → 确定选中 a2
+    expect(first.session.questionId).toBe(EXTRA_SEED_QUESTION_ID);
+
+    // 第一次加练终答后再练：a1/a2 均已练，引擎放宽已练过滤（id 升序取 a1），仍创建新会话
+    await prisma.trainingSession.update({
+      where: { id: first.session.id },
+      data: { state: "followup", finalAnswer: "终答", finalSubmittedAt: new Date() },
+    });
+    const second = await getOrCreateExtraSession(prisma, userId);
+    expect(second.session.id).not.toBe(first.session.id);
+    expect(second.session.isExtra).toBe(true);
+    expect(second.session.questionId).toBe(SEED_QUESTION_ID);
+  });
+
+  it("每日一题进行中：复用该会话，不新建加练（进行中会话至多一个）", async () => {
+    const userId = await newUser();
+    const daily = await seedTodaySession(userId, { state: "answering" });
+
+    const { session, question } = await getOrCreateExtraSession(prisma, userId);
+    expect(session.id).toBe(daily.id);
+    expect(session.isExtra).toBe(false);
+    expect(question.id).toBe(SEED_QUESTION_ID);
+    expect(await prisma.trainingSession.count({ where: { userId } })).toBe(1);
+  });
+});
+
+describe("getLatestDailySession：当天最近非基线会话（T21）", () => {
+  it("多会话：返回 startedAt 最近的一个（进行中的加练自然优先）", async () => {
+    const userId = await newUser();
+    await seedTodaySession(userId, {
+      state: "followup",
+      finalAnswer: "终答",
+      finalSubmittedAt: new Date(),
+      startedAt: new Date(Date.now() - 3_600_000),
+    });
+    const extra = await seedTodaySession(userId, { isExtra: true });
+
+    const latest = await getLatestDailySession(prisma, userId);
+    expect(latest?.session.id).toBe(extra.id);
+    expect(latest?.question.id).toBe(SEED_QUESTION_ID);
+  });
+
+  it("基线会话（question.kind=baseline）被排除：startedAt 更晚仍返回日常会话", async () => {
+    await ensureBaselineKindQuestion();
+    const userId = await newUser();
+    const daily = await seedTodaySession(userId, {
+      state: "followup",
+      finalAnswer: "终答",
+      finalSubmittedAt: new Date(),
+      startedAt: new Date(Date.now() - 3_600_000),
+    });
+    // 基线会话以 isExtra=true 落库（T17a），不得被当作加练返回
+    await seedTodaySession(userId, {
+      questionId: BASELINE_KIND_QUESTION_ID,
+      isExtra: true,
+    });
+
+    const latest = await getLatestDailySession(prisma, userId);
+    expect(latest?.session.id).toBe(daily.id);
+  });
+
+  it("当天仅基线会话：返回 null", async () => {
+    await ensureBaselineKindQuestion();
+    const userId = await newUser();
+    await seedTodaySession(userId, {
+      questionId: BASELINE_KIND_QUESTION_ID,
+      isExtra: true,
+    });
+
+    expect(await getLatestDailySession(prisma, userId)).toBeNull();
+  });
+
+  it("当天无任何会话：返回 null", async () => {
+    const userId = await newUser();
+    expect(await getLatestDailySession(prisma, userId)).toBeNull();
   });
 });

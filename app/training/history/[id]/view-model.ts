@@ -4,7 +4,7 @@ import {
   toCaseSourceViews,
   type CaseCitationLink,
   type CaseSourceView,
-} from "../../today/view-model";
+} from "../../session/view-model";
 
 import type { HistoryHintEventView, HistoryMissingSection } from "../contract";
 

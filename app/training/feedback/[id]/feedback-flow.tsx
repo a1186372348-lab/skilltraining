@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { TodayShell } from "../../shell";
+import { TodayShell } from "../../session/shell";
+import { startExtraSession } from "../../session/api";
 
 import { fetchFeedback, submitSurvey } from "./api";
 import type {
@@ -43,11 +45,15 @@ const SECONDARY_BTN =
 type Phase = "loading" | "scoring" | "ready" | "error";
 
 export function FeedbackFlow({ sessionId }: { sessionId: string }) {
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("loading");
   const [view, setView] = useState<ReadyFeedbackView | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   /** 手动重试令牌：递增触发 effect 重新进入轮询（避免 ref 存储轮询状态） */
   const [retryToken, setRetryToken] = useState(0);
+  /** 再练一题（T21）：创建/复用加练会话中；失败在按钮旁行内提示 */
+  const [extraPending, setExtraPending] = useState(false);
+  const [extraError, setExtraError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +98,21 @@ export function FeedbackFlow({ sessionId }: { sessionId: string }) {
     setRetryToken((prev) => prev + 1);
   }, []);
 
+  /** 再练一题（T21 / D3；T25：拿 sessionId 直达新加练会话的工作台） */
+  const onStartExtra = useCallback(async () => {
+    if (extraPending) return;
+    setExtraPending(true);
+    setExtraError(null);
+    try {
+      const res = await startExtraSession();
+      router.push(`/training/session/${res.sessionId}`);
+    } catch (error) {
+      setExtraError(error instanceof Error ? error.message : "创建加练失败，请重试");
+    } finally {
+      setExtraPending(false);
+    }
+  }, [extraPending, router]);
+
   const stageText =
     phase === "ready" && view
       ? feedbackStageText(view)
@@ -129,13 +150,21 @@ export function FeedbackFlow({ sessionId }: { sessionId: string }) {
             <TopIssueCard text={view.topIssueText} />
             <NextStepCard text={view.nextFocusText} />
             <SurveyCard sessionId={view.sessionId} status={view.survey} />
-            <div className="flex flex-wrap gap-4 pb-4">
+            <div className="flex flex-wrap items-center gap-4 pb-4">
               <Link href="/profile" className={SECONDARY_BTN}>
                 查看能力画像
               </Link>
-              <Link href="/today" className={PRIMARY_BTN}>
-                再练一题
-              </Link>
+              <button
+                type="button"
+                onClick={() => void onStartExtra()}
+                disabled={extraPending}
+                className={PRIMARY_BTN}
+              >
+                {extraPending ? "创建中…" : "再练一题"}
+              </button>
+              {extraError ? (
+                <span className="text-xs text-red-600">{extraError}</span>
+              ) : null}
             </div>
           </div>
         ) : null}

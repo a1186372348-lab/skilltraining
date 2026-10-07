@@ -1,26 +1,25 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { navItemsFor } from "@/app/_shared/nav-items";
+
 /**
- * 今日训练页外壳：深色侧边栏 + 主区浅灰底（原型 B 设计语言）。
- * 路由依据 Prd.md 3.2 蓝图：/ 首页、/today 今日训练、/profile 能力画像、
- * /history 训练历史、/settings 我的；未交付页面仅作导航占位。
+ * 产品训练大厅外壳：深色侧边栏 + 主区浅灰底（原型 B 设计语言）。
+ * 复制自 app/_dashboard/home-shell.tsx 的侧边栏模式（底部「今日状态 + 连续训练」两行，
+ * 与 prototypes/prototype-training-hub.html 的 side-foot 一致）；当前页「产品训练」高亮。
  */
 
-const NAV_ITEMS = [
-  { label: "今日训练", href: "/today", active: true },
-  { label: "首页", href: "/", active: false },
-  { label: "能力画像", href: "/profile", active: false },
-  { label: "训练历史", href: "/history", active: false },
-  { label: "我的", href: "/settings", active: false },
-] as const;
+const NAV_ITEMS = navItemsFor("产品训练");
 
-export function TodayShell({
+export function TrainingShell({
   stageText,
+  streakDays,
   children,
 }: {
-  /** 侧栏底部的今日状态（如 作答中 / 追问中 / 已完成） */
+  /** 侧栏底部的今日状态（如 待开始 / 作答中 / 已完成） */
   stageText: string;
+  /** 侧栏底部的连续训练天数 */
+  streakDays: number;
   children: ReactNode;
 }) {
   return (
@@ -57,10 +56,15 @@ export function TodayShell({
             ),
           )}
         </nav>
-        <div className="mt-auto rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
+        <div className="mt-auto flex flex-col gap-2.5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
           <div className="flex items-center justify-between text-[#8B98B2]">
             <span>今日状态</span>
             <span className="font-semibold text-[#7FA8F5]">{stageText}</span>
+          </div>
+          <div className="h-px bg-white/10" />
+          <div className="flex items-center justify-between text-[#8B98B2]">
+            <span>连续训练</span>
+            <span className="font-semibold text-[#E9EEF7]">{streakDays} 天</span>
           </div>
         </div>
       </aside>

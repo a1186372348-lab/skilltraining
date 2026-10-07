@@ -1,20 +1,12 @@
-import type { Metadata } from "next";
-
-import { HistoryDetailFlow } from "./detail-flow";
-
-export const metadata: Metadata = {
-  title: "训练回放 · 训练台",
-};
+import { redirect } from "next/navigation";
 
 /**
- * 训练历史详情回放页（P5 / T10：US-009 / FR-9）。
- * 分区顺序：案例 → 我的两版答案 → 提示 → 追问 → 评分 → 反馈；
- * 单条记录数据缺失时标记「记录缺失」而非整页报错；他人记录由 API 返回 404。
- * 视觉以 prototypes/prototype-b-dashboard.html 为基准，复用侧边栏外壳模式。
+ * T25 / D27⑥：历史详情已迁入「产品训练」模块——
+ * 旧地址 307 重定向到 /training/history/[id]（外部书签不失效）。
  */
-export default async function HistoryDetailPage({
+export default async function HistoryDetailRedirectPage({
   params,
 }: PageProps<"/history/[id]">) {
   const { id } = await params;
-  return <HistoryDetailFlow sessionId={id} />;
+  redirect(`/training/history/${id}`);
 }

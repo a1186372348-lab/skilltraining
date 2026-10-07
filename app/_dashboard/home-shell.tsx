@@ -1,21 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { navItemsFor } from "@/app/_shared/nav-items";
+
 /**
  * 首页外壳：深色侧边栏 + 主区浅灰底（原型 B 设计语言）。
- * 复制自 app/today/shell.tsx 微调（当前页高亮「首页」，侧栏底部加「连续训练」行）；
+ * 复制自 app/training/session/shell.tsx 微调（当前页高亮「首页」，侧栏底部加「连续训练」行）；
  * 【主代理后续动作】多页外壳稳定后抽共享组件。
- * 路由依据 Prd.md 3.2 蓝图：/ 首页、/today 今日训练、/profile 能力画像、
- * /history 训练历史、/settings 我的；未交付页面仅作导航占位。
+ * 路由依据 Prd.md 3.2 路由地图：/ 首页、/training 产品训练、/profile 能力画像、/settings 我的。
  */
 
-const NAV_ITEMS = [
-  { label: "首页", href: "/", active: true },
-  { label: "今日训练", href: "/today", active: false },
-  { label: "能力画像", href: "/profile", active: false },
-  { label: "训练历史", href: "/history", active: false },
-  { label: "我的", href: "/settings", active: false },
-] as const;
+const NAV_ITEMS = navItemsFor("首页");
 
 export function HomeShell({
   stageText,

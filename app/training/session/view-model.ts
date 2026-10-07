@@ -22,12 +22,14 @@ export const THINKING_DIRECTIONS = [
 export type FlowStage = "answering" | "followup" | "done";
 
 /**
- * 独立完成系数（BR-2）：max(0.6, 1 − 0.1 × 首次提交前的提示次数)。
+ * 独立完成系数（BR-2 修订 / D22）：max(0.6, 1 − 0.1 × 首答前提示次数 − 0.05 × 追问提示次数)。
  * 仅作服务端系数缺失时的兜底；非法输入按 0 次处理（系数 1.0）。
+ * 与服务端 independenceCoefficient 同用整数运算（20 分制），避免浮点误差。
  */
-export function coefficientForHintCount(hintCount: number): number {
-  if (!Number.isFinite(hintCount) || hintCount <= 0) return 1;
-  return Math.max(0.6, 1 - 0.1 * hintCount);
+export function coefficientForHintCount(hintCount: number, followupHintCount = 0): number {
+  const n = Number.isFinite(hintCount) ? Math.max(0, Math.floor(hintCount)) : 0;
+  const m = Number.isFinite(followupHintCount) ? Math.max(0, Math.floor(followupHintCount)) : 0;
+  return Math.max(12, 20 - 2 * Math.min(n, 10) - m) / 20;
 }
 
 /** 系数展示格式：×1.0 / ×0.9 …（保留 1 位小数，规避 1−0.1×n 的浮点尾巴） */
@@ -108,10 +110,27 @@ export interface ChatMessage {
   isFollowup: boolean;
 }
 
+/** 追问为空时「生成中」判定窗口：首答提交后 120 秒（T22 / D25） */
+export const FOLLOWUP_GENERATING_WINDOW_MS = 120_000;
+
+/**
+ * 追问为空时的状态判定（T22 / D25）：首答提交后 120 秒窗口内视为生成中，超窗视为失败；
+ * firstSubmittedAt 为 null 或非法日期字符串按失败（数据异常兜底）。
+ */
+export function followupEmptyState(
+  firstSubmittedAt: string | null,
+  now: number,
+): "generating" | "failed" {
+  if (firstSubmittedAt === null) return "failed";
+  const submittedAt = Date.parse(firstSubmittedAt);
+  if (Number.isNaN(submittedAt)) return "failed";
+  return now - submittedAt < FOLLOWUP_GENERATING_WINDOW_MS ? "generating" : "failed";
+}
+
 /**
  * 组装追问区气泡序列：用户首答（右）→ 总监每轮追问（左，1~2 轮）。
  * 首答缺失或为空白时视为未提交，不产生气泡；
- * followups 为空（AI 追问生成失败）时只保留首答气泡，用户可直达终答。
+ * followups 为空（追问生成中或失败，T22 起由 followupEmptyState 区分）时只保留首答气泡。
  */
 export function buildFollowupMessages(
   firstAnswer: string | null,

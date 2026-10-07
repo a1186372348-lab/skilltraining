@@ -9,7 +9,7 @@
  * - caseBackground 按 DB jsonb 下发（T13 新结构 {text, citations[]}，见 import-questions.ts）；
  * - caseSources 为服务端从 case_background jsonb 拆出的案例来源列表（T13 / BR-8）。
  * 统一响应封装沿用 server/lib/api-response.ts：{ success: true, data } / { success: false, error }。
- * 若联调时服务端字段有出入，只需修改本文件与 app/today/api.ts 的解析，页面组件不感知。
+ * 若联调时服务端字段有出入，只需修改本文件与 app/training/session/api.ts 的解析，页面组件不感知。
  */
 
 /** 训练会话状态机（与 prisma TrainingSessionState 枚举一一对应） */
@@ -78,6 +78,12 @@ export interface FollowupRound {
   round: number;
   /** 总监的追问内容 */
   question: string;
+  /** 该轮是否有可请求的预生成提示（T19 / D22；无提示时不显示入口） */
+  hasHint?: boolean;
+  /** 该轮提示是否已释放（已释放的提示刷新后持久展示） */
+  hintReleased?: boolean;
+  /** 已释放的提示文案；未释放恒为 null（FR-10：服务端绝不下发未释放明文） */
+  hint?: string | null;
 }
 
 /**
@@ -89,7 +95,9 @@ export interface TodayView {
   state: TrainingSessionState;
   /** 首次提交前的提示次数（服务端记录为准，BR-3） */
   hintCount: number;
-  /** 当前独立完成系数（BR-2，服务端权威值；前端仅展示） */
+  /** 追问阶段已释放提示次数（T19 / D22，服务端记录为准；联调期缺失按 0 处理） */
+  followupHintCount?: number;
+  /** 当前独立完成系数（BR-2 修订，服务端权威值；前端仅展示） */
   coefficient: number;
   /** 是否还能请求提示（D7 + 5 层上限，服务端判定） */
   canRequestHint: boolean;
@@ -97,6 +105,8 @@ export interface TodayView {
   releasedHints: ReleasedHint[];
   firstAnswer: string | null;
   finalAnswer: string | null;
+  /** 首答提交时间（ISO；T22：追问为空时判定生成中/失败的窗口依据；未提交或服务端缺失为 null） */
+  firstSubmittedAt: string | null;
   /** AI 追问记录（首答后生成 1~2 轮；追问生成失败时为空，可直达终答） */
   followups: FollowupRound[];
   caseTitle: string;
@@ -124,6 +134,18 @@ export interface HintResponse {
   state: TrainingSessionState;
 }
 
+/** POST /api/training/:id/followup-hint 的 data 负载（T19 / D22：幂等，重复请求不重复计数） */
+export interface FollowupHintResponse {
+  /** 释放提示的追问轮次 */
+  round: number;
+  /** 预生成的提示文案（读库返回，无二次 AI 等待） */
+  hint: string;
+  /** 追问阶段已释放提示总数（服务端记录为准） */
+  followupHintCount: number;
+  /** 按 BR-2 修订公式重算的独立完成系数（追问提示每次 −0.05） */
+  coefficient: number;
+}
+
 /** POST /api/training/:id/first-answer 的 data 负载（D7：此后提示入口永久关闭） */
 export interface FirstAnswerResponse {
   /** 固定推进到 followup */
@@ -139,4 +161,9 @@ export interface FinalAnswerResponse {
   /** 注意：T05 阶段终答后状态仍为 followup，scored 由 T06 评分后写入 */
   state: TrainingSessionState;
   finalAnswer: string;
+}
+
+/** POST /api/training/extra 的 data 负载（T21 / D3：创建或复用加练会话，进行中复用同 id） */
+export interface ExtraSessionResponse {
+  sessionId: string;
 }
