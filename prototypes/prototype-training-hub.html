@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原型 · 产品训练大厅 — 自适应产品经理训练平台</title>
+<style>
+:root{
+  --blue:#2563EB;
+  --blue-dark:#1D4ED8;
+  --blue-mid:#3B82F6;
+  --blue-soft:#60A5FA;
+  --blue-tint:#EFF5FF;
+  --blue-border:#D9E7FD;
+  --ink:#0F172A;
+  --body:#475569;
+  --muted:#94A3B8;
+  --line:#E9EDF4;
+  --bg:#F5F6F8;
+  --green:#047857;
+  --green-bg:#ECFDF5;
+  --green-border:#D1FAE5;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:var(--bg)}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC","Segoe UI",sans-serif;
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.hidden{display:none !important}
+
+/* ============ shared canvas ============ */
+.canvas{min-height:100vh;display:flex}
+
+/* ============ sidebar（沿用原型B / 现产品深色侧栏） ============ */
+.sidebar{
+  width:236px;flex-shrink:0;
+  background:linear-gradient(180deg,#101A2E 0%,#0B1322 100%);
+  color:#C4CDDD;display:flex;flex-direction:column;padding:26px 18px 22px;
+  position:sticky;top:0;height:100vh;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:2px 8px 22px;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:20px}
+.brand-mark{
+  width:35px;height:35px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,#3B82F6 0%,#2563EB 100%);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:16px;font-weight:700;
+  box-shadow:0 6px 14px -4px rgba(37,99,235,.55);
+}
+.brand-name{font-size:17px;font-weight:700;color:#FFFFFF;letter-spacing:.03em;line-height:1.2}
+.brand-sub{font-size:10.5px;color:#66738C;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:10px;
+  color:#8B98B2;font-size:13.5px;cursor:pointer;position:relative;
+  transition:all .18s ease;text-decoration:none;user-select:none;
+}
+.nav-item svg{width:17px;height:17px;flex-shrink:0}
+.nav-item:hover{color:#E9EEF7;background:rgba(255,255,255,.05)}
+.nav-item.active{color:#FFFFFF;background:rgba(37,99,235,.20);font-weight:600}
+.nav-item.active::before{
+  content:"";position:absolute;left:-18px;top:10px;bottom:10px;width:3px;
+  border-radius:0 3px 3px 0;background:#3B82F6;
+}
+.side-foot{
+  margin-top:auto;background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:13px 15px;
+}
+.sf-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#8B98B2}
+.sf-row b{color:#E9EEF7;font-weight:600}
+.sf-row b.sf-warn{color:#7FA8F5}
+.sf-row b.sf-ok{color:#6EE7B7}
+.sf-div{height:1px;background:rgba(255,255,255,.08);margin:10px 0}
+
+/* ============ main frame ============ */
+.main{flex:1;min-width:0;padding:30px 34px 60px}
+.page-wrap{max-width:1040px;margin:0 auto}
+.card{
+  background:#FFFFFF;border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 12px 32px -20px rgba(16,24,40,.16);
+}
+
+/* page head */
+.page-head{margin-bottom:18px}
+.page-head h1{font-size:26px;font-weight:700;letter-spacing:.01em}
+.page-head p{margin-top:8px;color:#64748B;font-size:13.5px}
+
+/* ============ 原型状态切换条（仅原型用途，非正式 UI） ============ */
+.proto-switch{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  border:1.5px dashed #C6D3E6;background:#FBFCFE;border-radius:12px;
+  padding:11px 16px;margin-bottom:20px;
+}
+.ps-label{
+  font-size:11px;font-weight:700;letter-spacing:.14em;color:#7C8AA5;white-space:nowrap;
+}
+.ps-options{display:flex;gap:6px;flex-wrap:wrap}
+.ps-tab{
+  border:1px solid #E2E8F0;background:#FFFFFF;color:#64748B;font-family:inherit;
+  font-size:12.5px;padding:7px 15px;border-radius:999px;cursor:pointer;
+  transition:all .18s ease;white-space:nowrap;
+}
+.ps-tab:hover{border-color:#B7C6DC;color:#334155}
+.ps-tab.active{
+  background:var(--blue-tint);border-color:var(--blue-border);
+  color:var(--blue-dark);font-weight:700;
+}
+.ps-note{font-size:11.5px;color:#A6B2C6;margin-left:auto;white-space:nowrap}
+
+/* ============ 当前训练卡（三态） ============ */
+.cur-card{padding:30px 32px;margin-bottom:26px}
+.cur-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--blue)}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;font-weight:600;border-radius:999px;padding:5px 13px;white-space:nowrap;
+}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge-blue{color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border)}
+.badge-green{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+.badge-grey{color:#64748B;background:#F1F5F9;border:1px solid #E6EAF1}
+.cur-title{font-size:24px;font-weight:700;letter-spacing:.01em;line-height:1.45;margin-bottom:14px}
+.cur-date{font-size:24px;font-weight:700;letter-spacing:.01em;margin-bottom:6px}
+.cur-sub{font-size:13.5px;color:#64748B;margin-bottom:20px}
+.progress-line{
+  display:flex;align-items:center;gap:9px;font-size:13px;color:#3D5A90;
+  background:var(--blue-tint);border:1px solid var(--blue-border);border-radius:10px;
+  padding:12px 16px;margin-bottom:22px;
+}
+.progress-line .pl-ic{color:var(--blue);font-size:12px;flex-shrink:0}
+.cur-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.btn-primary{
+  background:var(--blue);color:#fff;border:none;font-family:inherit;
+  font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:11px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:9px;text-decoration:none;
+  box-shadow:0 8px 18px -8px rgba(37,99,235,.65);
+  transition:all .18s ease;
+}
+.btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 12px 24px -8px rgba(37,99,235,.6)}
+.btn-primary .arr{font-size:12px;transition:transform .18s ease}
+.btn-primary:hover .arr{transform:translateX(3px)}
+.btn-ghost{
+  background:#FFFFFF;color:#334155;border:1px solid #D8DFEA;font-family:inherit;
+  font-size:14px;font-weight:600;padding:12px 24px;border-radius:11px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+  transition:all .18s ease;
+}
+.btn-ghost:hover{border-color:var(--blue-mid);color:var(--blue-dark);background:#FAFCFF}
+.actions-note{font-size:12.5px;color:var(--muted)}
+
+/* 已完成态：得分摘要 */
+.score-strip{
+  display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;
+}
+.score-cell{
+  flex:1;min-width:130px;background:#F8FAFD;border:1px solid #EEF2F8;border-radius:12px;
+  padding:13px 16px;
+}
+.score-cell .sc-label{font-size:12px;color:#64748B;margin-bottom:5px}
+.score-cell .sc-num{font-size:22px;font-weight:700;line-height:1;color:var(--ink)}
+.score-cell .sc-num em{font-style:normal;font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+
+/* ============ 训练历史 ============ */
+.hist-head{display:flex;align-items:baseline;gap:12px;margin:0 2px 12px}
+.hist-head h2{font-size:17px;font-weight:700}
+.hist-head span{font-size:12px;color:var(--muted)}
+.hist-card{overflow:hidden}
+.hist-row{
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:16px 24px;border-bottom:1px solid #F0F3F8;
+  text-decoration:none;color:inherit;transition:background .15s ease;
+}
+.hist-row:last-child{border-bottom:none}
+.hist-row:hover{background:#FAFBFE}
+.hr-main{flex:1;min-width:260px;display:flex;flex-direction:column;gap:7px}
+.hr-badges{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.tag-status{
+  display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;
+  border-radius:999px;padding:3px 11px;white-space:nowrap;
+}
+.ts-done{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+.ts-scoring{color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border)}
+.ts-doing{color:#64748B;background:#F1F5F9;border:1px solid #E6EAF1}
+.tag-type{
+  display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;
+  border-radius:7px;padding:3px 9px;white-space:nowrap;
+}
+.tt-daily{color:#64748B;background:#FFFFFF;border:1px solid #D8DFEA}
+.tt-extra{color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border)}
+.hr-title{font-size:14.5px;font-weight:600;color:#1E293B;line-height:1.5}
+.hr-chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{
+  font-size:11.5px;color:var(--body);background:#F5F7FA;border:1px solid #E9EDF3;
+  border-radius:7px;padding:3px 9px;white-space:nowrap;
+}
+.hr-side{flex-shrink:0;text-align:right;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.hr-scores{font-size:12.5px;color:#64748B;white-space:nowrap}
+.hr-scores b{color:#1E293B;font-weight:700}
+.hr-scores .sep{color:#CBD5E1;margin:0 5px}
+.hr-time{font-size:12px;color:var(--muted);white-space:nowrap}
+.hist-more{
+  display:flex;justify-content:center;padding:16px 24px;border-top:1px solid var(--line);
+}
+.hist-more .btn-ghost{font-size:13px;padding:10px 22px}
+
+/* ============ 页角原型标注 ============ */
+.proto-corner{
+  position:fixed;right:16px;bottom:14px;z-index:50;
+  font-size:11px;color:#8B98B2;letter-spacing:.06em;
+  background:rgba(255,255,255,.92);border:1px dashed #C6D3E6;border-radius:999px;
+  padding:6px 14px;box-shadow:0 2px 8px rgba(16,24,40,.06);
+  pointer-events:none;
+}
+
+/* ============ responsive ============ */
+@media (max-width: 900px){
+  .sidebar{display:none}
+  .main{padding:22px 18px 60px}
+}
+@media (max-width: 640px){
+  .cur-card{padding:24px 20px}
+  .cur-title,.cur-date{font-size:20px}
+  .hist-row{padding:14px 16px;gap:10px}
+  .hr-side{align-items:flex-start;text-align:left;width:100%}
+  .ps-note{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="canvas">
+  <!-- ==================== 侧边栏（D27①：导航 4 项，「产品训练」高亮） ==================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2 8 2.6l5.5 4.6v5.6a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9V7.2z"/><path d="M6.2 13.7V9.8h3.6v3.9"/></svg>
+        首页
+      </a>
+      <a class="nav-item active" href="#">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        产品训练
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="side-foot">
+      <div class="sf-row"><span>今日状态</span><b id="foot-state" class="sf-warn">作答中</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>连续训练</span><b>12 天</b></div>
+    </div>
+  </aside>
+
+  <!-- ==================== 主内容区 ==================== -->
+  <main class="main">
+    <div class="page-wrap">
+
+      <header class="page-head">
+        <h1>产品训练</h1>
+        <p>每天一个真实产品问题，训练产品判断力</p>
+      </header>
+
+      <!-- 原型状态切换条：仅原型预览用途，不属于正式 UI -->
+      <div class="proto-switch">
+        <span class="ps-label">原型状态切换</span>
+        <div class="ps-options">
+          <button class="ps-tab active" data-state="doing">① 有进行中的训练</button>
+          <button class="ps-tab" data-state="todo">② 今日训练未开始</button>
+          <button class="ps-tab" data-state="done">③ 今日训练已完成</button>
+        </div>
+        <span class="ps-note">仅切换下方「当前训练」卡，非正式界面元素</span>
+      </div>
+
+      <!-- ============ 当前训练卡 · 状态①：有进行中的训练 ============ -->
+      <section class="card cur-card" id="cur-doing">
+        <div class="cur-top">
+          <span class="eyebrow">当前训练</span>
+          <span class="badge badge-blue"><span class="dot"></span>进行中 · 作答中</span>
+        </div>
+        <h2 class="cur-title">一本『被看见』的书：想法功能的公开化设计</h2>
+        <div class="progress-line">
+          <span class="pl-ic">◆</span>
+          已完成首次作答，等待你回应总监追问
+        </div>
+        <div class="cur-actions">
+          <a class="btn-primary" href="#">继续训练<span class="arr">▸</span></a>
+          <span class="actions-note">追问不扣分，放心补充你的判断</span>
+        </div>
+      </section>
+
+      <!-- ============ 当前训练卡 · 状态②：今日训练未开始 ============ -->
+      <section class="card cur-card hidden" id="cur-todo">
+        <div class="cur-top">
+          <span class="eyebrow">当前训练</span>
+          <span class="badge badge-grey"><span class="dot"></span>今日训练</span>
+        </div>
+        <h2 class="cur-date">2026年10月7日 星期二</h2>
+        <p class="cur-sub">今天的训练已准备好，约 15 分钟</p>
+        <div class="cur-actions">
+          <a class="btn-primary" href="#">开始今日训练<span class="arr">▸</span></a>
+          <span class="actions-note">作答后，AI 产品总监将追问并给出诊断</span>
+        </div>
+      </section>
+
+      <!-- ============ 当前训练卡 · 状态③：今日训练已完成 ============ -->
+      <section class="card cur-card hidden" id="cur-done">
+        <div class="cur-top">
+          <span class="eyebrow">当前训练</span>
+          <span class="badge badge-green"><span class="dot"></span>今日训练已完成</span>
+        </div>
+        <h2 class="cur-title">短视频霸主为何『倒退』做图文</h2>
+        <div class="score-strip">
+          <div class="score-cell">
+            <div class="sc-label">问题定义</div>
+            <div class="sc-num">82<em>分</em></div>
+          </div>
+          <div class="score-cell">
+            <div class="sc-label">根因分析</div>
+            <div class="sc-num">46<em>分</em></div>
+          </div>
+          <div class="score-cell">
+            <div class="sc-label">指标与验证</div>
+            <div class="sc-num">90<em>分</em></div>
+          </div>
+        </div>
+        <div class="cur-actions">
+          <a class="btn-ghost" href="#">查看结果</a>
+          <a class="btn-primary" href="#">再练一题<span class="arr">▸</span></a>
+        </div>
+      </section>
+
+      <!-- ============ 训练历史（D27④：加练并入列表，以徽章区分） ============ -->
+      <!-- 历史列表不含基线测评会话：基线测评有独立入口，不并入此列表（D27⑤） -->
+      <div class="hist-head">
+        <h2>训练历史</h2>
+        <span>加练与每日一题同等计入能力画像</span>
+      </div>
+      <section class="card hist-card">
+
+        <a class="hist-row" href="#">
+          <div class="hr-main">
+            <div class="hr-badges">
+              <span class="tag-type tt-extra">加练</span>
+              <span class="tag-status ts-doing">作答中</span>
+            </div>
+            <div class="hr-title">一本「被看见」的书：想法功能的公开化设计</div>
+            <div class="hr-chips">
+              <span class="chip">用户理解</span>
+              <span class="chip">根因分析</span>
+              <span class="chip">产品表达</span>
+            </div>
+          </div>
+          <div class="hr-side">
+            <span class="hr-time">今天 16:05</span>
+          </div>
+        </a>
+
+        <a class="hist-row" href="#">
+          <div class="hr-main">
+            <div class="hr-badges">
+              <span class="tag-type tt-extra">加练</span>
+              <span class="tag-status ts-done">已完成</span>
+            </div>
+            <div class="hr-title">当 9.9 元从促销变成日常：一杯咖啡的价格心智之争</div>
+          </div>
+          <div class="hr-side">
+            <span class="hr-scores">问题定义 <b>82</b><span class="sep">·</span>根因分析 <b>46</b><span class="sep">·</span>指标与验证 <b>90</b></span>
+            <span class="hr-time">今天 15:11</span>
+          </div>
+        </a>
+
+        <a class="hist-row" href="#">
+          <div class="hr-main">
+            <div class="hr-badges">
+              <span class="tag-type tt-daily">每日</span>
+              <span class="tag-status ts-done">已完成</span>
+            </div>
+            <div class="hr-title">短视频霸主为何「倒退」做图文</div>
+          </div>
+          <div class="hr-side">
+            <span class="hr-scores">产品取舍 <b>76</b><span class="sep">·</span>用户理解 <b>71</b></span>
+            <span class="hr-time">今天 12:30</span>
+          </div>
+        </a>
+
+        <a class="hist-row" href="#">
+          <div class="hr-main">
+            <div class="hr-badges">
+              <span class="tag-type tt-extra">加练</span>
+              <span class="tag-status ts-scoring">评分中</span>
+            </div>
+            <div class="hr-title">智能货柜的「最后 10%」困局</div>
+          </div>
+          <div class="hr-side">
+            <span class="hr-time">今天 09:40</span>
+          </div>
+        </a>
+
+        <a class="hist-row" href="#">
+          <div class="hr-main">
+            <div class="hr-badges">
+              <span class="tag-type tt-daily">每日</span>
+              <span class="tag-status ts-done">已完成</span>
+            </div>
+            <div class="hr-title">工具箱的边界：Notion 该做到哪一步</div>
+          </div>
+          <div class="hr-side">
+            <span class="hr-scores">问题定义 <b>78</b><span class="sep">·</span>方案设计 <b>70</b></span>
+            <span class="hr-time">10月5日</span>
+          </div>
+        </a>
+
+        <a class="hist-row" href="#">
+          <div class="hr-main">
+            <div class="hr-badges">
+              <span class="tag-type tt-daily">每日</span>
+              <span class="tag-status ts-done">已完成</span>
+            </div>
+            <div class="hr-title">从「导航用高德」到「生活用高德」：工具产品的到店野心</div>
+          </div>
+          <div class="hr-side">
+            <span class="hr-scores">产品价值判断 <b>74</b></span>
+            <span class="hr-time">10月4日</span>
+          </div>
+        </a>
+
+        <div class="hist-more">
+          <a class="btn-ghost" href="#">加载更多</a>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<div class="proto-corner">原型预览 · 非正式页面</div>
+
+<script>
+(function(){
+  var tabs = document.querySelectorAll('.ps-tab');
+  var cards = {
+    doing: document.getElementById('cur-doing'),
+    todo: document.getElementById('cur-todo'),
+    done: document.getElementById('cur-done')
+  };
+  var footState = document.getElementById('foot-state');
+  var footText = { doing: '作答中', todo: '待开始', done: '已完成' };
+  var footClass = { doing: 'sf-warn', todo: 'sf-warn', done: 'sf-ok' };
+  function show(key){
+    Object.keys(cards).forEach(function(k){
+      cards[k].classList.toggle('hidden', k !== key);
+    });
+    tabs.forEach(function(t){ t.classList.toggle('active', t.dataset.state === key); });
+    footState.textContent = footText[key];
+    footState.className = footClass[key];
+    window.scrollTo(0, 0);
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ show(t.dataset.state); });
+  });
+  // 支持 #todo / #done 直达对应状态（便于评审分享链接）
+  var initial = (location.hash || '').replace('#', '');
+  if (cards[initial]) show(initial);
+})();
+</script>
+</body>
+</html>
