@@ -166,6 +166,35 @@ describe("mimoClient.chatCompletion", () => {
     ).rejects.toBeInstanceOf(MimoApiError);
   });
 
+  // T22：推理模型高负载下正文被截空属瞬时退化，「200 空 content」纳入退避重试
+  it("200 空 content：可重试，退避后第二次成功", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(200, { choices: [] }))
+      .mockResolvedValue(jsonResponse(200, completionBody));
+    const client = makeClient(fetchImpl);
+
+    const result = await client.chatCompletion({ messages: [{ role: "user", content: "hi" }] });
+
+    expect(result.content).toBe("你好");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("200 空 content 持续出现：重试耗尽后抛 MimoApiError（retryable）", async () => {
+    // 每次调用返回新 Response（body 只能消费一次）
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(() =>
+        Promise.resolve(jsonResponse(200, { choices: [{ message: { content: "" } }] })),
+      );
+    const client = makeClient(fetchImpl, { maxRetries: 2 });
+
+    await expect(
+      client.chatCompletion({ messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toMatchObject({ name: "MimoApiError", status: 200, retryable: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(3); // 1 + 2 次重试
+  });
+
   it("审计日志：记录模型/状态/耗时/用量，绝不包含 API Key 与消息明文", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, completionBody));
     const client = makeClient(fetchImpl);

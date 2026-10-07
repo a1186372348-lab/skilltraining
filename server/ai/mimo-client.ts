@@ -3,15 +3,16 @@
  *
  * - OpenAI 兼容 chat completions：base_url / api_key 一律走环境变量
  *   （MIMO_BASE_URL / MIMO_API_KEY），模型固定 mimo-v2.6-pro；
- * - 统一超时（默认 60s，AbortSignal 实现）；
- * - 指数退避重试（仅 429 与 5xx，最多 1 + maxRetries 次）；
+ * - 统一超时（默认 80s，AbortSignal 实现；2026-10-07 由 60s 上调——推理模型高负载下单次可达 ~58s，80s 留余量又不至于让故障悬挂过久）；
+ * - 指数退避重试（429、5xx，以及 T22 起「200 但 content 为空」——推理模型
+ *   高负载下正文被截空属瞬时退化，重试大概率自愈；最多 1 + maxRetries 次）；
  * - 审计日志只记元数据（模型 / 状态 / 耗时 / 用量 / 重试次数），
  *   绝不打印 API Key、prompt 与答案明文；
  * - fetch 与 sleep 可注入，测试全程 mock，不出网。
  */
 
 export const MIMO_MODEL = "mimo-v2.6-pro";
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 80_000;
 const DEFAULT_MAX_RETRIES = 3;
 const BACKOFF_BASE_MS = 500;
 const BACKOFF_CAP_MS = 5_000;
@@ -158,8 +159,10 @@ export function createMimoClient(options: MimoClientOptions): MimoClient {
         };
         const content = body.choices?.[0]?.message?.content;
         if (typeof content !== "string" || content.length === 0) {
+          // T22：推理模型高负载推理 token 暴涨截空正文，属瞬时退化，标为可重试
           throw new MimoApiError("MiMo API 响应缺少 choices[0].message.content", {
             status: response.status,
+            retryable: true,
           });
         }
 
@@ -187,7 +190,10 @@ export function createMimoClient(options: MimoClientOptions): MimoClient {
       } catch (error) {
         if (error instanceof MimoApiError) {
           lastError = error;
-          break; // 结构错误与不可重试错误直接抛出
+          // 不可重试错误（如 400）单次即抛；可重试的结构错误（T22：200 空 content）走退避重试
+          if (!error.retryable || attempt > maxRetries) break;
+          await sleep(backoffDelayMs(attempt));
+          continue;
         }
         const aborted = controller.signal.aborted;
         lastError = new MimoApiError(
