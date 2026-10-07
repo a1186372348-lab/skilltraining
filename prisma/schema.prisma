@@ -26,6 +26,13 @@ enum QuestionStatus {
   archived  // 下架归档
 }
 
+// 题目用途（D19/BR-9：baseline 为注册后首步的能力基线测评题，daily 为日常训练题；
+// 日常选题题池只含 daily，基线题按 id 固定顺序单独出题）
+enum QuestionKind {
+  baseline // 能力基线测评题（2 道综合题合计覆盖 8 维）
+  daily    // 日常训练题（默认）
+}
+
 // 用户主表（D17：与登录身份分离，新增登录方式无需改本表）
 model User {
   id              String           @id @default(uuid()) @db.Uuid
@@ -79,8 +86,9 @@ model UserProfile {
   familiarProducts  Json     @map("familiar_products") // jsonb：熟悉产品列表（首题优先匹配，D11）
   interestAreas     Json     @map("interest_areas") // jsonb：兴趣领域列表
   learningGoal      String?  @map("learning_goal") // 学习目标
-  selfAssessment    Json     @map("self_assessment") // jsonb：自评方向（维度 -> 自评）
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selfAssessment    Json       @map("self_assessment") // jsonb：自评方向（维度 -> 自评）
+  baselineCompletedAt DateTime? @map("baseline_completed_at") // 能力基线测评完成时间（D19/BR-9；null 即未完成）
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_profiles")
 }
@@ -107,6 +115,7 @@ model Question {
   hintTree       Json              @map("hint_tree") // jsonb：5 层渐进提示树（D5）
   materials      Json              // jsonb：{ core: [核心 2], extended: [扩展 3] }（D9）
   status         QuestionStatus    @default(draft)
+  kind           QuestionKind      @default(daily) // 题目用途（D19：baseline 基线题不参与日常选题）
   sessions       TrainingSession[]
 
   @@map("questions")
@@ -123,7 +132,8 @@ model TrainingSession {
   firstAnswer      String?              @map("first_answer") // 首次答案
   finalAnswer      String?              @map("final_answer") // 最终答案
   hintCount        Int                  @default(0) @map("hint_count") // 首次提交前的提示次数（服务端记录为准）
-  followups        Json?                // jsonb：追问对话记录（1~2 轮，BR-4）
+  followupHintCount Int                 @default(0) @map("followup_hint_count") // 追问阶段已释放提示次数（D22，服务端记录为准）
+  followups        Json?                // jsonb：追问对话记录（1~2 轮，BR-4；T19 起含预生成提示 hint 与 hintReleased 标记，D22）
   startedAt        DateTime             @default(now()) @map("started_at") // 进入训练
   firstSubmittedAt DateTime?            @map("first_submitted_at") // 首次提交（此后提示按钮消失，D7）
   finalSubmittedAt DateTime?            @map("final_submitted_at") // 最终提交
