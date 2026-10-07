@@ -85,7 +85,10 @@ describe("toTodayView（FR-10：不下发 Rubric 与未释放提示层）", () =
     );
     expect(view.canRequestHint).toBe(false);
     expect(view.firstAnswer).toBe("我的首答");
-    expect(view.followups).toEqual([{ round: 1, question: "证据呢？" }]);
+    // 存量无 hint 的老记录：按无提示容错处理（不回填）
+    expect(view.followups).toEqual([
+      { round: 1, question: "证据呢？", hasHint: false, hintReleased: false, hint: null },
+    ]);
   });
 
   it("提示用满 5 层：canRequestHint=false，系数 0.6 下限", () => {
@@ -93,6 +96,68 @@ describe("toTodayView（FR-10：不下发 Rubric 与未释放提示层）", () =
     expect(view.canRequestHint).toBe(false);
     expect(view.coefficient).toBe(0.6);
     expect(view.releasedHints).toHaveLength(5);
+  });
+
+  it("下发 firstSubmittedAt（ISO 字符串；T22 追问生成中/失败判定依据），未提交为 null", () => {
+    const submittedAt = new Date("2026-10-07T11:58:00.000Z");
+    const view = toTodayView(
+      makeSession({ state: "followup", firstAnswer: "首答", firstSubmittedAt: submittedAt }),
+      makeQuestion(),
+    );
+    expect(view.firstSubmittedAt).toBe("2026-10-07T11:58:00.000Z");
+    expect(toTodayView(makeSession(), makeQuestion()).firstSubmittedAt).toBeNull();
+  });
+});
+
+describe("追问提示下发契约（T19 / D22 / FR-10）", () => {
+  const followupSession = (overrides: Partial<TrainingSession> = {}) =>
+    makeSession({
+      state: "followup",
+      firstAnswer: "首答",
+      firstSubmittedAt: new Date(),
+      followups: [
+        { round: 1, question: "追问一", hint: "绝密追问提示一", hintReleased: false },
+        { round: 2, question: "追问二", hint: "绝密追问提示二", hintReleased: true },
+      ],
+      ...overrides,
+    });
+
+  it("未释放的追问提示绝不下发明文；已释放的下发", () => {
+    const view = toTodayView(followupSession(), makeQuestion());
+    expect(view.followups).toEqual([
+      { round: 1, question: "追问一", hasHint: true, hintReleased: false, hint: null },
+      { round: 2, question: "追问二", hasHint: true, hintReleased: true, hint: "绝密追问提示二" },
+    ]);
+    const raw = JSON.stringify(view);
+    expect(raw).not.toContain("绝密追问提示一"); // 未释放：明文不出现在视图任何角落
+    expect(raw).toContain("绝密追问提示二");
+  });
+
+  it("下发 followupHintCount；coefficient 按 BR-2 修订公式（追问提示半价）计算", () => {
+    const view = toTodayView(
+      followupSession({ hintCount: 1, followupHintCount: 1 } as Partial<TrainingSession>),
+      makeQuestion(),
+    );
+    expect(view.followupHintCount).toBe(1);
+    expect(view.coefficient).toBe(0.85); // max(0.6, 1 − 0.1×1 − 0.05×1)
+  });
+
+  it("未请求任何追问提示：系数与修订前完全一致（回归）", () => {
+    const view = toTodayView(followupSession({ hintCount: 2 } as Partial<TrainingSession>), makeQuestion());
+    expect(view.followupHintCount ?? 0).toBe(0);
+    expect(view.coefficient).toBe(0.8);
+  });
+
+  it("hint 为空串的记录（AI 降级）：hasHint=false，不显示入口", () => {
+    const view = toTodayView(
+      followupSession({
+        followups: [{ round: 1, question: "追问一", hint: "", hintReleased: false }],
+      }),
+      makeQuestion(),
+    );
+    expect(view.followups).toEqual([
+      { round: 1, question: "追问一", hasHint: false, hintReleased: false, hint: null },
+    ]);
   });
 });
 

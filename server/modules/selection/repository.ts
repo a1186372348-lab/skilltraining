@@ -29,7 +29,7 @@ export interface SelectionRepository {
   getProfileView(userId: string): Promise<AbilityProfileDimensionView[]>;
   /** 初始画像中的熟悉产品与兴趣领域（D11 / 图 2 H 节点） */
   getProfilePreferences(userId: string): Promise<ProfilePreferences>;
-  /** 全部上架题（R3：仅 published 参与出题），按 id 升序保证稳定顺序 */
+  /** 全部上架日常题（R3：仅 published 参与出题；T17a：kind=daily，排除基线题），按 id 升序保证稳定顺序 */
   listPublishedQuestions(): Promise<CandidateQuestion[]>;
   /** 用户历史会话（倒序），供已练过滤、近期同类案例与首次训练判定 */
   listSessionHistory(userId: string): Promise<SessionHistoryItem[]>;
@@ -60,7 +60,8 @@ export function createPrismaSelectionRepository(db: PrismaClient): SelectionRepo
     },
     async listPublishedQuestions() {
       return db.question.findMany({
-        where: { status: "published" },
+        // T17a / D19：日常题池只含 kind=daily，基线题由基线流程按固定顺序单独出题
+        where: { status: "published", kind: "daily" },
         orderBy: { id: "asc" },
       });
     },

@@ -35,7 +35,8 @@ export interface SelectionDeps {
   repository?: SelectionRepository;
 }
 
-/** 降级选题（图 2 失败与回滚）：id 升序取第一道未练的上架题；全部练过则取第一道供重练 */
+/** 降级选题（图 2 失败与回滚）：id 升序取第一道未练的上架题；全部练过则取第一道供重练。
+ *  日常题池只含 kind=daily（T17a / D19：基线题不参与日常出题，降级路径同样排除） */
 async function sequentialFallback(db: PrismaClient, userId: string): Promise<SelectionResult> {
   const sessions = await db.trainingSession.findMany({
     where: { userId },
@@ -44,11 +45,11 @@ async function sequentialFallback(db: PrismaClient, userId: string): Promise<Sel
   const practicedIds = [...new Set(sessions.map((s) => s.questionId))];
   const question =
     (await db.question.findFirst({
-      where: { status: "published", id: { notIn: practicedIds } },
+      where: { status: "published", kind: "daily", id: { notIn: practicedIds } },
       orderBy: { id: "asc" },
     })) ??
     (await db.question.findFirst({
-      where: { status: "published" },
+      where: { status: "published", kind: "daily" },
       orderBy: { id: "asc" },
     }));
   if (!question) {

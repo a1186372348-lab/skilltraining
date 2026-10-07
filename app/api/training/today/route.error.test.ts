@@ -11,6 +11,20 @@ vi.mock("@/server/modules/training/service", () => ({
   getOrCreateTodaySession: vi.fn(async () => {
     throw new TrainingError(TRAINING_ERROR_CODES.NO_PUBLISHED_QUESTION, 404, "题库暂无上架题目");
   }),
+  // T21：路由先查当天最近非基线会话；返回 null 才会走到每日一题创建（错误抛出点）
+  getLatestDailySession: vi.fn(async () => null),
+}));
+
+// T17a 门禁：固定返回「无需基线」，保证本测试不碰数据库、专注错误映射
+vi.mock("@/server/modules/baseline/service", () => ({
+  getBaselineStatus: vi.fn(async () => ({
+    required: false,
+    total: 0,
+    doneCount: 0,
+    nextQuestion: null,
+    completedAt: null,
+  })),
+  getOrCreateBaselineSession: vi.fn(),
 }));
 
 afterEach(() => {

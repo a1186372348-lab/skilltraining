@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { toTodayView } from "./today-view";
 import {
   getOrCreateTodaySession,
+  requestFollowupHint,
   requestHint,
   submitFinalAnswer,
   submitFirstAnswer,
@@ -95,16 +96,32 @@ describe("T05 端到端会话链路（mock AI）", () => {
     const hint2 = await requestHint(prisma, session.id, userId);
     expect([hint1.coefficient, hint2.coefficient]).toEqual([0.9, 0.8]);
 
-    // 3. 提交首答（mock 追问 2 轮）：状态 followup，追问落库，提示永久禁用
+    // 3. 提交首答（mock 追问 2 轮，各带预生成提示，D22）：状态 followup，追问落库，提示永久禁用
     const first = await submitFirstAnswer(prisma, session.id, userId, "端到端首答：Agent 是质变，因为接管了任务闭环。", {
-      generateFollowups: async () => ["「接管任务闭环」的衡量证据是什么？", "如果反方认为这只是功能叠加，最有力的反驳是什么？"],
+      generateFollowups: async () => [
+        { question: "「接管任务闭环」的衡量证据是什么？", hint: "想想可量化的指标口径" },
+        { question: "如果反方认为这只是功能叠加，最有力的反驳是什么？", hint: "回到用户任务的完成方式变化" },
+      ],
     });
     expect(first.state).toBe("followup");
     expect(first.followups).toHaveLength(2);
+    expect(first.followups[0]).toMatchObject({ round: 1, hasHint: true, hintReleased: false, hint: null });
     expect(first.coefficient).toBe(0.8); // 提示 2 次后的系数
     await expect(requestHint(prisma, session.id, userId)).rejects.toMatchObject({
       code: "HINT_DISABLED",
     });
+
+    // 3.5. 追问阶段请求提示（D22）：读库零等待，计数 +1，系数按半价项更新 0.8 → 0.75
+    const followupHint = await requestFollowupHint(prisma, session.id, userId, 1);
+    expect(followupHint).toEqual({
+      round: 1,
+      hint: "想想可量化的指标口径",
+      followupHintCount: 1,
+      coefficient: 0.75,
+    });
+    // 幂等：重复请求不重复计数
+    const repeat = await requestFollowupHint(prisma, session.id, userId, 1);
+    expect(repeat.followupHintCount).toBe(1);
 
     // 4. 提交终答：落库 + 时间戳，状态保持 followup（等 T06 评分）
     const final = await submitFinalAnswer(
@@ -128,6 +145,12 @@ describe("T05 端到端会话链路（mock AI）", () => {
     expect(view.firstAnswer).toContain("端到端首答");
     expect(view.finalAnswer).toContain("端到端终答");
     expect(view.followups.map((f) => f.round)).toEqual([1, 2]);
+    // D22：已释放的追问提示刷新后仍在；未释放的第 2 轮不下发明文
+    expect(view.followupHintCount).toBe(1);
+    expect(view.coefficient).toBe(0.75);
+    expect(view.followups[0]).toMatchObject({ hintReleased: true, hint: "想想可量化的指标口径" });
+    expect(view.followups[1]).toMatchObject({ hasHint: true, hintReleased: false, hint: null });
+    expect(JSON.stringify(view)).not.toContain("回到用户任务的完成方式变化");
     expect(JSON.stringify(view)).not.toContain("绝密");
 
     const events = await prisma.hintEvent.findMany({ where: { sessionId: session.id } });
