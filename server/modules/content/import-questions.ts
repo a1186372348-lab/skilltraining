@@ -43,6 +43,8 @@ export function toQuestionUpsertArgs(content: QuestionContent): QuestionUpsertAr
     hintTree: content.hint_tree,
     materials: content.materials,
     status: content.status,
+    // 题目用途（T17a / D19）：YAML 未标注时按日常题落库，与 questions.kind 默认值一致
+    kind: content.kind ?? "daily",
   };
   // create 与 update 同内容：首次插入与重复导入结果一致（以最新 YAML 为准）
   return { where: { id }, create: row, update: row };

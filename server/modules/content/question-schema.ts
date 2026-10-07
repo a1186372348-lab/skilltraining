@@ -29,9 +29,14 @@ export const DIFFICULTY_TO_INT: Record<DifficultyLabel, number> = {
 // 上架状态枚举（与 prisma QuestionStatus 一一对应；仅 published 参与出题）
 export const QUESTION_STATUS = ["draft", "published", "archived"] as const;
 
+// 题目用途枚举（T17a / D19：与 prisma QuestionKind 一一对应；
+// baseline 为能力基线测评题，不参与日常选题；缺省按 daily 处理）
+export const QUESTION_KINDS = ["baseline", "daily"] as const;
+
 export type AbilityDimension = (typeof ABILITY_DIMENSIONS)[number];
 export type DifficultyLabel = (typeof DIFFICULTY_LABELS)[number];
 export type QuestionStatusLabel = (typeof QUESTION_STATUS)[number];
+export type QuestionKindLabel = (typeof QUESTION_KINDS)[number];
 
 const nonEmpty = (label: string) => z.string().min(1, `${label}不能为空`);
 
@@ -116,6 +121,8 @@ export const questionContentSchema = z
     // 编辑注记（未经官方确认的数据说明），评审用，可选
     uncertainty: z.array(nonEmpty("uncertainty 条目")).optional(),
     status: z.enum(QUESTION_STATUS),
+    // 题目用途（T17a / D19）：baseline 为基线测评题；缺省为日常题（daily）
+    kind: z.enum(QUESTION_KINDS).optional(),
   })
   .superRefine((q, ctx) => {
     // 能力标签不可重复

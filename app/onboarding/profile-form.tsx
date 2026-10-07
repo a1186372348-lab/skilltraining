@@ -16,7 +16,8 @@ import {
  * 画像问卷表单（T04 / US-001）。
  * - 9 个契约字段，选择为主、必填仅 3 项（职位/年限/行业），3 分钟内可完成；
  * - 变更后防抖暂存草稿到服务端（刷新不丢）；
- * - 提交成功跳转 /today（今日训练，T05 实现）。
+ * - 提交成功跳转 /baseline（能力基线测评，D19/BR-9：注册后首步，T17a 实现）；
+ *   基线已完成的用户由 /baseline 侧自动放行到首页。
  */
 
 interface FormState {
@@ -245,7 +246,7 @@ export function ProfileForm() {
       });
       const json = await res.json();
       if (res.ok && json.success) {
-        router.push("/today");
+        router.push("/baseline");
         return;
       }
       setError(

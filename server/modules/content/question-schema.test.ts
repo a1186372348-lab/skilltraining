@@ -432,3 +432,21 @@ describe("题库内容 schema", () => {
     });
   });
 });
+
+describe("题库内容 schema：kind 题目用途（T17a / D19）", () => {
+  it("缺省 kind 合法（日常题无需标注，默认 daily 由导入/数据库兜底）", () => {
+    const q = validQuestion();
+    expect(questionContentSchema.safeParse(q).success).toBe(true);
+  });
+
+  it("kind 为 baseline / daily 均合法", () => {
+    const q = validQuestion();
+    expect(questionContentSchema.safeParse({ ...q, kind: "baseline" }).success).toBe(true);
+    expect(questionContentSchema.safeParse({ ...q, kind: "daily" }).success).toBe(true);
+  });
+
+  it("kind 为枚举之外的值被拒绝", () => {
+    const q = validQuestion();
+    expect(questionContentSchema.safeParse({ ...q, kind: "exam" }).success).toBe(false);
+  });
+});

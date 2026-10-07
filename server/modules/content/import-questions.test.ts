@@ -157,3 +157,20 @@ describe("importQuestions：幂等批量导入", () => {
     await expect(importQuestions([makeContent("Q01")], client)).rejects.toThrow("连接中断");
   });
 });
+
+describe("toQuestionUpsertArgs：kind 题目用途映射（T17a / D19）", () => {
+  it("YAML 未标注 kind → 落库 daily（默认）", () => {
+    const args = toQuestionUpsertArgs(makeContent("Q01"));
+    expect(args.create.kind).toBe("daily");
+    expect(args.update).toEqual(args.create);
+  });
+
+  it("YAML 标注 kind: baseline → 落库 baseline", () => {
+    const content = questionContentSchema.parse({
+      ...JSON.parse(JSON.stringify(makeContent("Q02"))),
+      kind: "baseline",
+    });
+    const args = toQuestionUpsertArgs(content);
+    expect(args.create.kind).toBe("baseline");
+  });
+});
