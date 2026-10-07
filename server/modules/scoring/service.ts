@@ -178,8 +178,8 @@ export async function scoreSession(
   });
   assertOutputMatchesDimensions(output, rubricDimensions);
 
-  // 有效分四元组（BR-1/BR-2，系数复用 training 实现）
-  const coefficient = independenceCoefficient(session.hintCount);
+  // 有效分四元组（BR-1/BR-2 修订：系数复用 training 实现，含追问提示半价项，D22）
+  const coefficient = independenceCoefficient(session.hintCount, session.followupHintCount);
   const scoredAt = new Date();
 
   try {

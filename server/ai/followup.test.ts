@@ -4,6 +4,8 @@ import type { MimoClient } from "./mimo-client";
 import { FollowupGenerationError, buildFollowupMessages, generateFollowups } from "./followup";
 
 // 追问生成：AI 调用以契约 mock（注入假 client），禁止真实出网。
+// T19（D22）：同一次调用为每条追问附带一条预生成提示（思考支架），输出结构
+// {"followups": [{"question": "...", "hint": "..."}]}。
 
 const rubric = {
   dimensions: {
@@ -31,30 +33,80 @@ describe("buildFollowupMessages：追问 prompt 硬性约束", () => {
     expect(text).toMatch(/不得.*(泄露|透露)/); // 硬性不泄露约束
     expect(messages[0].role).toBe("system");
   });
+
+  it("要求为每条追问附带一条提示（思考支架），且提示同受防泄露约束", () => {
+    const messages = buildFollowupMessages({
+      mainQuestion: "主问题？",
+      firstAnswer: "首答。",
+      rubric,
+    });
+    const text = messages.map((m) => m.content).join("\n");
+    expect(text).toContain("提示"); // prompt 中出现提示要求
+    expect(text).toContain('"question"');
+    expect(text).toContain('"hint"');
+    // 提示是思考支架：引导方向，不泄露 Rubric 要点与禁止泄露点
+    expect(text).toMatch(/提示.*(引导|方向|思考)/);
+  });
 });
 
 describe("generateFollowups", () => {
   const input = { mainQuestion: "主问题", firstAnswer: "首答", rubric };
 
-  it("解析 JSON 输出，返回 1~2 条追问", async () => {
-    const client = fakeClient('{"followups": ["证据是什么？", "反方怎么反驳？"]}');
+  it("解析 JSON 输出，返回 1~2 条带提示的追问", async () => {
+    const client = fakeClient(
+      '{"followups": [{"question": "证据是什么？", "hint": "想想可衡量的指标"}, {"question": "反方怎么反驳？", "hint": "站在反方立场找最强论据"}]}',
+    );
     const followups = await generateFollowups(input, { client });
-    expect(followups).toEqual(["证据是什么？", "反方怎么反驳？"]);
+    expect(followups).toEqual([
+      { question: "证据是什么？", hint: "想想可衡量的指标" },
+      { question: "反方怎么反驳？", hint: "站在反方立场找最强论据" },
+    ]);
   });
 
   it("1 条追问也合法（D6：1~2 轮）", async () => {
-    const client = fakeClient('{"followups": ["你的结论句是什么？"]}');
+    const client = fakeClient('{"followups": [{"question": "你的结论句是什么？", "hint": "提示"}]}');
     expect(await generateFollowups(input, { client })).toHaveLength(1);
   });
 
   it("超过 2 条截断为 2 条（轮次硬上限，R2）", async () => {
-    const client = fakeClient('{"followups": ["q1", "q2", "q3", "q4"]}');
-    expect(await generateFollowups(input, { client })).toEqual(["q1", "q2"]);
+    const client = fakeClient(
+      '{"followups": [{"question": "q1", "hint": "h1"}, {"question": "q2", "hint": "h2"}, {"question": "q3", "hint": "h3"}]}',
+    );
+    const followups = await generateFollowups(input, { client });
+    expect(followups).toHaveLength(2);
+    expect(followups.map((f) => f.question)).toEqual(["q1", "q2"]);
+  });
+
+  it("hint 缺失或为空时降级为空串，不因此丢弃追问", async () => {
+    const client = fakeClient(
+      '{"followups": [{"question": "q1"}, {"question": "q2", "hint": ""}, {"question": "q3", "hint": "  "}]}',
+    );
+    const followups = await generateFollowups(input, { client });
+    expect(followups).toEqual([
+      { question: "q1", hint: "" },
+      { question: "q2", hint: "" },
+    ]);
+  });
+
+  it("兼容模型按旧结构输出纯字符串数组：提示降级为空串", async () => {
+    const client = fakeClient('{"followups": ["q1", "q2"]}');
+    expect(await generateFollowups(input, { client })).toEqual([
+      { question: "q1", hint: "" },
+      { question: "q2", hint: "" },
+    ]);
   });
 
   it("容忍 ```json 代码块包裹", async () => {
-    const client = fakeClient('```json\n{"followups": ["q1"]}\n```');
-    expect(await generateFollowups(input, { client })).toEqual(["q1"]);
+    const client = fakeClient('```json\n{"followups": [{"question": "q1", "hint": "h1"}]}\n```');
+    expect(await generateFollowups(input, { client })).toEqual([{ question: "q1", hint: "h1" }]);
+  });
+
+  it("追问文本为空的条目丢弃；全部为空时抛错", async () => {
+    const client = fakeClient('{"followups": [{"question": "", "hint": "h"}, {"question": "q1", "hint": "h1"}]}');
+    expect(await generateFollowups(input, { client })).toEqual([{ question: "q1", hint: "h1" }]);
+    await expect(
+      generateFollowups(input, { client: fakeClient('{"followups": [{"hint": "只有提示没有追问"}]}') }),
+    ).rejects.toBeInstanceOf(FollowupGenerationError);
   });
 
   it("输出非 JSON / 空数组：抛 FollowupGenerationError（服务层兜底跳过追问）", async () => {
@@ -67,7 +119,7 @@ describe("generateFollowups", () => {
   });
 
   it("调用参数：低 temperature + json_object 结构化输出 + 模型上下文", async () => {
-    const client = fakeClient('{"followups": ["q1"]}');
+    const client = fakeClient('{"followups": [{"question": "q1", "hint": "h1"}]}');
     await generateFollowups(input, { client });
     expect(client.chatCompletion).toHaveBeenCalledWith(
       expect.objectContaining({

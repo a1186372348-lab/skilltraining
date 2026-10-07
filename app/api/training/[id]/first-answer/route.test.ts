@@ -10,7 +10,10 @@ import { POST } from "./route";
 // POST /api/training/:id/first-answer 集成测试：真实数据库；
 // AI 追问经 vi.mock 拦截（测试一律 mock AI，不出网）。
 
-const generateFollowupsMock = vi.fn(async () => ["证据是什么？", "反方如何反驳？"]);
+const generateFollowupsMock = vi.fn(async () => [
+  { question: "证据是什么？", hint: "想想可衡量的指标" },
+  { question: "反方如何反驳？", hint: "站在反方立场找论据" },
+]);
 vi.mock("@/server/ai/followup", () => ({
   generateFollowups: (...args: unknown[]) => generateFollowupsMock(...(args as [])),
 }));
@@ -106,13 +109,18 @@ describe("POST /api/training/:id/first-answer（FR-4 / BR-4）", () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.state).toBe("followup");
-    expect(json.data.followups).toEqual(["证据是什么？", "反方如何反驳？"]);
+    // 响应为视图形态：未释放的提示不下发明文（FR-10 / D22）
+    expect(json.data.followups).toEqual([
+      { round: 1, question: "证据是什么？", hasHint: true, hintReleased: false, hint: null },
+      { round: 2, question: "反方如何反驳？", hasHint: true, hintReleased: false, hint: null },
+    ]);
 
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
     expect(row.state).toBe("followup");
+    // 预生成提示随追问落库（D22：点击读库零等待）
     expect(row.followups).toEqual([
-      { round: 1, question: "证据是什么？" },
-      { round: 2, question: "反方如何反驳？" },
+      { round: 1, question: "证据是什么？", hint: "想想可衡量的指标", hintReleased: false },
+      { round: 2, question: "反方如何反驳？", hint: "站在反方立场找论据", hintReleased: false },
     ]);
   });
 
@@ -155,7 +163,10 @@ describe("POST /api/training/:id/first-answer（FR-4 / BR-4）", () => {
     const res = await callFirstAnswer(email, sessionId, { answer: "试图篡改" });
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.data.followups).toEqual(["旧追问"]);
+    expect(json.data.followups).toEqual([
+      // 存量无 hint 老记录：按无提示容错返回，不重复调 AI
+      { round: 1, question: "旧追问", hasHint: false, hintReleased: false, hint: null },
+    ]);
     expect(generateFollowupsMock).not.toHaveBeenCalled();
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
     expect(row.firstAnswer).toBe("已存在的首答");

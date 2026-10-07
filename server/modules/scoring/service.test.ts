@@ -75,6 +75,7 @@ async function seedScorableSession(
   overrides: Partial<{
     state: "reading" | "answering" | "followup" | "scored";
     hintCount: number;
+    followupHintCount: number;
     finalAnswer: string | null;
     finalSubmittedAt: Date | null;
   }> = {},
@@ -86,6 +87,7 @@ async function seedScorableSession(
       date: new Date(Date.UTC(2026, 9, 3)),
       state: overrides.state ?? "followup",
       hintCount: overrides.hintCount ?? 0,
+      followupHintCount: overrides.followupHintCount ?? 0,
       firstAnswer: "首答全文",
       firstSubmittedAt: new Date(Date.UTC(2026, 9, 3, 1)),
       finalAnswer: overrides.finalAnswer === undefined ? "终答全文" : overrides.finalAnswer,
@@ -200,6 +202,34 @@ describe("scoreSession：评分主链路（US-006/FR-5）", () => {
       scoreWithRubric: fakeScorer({ 用户理解: 90 }),
     });
     expect(r2.scores.find((s) => s.dimension === "用户理解")).toMatchObject({
+      coefficient: 0.6,
+      effectiveScore: 54,
+    });
+  });
+
+  it("追问提示半价计入系数（BR-2 修订 / D22）：hint=1 + followupHint=1 → 0.85 落四元组", async () => {
+    const userId = await newUser();
+    const session = await seedScorableSession(userId, { hintCount: 1, followupHintCount: 1 });
+    const result = await scoreSession(prisma, session.id, userId, {
+      scoreWithRubric: fakeScorer({ 用户理解: 80 }),
+    });
+    const userScore = result.scores.find((s) => s.dimension === "用户理解")!;
+    expect(userScore.coefficient).toBe(0.85);
+    expect(userScore.effectiveScore).toBeCloseTo(68, 5); // 80 × 0.85
+
+    const row = await prisma.score.findFirstOrThrow({
+      where: { sessionId: session.id, dimension: "用户理解" },
+    });
+    expect(row.coefficient).toBe(0.85);
+  });
+
+  it("追问提示与首答前提示共用 0.6 下限：hint=4 + followupHint=3 → 0.6", async () => {
+    const userId = await newUser();
+    const session = await seedScorableSession(userId, { hintCount: 4, followupHintCount: 3 });
+    const result = await scoreSession(prisma, session.id, userId, {
+      scoreWithRubric: fakeScorer({ 用户理解: 90 }),
+    });
+    expect(result.scores.find((s) => s.dimension === "用户理解")).toMatchObject({
       coefficient: 0.6,
       effectiveScore: 54,
     });

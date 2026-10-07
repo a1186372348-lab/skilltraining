@@ -39,3 +39,35 @@ describe("independenceCoefficient（BR-2 独立完成系数）", () => {
     expect(independenceCoefficient(1.9)).toBe(0.9);
   });
 });
+
+// BR-2（2026-10-05 修订，D22）：系数 = max(0.6, 1 − 0.1×首答前提示次数 − 0.05×追问提示次数)
+// 追问提示半价（每次 −0.05），与首答前提示共用 0.6 下限；第二参数缺省为 0（兼容单参调用）
+describe("independenceCoefficient（BR-2 修订：追问提示半价项）", () => {
+  it("仅追问提示：1 次 0.95，2 次 0.9", () => {
+    expect(independenceCoefficient(0, 1)).toBe(0.95);
+    expect(independenceCoefficient(0, 2)).toBe(0.9);
+  });
+
+  it("组合计数：首答前 1 次 + 追问提示 1 次 → 0.85", () => {
+    expect(independenceCoefficient(1, 1)).toBe(0.85);
+  });
+
+  it("组合计数：首答前 2 次 + 追问提示 1 次 → 0.75（浮点安全）", () => {
+    expect(independenceCoefficient(2, 1)).toBe(0.75);
+  });
+
+  it("共用 0.6 下限：首答前 4 次 + 追问提示 3 次 → 0.6", () => {
+    expect(independenceCoefficient(4, 3)).toBe(0.6);
+  });
+
+  it("追问提示单独累计到下限后不再下降", () => {
+    expect(independenceCoefficient(0, 8)).toBe(0.6);
+    expect(independenceCoefficient(0, 100)).toBe(0.6);
+  });
+
+  it("追问提示计数异常输入按 0 处理；小数向下取整", () => {
+    expect(independenceCoefficient(1, Number.NaN)).toBe(0.9);
+    expect(independenceCoefficient(1, -2)).toBe(0.9);
+    expect(independenceCoefficient(2, 1.9)).toBe(0.75);
+  });
+});
