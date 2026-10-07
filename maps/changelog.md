@@ -57,14 +57,14 @@
 
 ### 2026-10-07
 
-- `feat`（已交付待提交）T26 首页今日训练卡与大厅当前训练卡同构：三态卡抽为共享组件 `app/training/current-training-card.tsx`（动作逻辑自持），hub-view 抽出 `getCurrentTrainingCard` 单一事实源，/api/dashboard 载荷以 `currentTraining` 取代 `todayTask`，首页侧栏「今日状态」与大厅同口径，753 测试全绿（D28）。
+- `chore` T14~T26 十二批分类型提交落库：`chore(db)` 基线题类型与追问提示计数字段（7adbf00，T17a/T19）→ `chore` 测试库隔离（895bee4，T14）→ `chore(deps)` 3D 渲染依赖（b5c83f6）→ `feat` 我的页面（ef28e22，T15）→ `feat` 3D 网络图与增强（f936abf，T16/T18）→ `feat` 基线测评流程与综合题（decea4b，T17a/b）→ `feat` 追问阶段提示与三栏工作台（019fcfe，T19/T20）→ `feat` AI 调用可靠性与 MiMo 监控（59e6be5，T22/T23）→ `feat` 加练链路（cbc71c1，T21）→ `feat` 评分完成全局通知（9879f6e，T24）→ `feat` 产品训练模块 IA 与首页卡同构（71b38d6，T25/T26）→ `docs` 决策档案与原型（e577d30）。T05~T11 历史批次一并标记 DONE（7bb0cb3/4063bf7/8d29c33/cdb0852/78bd842）；任务状态以 [`../task/README.md`](../task/README.md) 为准。
+- `feat`（71b38d6）T26 首页今日训练卡与大厅当前训练卡同构：三态卡抽为共享组件 `app/training/current-training-card.tsx`（动作逻辑自持），hub-view 抽出 `getCurrentTrainingCard` 单一事实源，/api/dashboard 载荷以 `currentTraining` 取代 `todayTask`，首页侧栏「今日状态」与大厅同口径，757 测试全绿并浏览器实证（D28）。
 - `decision` D28 首页今日训练卡与大厅当前训练卡同构（T26 立项）。
-- `feat`（已交付待提交）T25 产品训练模块 IA 重构：大厅 /training + 按会话寻址工作台 /training/session/[id] + 反馈与历史详情迁入 + 旧路由 307，762 测试全绿并浏览器实证（D27）。
+- `feat`（71b38d6）T25 产品训练模块 IA 重构：大厅 /training + 按会话寻址工作台 /training/session/[id] + 反馈与历史详情迁入 + 旧路由 307，762 测试全绿并浏览器实证（D27）。
 - `docs` 决策记录文档 `maps/decisions.md` 并入本文件，决策全文与变更时间线合二为一；`Prd.md`、`task/T25`、`AGENTS.md`、`maps/README.md` 引用同步迁移（本次合并经用户确认）。
 - `docs` 建立长期文档：[`architecture.md`](architecture.md)（架构与组件交互）、[`features.md`](features.md)（关键功能参考）、本文件（变更时间线）；同时在 `AGENTS.md` 写入「文档同步完成定义」——模块改动未同步文档不算完成；一键自动化更新文档的指令待后续构建。
 - `docs` 建立 `AGENTS.md` 项目开发指南（项目目标、架构概览、风格指南、约束、Git 规范、文档路由）。
 - `docs` 决策记录 D1~D26 自 `Prd.md` §0 迁出至独立治理文档（后于当日并入本文件），PRD 与各任务文档改为引用编号。
-- `chore`（进行中，未提交）T14~T24 一批改动存在于工作树：测试库与开发库隔离（T14）、我的页面（T15）、能力画像 3D 网络图（T16）、基线测评流程与题目（T17a/b）、追问阶段提示（T19）、训练页三栏工作台（T20）、加练链路（T21）、追问生成可靠性（T22）、MiMo 用量监控脚本（T23）、评分完成全局通知（T24，已浏览器实证）。状态以 [`../task/README.md`](../task/README.md) 为准。
 
 ### 2026-10-03
 
