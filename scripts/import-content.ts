@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 
+import { buildCoverageMatrix, formatCoverageReport } from "../server/modules/content/coverage-matrix.ts";
 import {
   importQuestions,
   type QuestionImportClient,
@@ -31,6 +32,8 @@ try {
   // PrismaClient 结构满足 QuestionImportClient（upsert + 数组事务），此处仅做类型对齐
   const summary = await importQuestions(contents, prisma as unknown as QuestionImportClient);
   console.log(`\n导入完成：${summary.imported} 题已按题 id upsert（重复执行幂等，不产生重复记录）。`);
+  // T33：导入后输出覆盖矩阵报告（与 content:validate 同一份，供评审核对缺口）
+  console.log(`\n${formatCoverageReport(buildCoverageMatrix(results))}`);
 } finally {
   await prisma.$disconnect();
 }

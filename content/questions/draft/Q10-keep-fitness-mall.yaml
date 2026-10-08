@@ -54,6 +54,7 @@ ability_tags:
   - 产品价值判断
   - 根因分析
 difficulty: 中等
+domain: "健康/运动"
 rubric:
   dimensions:
     问题定义:

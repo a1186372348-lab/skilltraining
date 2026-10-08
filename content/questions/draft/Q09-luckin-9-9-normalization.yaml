@@ -46,6 +46,7 @@ ability_tags:
   - 根因分析
   - 指标与验证
 difficulty: 中等
+domain: "本地生活"
 rubric:
   dimensions:
     问题定义:

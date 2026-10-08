@@ -42,6 +42,7 @@ ability_tags:
   - 产品取舍
   - 指标与验证
 difficulty: 中等
+domain: "内容/社交"
 rubric:
   dimensions:
     产品价值判断:

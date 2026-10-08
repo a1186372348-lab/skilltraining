@@ -55,6 +55,7 @@ function validQuestion() {
     },
     uncertainty: ["某数据未官方确认。"],
     status: "draft",
+    domain: "工具/效率",
   };
 }
 
@@ -448,5 +449,35 @@ describe("题库内容 schema：kind 题目用途（T17a / D19）", () => {
   it("kind 为枚举之外的值被拒绝", () => {
     const q = validQuestion();
     expect(questionContentSchema.safeParse({ ...q, kind: "exam" }).success).toBe(false);
+  });
+});
+
+describe("题库内容 schema：domain 领域标签（T33 / BR-V2-8）", () => {
+  it("缺 domain 被拒绝（必填）", () => {
+    const q = validQuestion() as Record<string, unknown>;
+    delete q.domain;
+    const r = questionContentSchema.safeParse(q);
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0]?.path.join(".")).toBe("domain");
+    }
+  });
+
+  it("空串或纯空白被拒绝（trim 后必须非空）", () => {
+    expect(questionContentSchema.safeParse({ ...validQuestion(), domain: "" }).success).toBe(false);
+    expect(questionContentSchema.safeParse({ ...validQuestion(), domain: "   " }).success).toBe(false);
+  });
+
+  it("合法领域值通过，且首尾空白被 trim", () => {
+    const r = questionContentSchema.safeParse({ ...validQuestion(), domain: " 内容/社交 " });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.domain).toBe("内容/社交");
+    }
+  });
+
+  it("词表外的自由文本也通过（词表由评审口径管理，不进 schema 枚举）", () => {
+    const r = questionContentSchema.safeParse({ ...validQuestion(), domain: "前沿科技" });
+    expect(r.success).toBe(true);
   });
 });

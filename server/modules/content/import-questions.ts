@@ -45,6 +45,8 @@ export function toQuestionUpsertArgs(content: QuestionContent): QuestionUpsertAr
     status: content.status,
     // 题目用途（T17a / D19）：YAML 未标注时按日常题落库，与 questions.kind 默认值一致
     kind: content.kind ?? "daily",
+    // 领域标签（T33 / BR-V2-8）：只落库与统计，运行时代码不读取（T29 起消费）
+    domain: content.domain,
   };
   // create 与 update 同内容：首次插入与重复导入结果一致（以最新 YAML 为准）
   return { where: { id }, create: row, update: row };

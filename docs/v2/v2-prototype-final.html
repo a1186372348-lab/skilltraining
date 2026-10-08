@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V2 最终原型 · 组合版 — 自适应产品经理训练平台</title>
+<style>
+:root{
+  --blue:#2563EB;
+  --blue-dark:#1D4ED8;
+  --blue-mid:#3B82F6;
+  --blue-soft:#60A5FA;
+  --blue-tint:#EFF5FF;
+  --blue-border:#D9E7FD;
+  --ink:#0F172A;
+  --body:#475569;
+  --muted:#94A3B8;
+  --line:#E9EDF4;
+  --bg:#F5F6F8;
+  --green:#047857;
+  --green-bg:#ECFDF5;
+  --green-border:#D1FAE5;
+  --amber:#B45309;
+  --amber-bg:#FFFBEB;
+  --amber-border:#FBE9C4;
+  --amber-deep:#9A3412;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+html,body{background:#E6E9EF}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC","Segoe UI",sans-serif;
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+.js-goto{cursor:pointer}
+
+/* ============ review bar（评审用，非正式 UI） ============ */
+.review-bar{
+  position:sticky;top:0;z-index:100;
+  height:52px;background:#12141B;border-bottom:1px solid #272B35;
+  display:flex;align-items:center;justify-content:space-between;padding:0 22px;
+  font-size:13px;
+}
+.rb-left{display:flex;align-items:center;gap:14px;min-width:0}
+.rb-badge{font-size:10.5px;letter-spacing:.14em;color:#8A93A6;border:1px solid #363B48;border-radius:5px;padding:4px 9px;flex-shrink:0}
+.rb-name{color:#F2F4F8;font-weight:700;font-size:14px;flex-shrink:0}
+.rb-divider{width:1px;height:16px;background:#333845;flex-shrink:0}
+.rb-concept{color:#8A93A6;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb-tabs{display:flex;gap:4px;background:#1D2029;padding:4px;border-radius:10px;flex-shrink:0}
+.rb-tab{
+  border:none;background:transparent;color:#98A0B3;font-family:inherit;font-size:12.5px;
+  padding:7px 13px;border-radius:7px;cursor:pointer;transition:all .18s ease;white-space:nowrap;
+}
+.rb-tab:hover{color:#DFE4EE}
+.rb-tab.active{background:#F5F6F8;color:#12141B;font-weight:700}
+
+/* ============ 屏幕分区标签 ============ */
+.screen-label{
+  width:1440px;margin:26px auto 0;padding:14px 6px 12px;
+  display:flex;align-items:baseline;gap:14px;scroll-margin-top:66px;
+}
+.screen-label .sl-num{
+  font-size:12px;font-weight:700;letter-spacing:.16em;color:#FFFFFF;
+  background:#12141B;border-radius:6px;padding:5px 11px;flex-shrink:0;
+}
+.screen-label h2{font-size:17px;font-weight:700;color:#2A3444}
+.screen-label p{font-size:12.5px;color:#7A8699}
+
+/* ============ shared canvas ============ */
+.canvas{width:1440px;margin:0 auto 10px;background:var(--bg);display:flex;box-shadow:0 0 0 1px rgba(16,24,40,.05)}
+
+/* ============ sidebar（6 屏统一：导航 + 常驻成长阶段标识 + 底部状态） ============ */
+.sidebar{
+  width:236px;flex-shrink:0;
+  background:linear-gradient(180deg,#101A2E 0%,#0B1322 100%);
+  color:#C4CDDD;display:flex;flex-direction:column;padding:26px 18px 22px;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:2px 8px 22px;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:20px}
+.brand-mark{
+  width:35px;height:35px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,#3B82F6 0%,#2563EB 100%);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:16px;font-weight:700;
+  box-shadow:0 6px 14px -4px rgba(37,99,235,.55);
+}
+.brand-name{font-size:17px;font-weight:700;color:#FFFFFF;letter-spacing:.03em;line-height:1.2}
+.brand-sub{font-size:10.5px;color:#66738C;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:10px;
+  color:#8B98B2;font-size:13.5px;cursor:pointer;position:relative;
+  transition:all .18s ease;text-decoration:none;user-select:none;
+}
+.nav-item svg{width:17px;height:17px;flex-shrink:0}
+.nav-item:hover{color:#E9EEF7;background:rgba(255,255,255,.05)}
+.nav-item.active{color:#FFFFFF;background:rgba(37,99,235,.20);font-weight:600}
+.nav-item.active::before{
+  content:"";position:absolute;left:-18px;top:10px;bottom:10px;width:3px;
+  border-radius:0 3px 3px 0;background:#3B82F6;
+}
+.nav-item .nav-tag{
+  margin-left:auto;font-size:10px;font-weight:700;color:#7FA8F5;
+  border:1px solid rgba(127,168,245,.4);border-radius:999px;padding:2px 8px;
+}
+/* 常驻成长阶段标识：探索期 / 强化期 / 复测期 状态可视化 */
+.stage-block{margin-top:16px;padding:12px 13px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.03)}
+.sb-label{font-size:10.5px;letter-spacing:.14em;color:#66738C;margin-bottom:9px;display:flex;justify-content:space-between;align-items:baseline}
+.sb-label .sb-cur{color:#FBBF24;font-weight:600;letter-spacing:.02em;font-size:11px}
+.sb-track{display:flex;gap:4px}
+.sb-seg{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.13)}
+.sb-seg.done{background:#3B82F6}
+.sb-seg.now{background:#60A5FA;box-shadow:0 0 8px rgba(96,165,250,.55)}
+.sb-names{display:flex;justify-content:space-between;margin-top:7px;font-size:10.5px;color:#5B6880}
+.sb-names span.on{color:#C7D6F2}
+.sb-sub{font-size:10px;color:#5B6880;margin-top:8px;line-height:1.6}
+.side-foot{
+  margin-top:auto;background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:13px 15px;
+}
+.sf-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#8B98B2}
+.sf-row b{color:#E9EEF7;font-weight:600}
+.sf-row b.sf-warn{color:#7FA8F5}
+.sf-row b.sf-ok{color:#6EE7B7}
+.sf-div{height:1px;background:rgba(255,255,255,.08);margin:10px 0}
+
+/* ============ main frame ============ */
+.main{flex:1;min-width:0;padding:30px 34px 46px}
+.card{
+  background:#FFFFFF;border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 12px 32px -20px rgba(16,24,40,.16);
+}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px}
+.greet h1{font-size:26px;font-weight:700;letter-spacing:.01em}
+.greet p{margin-top:8px;color:#64748B;font-size:13.5px}
+.greet p b{color:var(--blue);font-weight:600}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--blue)}
+.eyebrow.amber{color:var(--amber)}
+.chip{font-size:12px;color:var(--body);background:#F5F7FA;border:1px solid #E9EDF3;border-radius:8px;padding:6px 11px;white-space:nowrap}
+.btn-primary{
+  background:var(--blue);color:#fff;border:none;font-family:inherit;
+  font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:11px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:9px;text-decoration:none;
+  box-shadow:0 8px 18px -8px rgba(37,99,235,.65);
+  transition:all .18s ease;
+}
+.btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 12px 24px -8px rgba(37,99,235,.6)}
+.btn-primary .arr{font-size:12px;transition:transform .18s ease}
+.btn-primary:hover .arr{transform:translateX(3px)}
+.btn-ghost{
+  background:#FFFFFF;color:#334155;border:1px solid #D8DFEA;font-family:inherit;
+  font-size:13.5px;font-weight:600;padding:11px 22px;border-radius:11px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:8px;text-decoration:none;transition:all .18s ease;
+}
+.btn-ghost:hover{border-color:var(--blue-mid);color:var(--blue-dark);background:#FAFCFF}
+.btn-sm{font-size:12.5px;padding:8px 16px;border-radius:9px}
+.link-btn{
+  background:none;border:none;font-family:inherit;font-size:12.5px;color:#94A3B8;
+  cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0;
+}
+.link-btn:hover{color:var(--blue-dark)}
+.actions-note{font-size:12.5px;color:var(--muted)}
+.insight-bar{
+  display:flex;align-items:center;gap:11px;
+  background:linear-gradient(90deg,#EDF4FF 0%,#F7FAFF 100%);
+  border:1px solid var(--blue-border);border-left:3px solid var(--blue);
+  border-radius:12px;padding:14px 20px;font-size:13.5px;color:#33425E;margin-bottom:20px;
+}
+.insight-bar.amber{
+  background:linear-gradient(90deg,#FFFBEB 0%,#FFFDF7 100%);
+  border-color:var(--amber-border);border-left-color:var(--amber);
+  color:#713F12;
+}
+.insight-bar .ib-ic{color:var(--blue);font-size:13px;flex-shrink:0}
+.insight-bar.amber .ib-ic{color:var(--amber)}
+.insight-bar b{color:var(--blue-dark);font-weight:700}
+.insight-bar.amber b{color:var(--amber-deep)}
+.insight-bar .ib-dot{color:#B7C6DC;margin:0 4px}
+.tag{
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:11.5px;font-weight:600;border-radius:999px;padding:4px 12px;white-space:nowrap;
+}
+.tag-ok{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+.tag-grey{color:#64748B;background:#F1F5F9;border:1px solid #E6EAF1}
+.tag-up{color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border)}
+.tag-amber{color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border)}
+.tag-warn{color:var(--amber-deep);background:var(--amber-bg);border:1px solid var(--amber-border)}
+.tag-lock{color:#94A3B8;background:#F8FAFC;border:1px dashed #D8DFEA}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px}
+.card-head h3{font-size:16.5px;font-weight:700}
+.card-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.hub-side{display:flex;flex-direction:column;gap:18px}
+.hs-card{padding:20px 22px}
+.hs-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+
+/* ============================================================
+   屏1 · 首页战役地图（取自原型 B 屏2）
+   ============================================================ */
+.map-banner{
+  display:flex;align-items:center;gap:13px;margin-bottom:22px;
+  background:linear-gradient(90deg,#101A2E 0%,#1B2A4A 100%);
+  border-radius:16px;padding:19px 26px;color:#C4CDDD;
+}
+.map-banner .mb-flag{
+  width:40px;height:40px;border-radius:12px;flex-shrink:0;
+  background:rgba(59,130,246,.22);border:1px solid rgba(96,165,250,.35);
+  display:flex;align-items:center;justify-content:center;font-size:18px;color:#7FA8F5;
+}
+.map-banner .mb-txt{min-width:0}
+.map-banner .mb-txt b{color:#fff;font-size:16px;font-weight:700}
+.map-banner .mb-txt p{font-size:12.5px;color:#8B98B2;margin-top:4px}
+.map-banner .mb-stage{margin-left:auto;flex-shrink:0;text-align:right}
+.map-banner .mb-stage .mbs-num{font-size:26px;font-weight:700;color:#7FA8F5;line-height:1}
+.map-banner .mb-stage .mbs-label{font-size:11.5px;color:#66738C;margin-top:4px}
+
+/* ---- 横向关卡路径图 ---- */
+.path-wrap{padding:34px 34px 30px;margin-bottom:22px}
+.path-track{position:relative;display:flex;align-items:flex-start;justify-content:space-between;padding:0 8px}
+.path-track::before{
+  content:"";position:absolute;left:60px;right:60px;top:37px;height:5px;border-radius:3px;
+  background:linear-gradient(90deg,#BFDBFE 0%,#60A5FA 34%,#2563EB 52%,#E2E8F0 53%,#E2E8F0 100%);
+}
+.pnode{position:relative;width:215px;text-align:center;z-index:1;cursor:default}
+.pnode-dot{
+  width:76px;height:76px;border-radius:50%;margin:0 auto 14px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  border:4px solid #fff;box-shadow:0 8px 20px -8px rgba(16,24,40,.25);
+  transition:transform .2s ease;
+}
+.pnode:hover .pnode-dot{transform:scale(1.06)}
+.pnode.done .pnode-dot{background:linear-gradient(135deg,#93C5FD,#3B82F6)}
+.pnode.current .pnode-dot{
+  background:linear-gradient(135deg,#3B82F6,#1D4ED8);
+  box-shadow:0 0 0 7px rgba(37,99,235,.16),0 12px 26px -8px rgba(37,99,235,.65);
+}
+.pnode.future .pnode-dot{background:#EDF1F7;box-shadow:none;border-color:#fff}
+.pnode.future:hover .pnode-dot{transform:none}
+.pnode-dot svg{width:32px;height:32px;color:#fff}
+.pnode.future .pnode-dot svg{color:#A6B2C6}
+.pnode-flag{
+  position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+  font-size:10.5px;font-weight:700;letter-spacing:.08em;white-space:nowrap;
+  background:#12141B;color:#fff;border-radius:999px;padding:4px 11px;
+}
+.pnode.current .pnode-flag{background:var(--blue)}
+.pnode-title{font-size:15.5px;font-weight:700;color:#1E293B}
+.pnode.future .pnode-title{color:#8A97AC}
+.pnode-sub{font-size:12px;color:#64748B;margin-top:5px;line-height:1.6}
+.pnode-state{
+  display:inline-flex;align-items:center;gap:5px;margin-top:10px;
+  font-size:11.5px;font-weight:600;border-radius:999px;padding:4px 12px;
+}
+.pnode.done .pnode-state{color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border)}
+.pnode.current .pnode-state{color:#fff;background:var(--blue);border:1px solid var(--blue)}
+.pnode-lock{
+  margin-top:10px;font-size:11.5px;color:#A6B2C6;display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.pnode-lock svg{width:12px;height:12px}
+.pnode-unlock{font-size:11px;color:#A6B2C6;margin-top:6px;line-height:1.55}
+
+/* 挂在当前阶段节点下的卡片 */
+.hang-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:30px;position:relative;
+}
+.hang-row::before{
+  content:"";position:absolute;top:-16px;left:50%;transform:translateX(-50%);
+  width:2px;height:16px;background:#C9D6EA;
+}
+.hang-card{
+  border:1.5px solid var(--blue-border);border-radius:14px;background:#FBFCFF;
+  padding:18px 20px;transition:all .18s ease;
+}
+.hang-card:hover{border-color:#AECBFA;box-shadow:0 10px 24px -14px rgba(37,99,235,.35);transform:translateY(-2px)}
+.hc-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.hc-flag{font-size:10.5px;font-weight:700;letter-spacing:.1em;color:#fff;background:var(--blue);border-radius:5px;padding:3px 8px}
+.hc-flag.pack{background:#7C3AED}
+.hc-title{font-size:14.5px;font-weight:700;color:#1E293B}
+.hc-body{font-size:12.5px;color:var(--body);line-height:1.7;margin-bottom:12px}
+.hc-body b{color:var(--blue-dark);font-weight:700}
+.hc-foot{display:flex;align-items:center;gap:12px}
+.hc-prog{flex:1;height:7px;border-radius:5px;background:#E8EEF7;overflow:hidden}
+.hc-prog i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#3B82F6,#2563EB)}
+.hc-prog-txt{font-size:11.5px;color:#64748B;white-space:nowrap}
+.hc-link{font-size:12.5px;font-weight:600;color:var(--blue);white-space:nowrap;cursor:pointer}
+.hc-link:hover{color:var(--blue-dark)}
+
+/* 屏1 下半：今日任务 + 阶段进度 */
+.dash-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:stretch}
+.col-left{display:flex;flex-direction:column;gap:22px}
+.task-card{padding:30px 32px;display:flex;flex-direction:column;flex:1}
+.task-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.day-badge{font-size:12px;color:var(--body);background:#F1F5F9;border:1px solid #E6EAF1;border-radius:999px;padding:5px 13px}
+.task-title{font-size:29px;font-weight:700;letter-spacing:.01em;margin-bottom:16px}
+.task-title .dash{color:#A5B2C5;font-weight:400;padding:0 2px}
+.task-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.focus-box{background:var(--blue-tint);border:1px solid var(--blue-border);border-radius:12px;padding:14px 17px;margin-bottom:12px}
+.fb-label{font-size:13px;font-weight:700;color:var(--blue-dark);display:block;margin-bottom:5px}
+.focus-box p{font-size:13px;color:#3D5A90;line-height:1.65}
+.why-line{
+  display:flex;align-items:center;gap:9px;font-size:13px;color:#8A5A12;
+  background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:10px;
+  padding:11px 16px;margin-bottom:16px;
+}
+.why-line .why-ic{color:#D97706;font-size:12px}
+.question-box{background:#F8FAFD;border:1.5px dashed #C6D3E6;border-radius:12px;padding:16px 18px;margin-bottom:24px}
+.qb-label{font-size:11px;letter-spacing:.14em;color:#7C8AA5;font-weight:700;display:block;margin-bottom:8px}
+.question-box p{font-size:16.5px;font-weight:600;color:#12233F;line-height:1.6}
+.task-actions{display:flex;align-items:center;gap:18px;margin-top:auto}
+
+.stage-progress-card{padding:26px 28px;display:flex;flex-direction:column}
+.stage-now{
+  display:flex;align-items:center;gap:14px;background:var(--blue-tint);
+  border:1px solid var(--blue-border);border-radius:12px;padding:15px 17px;margin-bottom:20px;
+}
+.stage-now .sn-ic{
+  width:42px;height:42px;border-radius:12px;flex-shrink:0;
+  background:linear-gradient(135deg,#3B82F6,#2563EB);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;font-weight:700;
+  box-shadow:0 8px 16px -6px rgba(37,99,235,.55);
+}
+.stage-now .sn-txt b{display:block;font-size:15px;color:var(--blue-dark);font-weight:700}
+.stage-now .sn-txt span{font-size:12px;color:#3D5A90;margin-top:3px;display:block}
+.retest-meter{margin-bottom:20px}
+.rm-label{font-size:12.5px;color:#334155;font-weight:600;margin-bottom:9px}
+.rm-label span{color:var(--muted);font-weight:400}
+.rm-cells{display:flex;gap:9px}
+.rm-cell{
+  flex:1;text-align:center;background:#F8FAFD;border:1px solid #EEF2F8;border-radius:11px;padding:11px 6px;
+}
+.rm-cell .rmc-num{font-size:20px;font-weight:700;color:#334155;line-height:1}
+.rm-cell.hit .rmc-num{color:var(--blue)}
+.rm-cell .rmc-cap{font-size:11px;color:var(--muted);margin-top:5px}
+.rm-cell.hit{background:var(--blue-tint);border-color:var(--blue-border)}
+.rm-cell.go{background:#F0F7FF;border:1.5px dashed var(--blue-mid)}
+.rm-cell.go .rmc-num{color:var(--blue-dark);font-size:17px}
+.rm-cell.go .rmc-cap{color:var(--blue-dark);font-weight:700}
+.rm-link{display:flex;justify-content:flex-end;margin-top:12px}
+.minimap{margin-top:auto;border-top:1px dashed #E2E8F0;padding-top:18px}
+.minimap .mm-title{font-size:12.5px;font-weight:700;color:#334155;margin-bottom:12px}
+.mm-track{display:flex;align-items:center;gap:0}
+.mm-node{flex:1;text-align:center;position:relative}
+.mm-node::before{
+  content:"";position:absolute;left:-50%;right:50%;top:9px;height:3px;border-radius:2px;background:#E2E8F0;z-index:0;
+}
+.mm-node:first-child::before{display:none}
+.mm-node span{
+  position:relative;z-index:1;display:inline-block;width:20px;height:20px;border-radius:50%;
+  background:#E2E8F0;border:3px solid #fff;box-shadow:0 0 0 1px #E2E8F0;
+}
+.mm-node.done::before{background:#93C5FD}
+.mm-node.done span{background:#60A5FA;box-shadow:0 0 0 1px #93C5FA}
+.mm-node.cur span{background:var(--blue);box-shadow:0 0 0 5px rgba(37,99,235,.18)}
+.mm-cap{display:block;font-size:11px;color:#64748B;margin-top:7px}
+.mm-node.cur .mm-cap{color:var(--blue-dark);font-weight:700}
+
+/* ============================================================
+   屏2 · 基线测评 · 起点关卡（取自原型 B 屏1）
+   ============================================================ */
+.base-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:stretch}
+.level-card{padding:32px 34px;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.level-card::after{
+  content:"";position:absolute;right:-70px;top:-70px;width:230px;height:230px;border-radius:50%;
+  background:radial-gradient(circle,rgba(37,99,235,.09) 0%,rgba(37,99,235,0) 68%);pointer-events:none;
+}
+.lc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.lc-badge{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+  color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border);
+  border-radius:999px;padding:5px 13px;
+}
+.lc-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--blue);animation:pulse 1.6s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.level-title{display:flex;align-items:center;gap:16px;margin-bottom:10px}
+.level-icon{
+  width:58px;height:58px;border-radius:16px;flex-shrink:0;
+  background:linear-gradient(135deg,#3B82F6,#2563EB);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 10px 22px -8px rgba(37,99,235,.6);
+}
+.level-icon svg{width:28px;height:28px;color:#fff}
+.level-title h2{font-size:25px;font-weight:700;letter-spacing:.01em}
+.level-title .lt-sub{font-size:13px;color:#64748B;margin-top:5px}
+.resume-line{
+  display:flex;align-items:center;gap:10px;font-size:13.5px;color:#33425E;
+  background:var(--blue-tint);border:1px solid var(--blue-border);border-radius:11px;
+  padding:13px 17px;margin:14px 0 18px;
+}
+.resume-line .rl-ic{color:var(--blue);font-size:13px;flex-shrink:0}
+.resume-line b{color:var(--blue-dark)}
+.q-dots{display:flex;gap:7px;margin:2px 0 6px;flex-wrap:wrap}
+.qdot{
+  width:30px;height:30px;border-radius:9px;font-size:12.5px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  background:#EEF3FA;color:#94A3B8;border:1px solid #E4EAF3;
+}
+.qdot.done{background:#DBEAFE;color:var(--blue-dark);border-color:#BFDBFE}
+.qdot.cur{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 0 0 4px rgba(37,99,235,.18)}
+.qdot.deep{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+.qdot.deep::after{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;margin-left:2px}
+.deep-note{
+  display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--amber);
+  background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:10px;
+  padding:10px 14px;margin:12px 0 20px;
+}
+.deep-note .dn-ic{font-size:12px;flex-shrink:0}
+.q-preview{background:#F8FAFD;border:1.5px dashed #C6D3E6;border-radius:12px;padding:15px 18px;margin-bottom:22px}
+.qp-label{font-size:11px;letter-spacing:.14em;color:#7C8AA5;font-weight:700;display:block;margin-bottom:8px}
+.q-preview p{font-size:15px;font-weight:600;color:#12233F;line-height:1.6}
+.q-preview .qp-dim{margin-top:9px;font-size:12px;color:#64748B}
+.q-preview .qp-dim b{color:var(--blue-dark);font-weight:600}
+.lc-actions{display:flex;align-items:center;gap:16px;margin-top:auto}
+.pause-note{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+
+.rules-card{padding:24px 26px;display:flex;flex-direction:column}
+.rules-card h3{font-size:16px;font-weight:700;margin-bottom:16px}
+.rule-row{display:flex;gap:12px;padding:11px 0;border-bottom:1px dashed #EDF1F7}
+.rule-row:last-of-type{border-bottom:none}
+.rule-ic{
+  width:26px;height:26px;border-radius:8px;flex-shrink:0;
+  background:var(--blue-tint);color:var(--blue-dark);font-size:12.5px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-top:1px;
+}
+.rule-row p{font-size:12.5px;color:var(--body);line-height:1.7}
+.rule-row p b{color:#1E293B;font-weight:600}
+.preview-lit{margin-top:auto;padding-top:18px;border-top:1px solid var(--line)}
+.pl-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+.pl-head h4{font-size:13.5px;font-weight:700}
+.pl-head span{font-size:11.5px;color:var(--muted)}
+.lit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lit-cell{
+  display:flex;align-items:center;gap:8px;font-size:12px;color:var(--body);
+  background:#FBFCFE;border:1px solid #EEF2F8;border-radius:9px;padding:8px 11px;
+}
+.lit-cell .lit-dot{width:7px;height:7px;border-radius:50%;background:#CBD5E1;flex-shrink:0}
+.lit-cell.on .lit-dot{background:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.lit-cell .lit-score{margin-left:auto;font-weight:700;color:#334155;font-size:12.5px}
+.lit-cell.on .lit-score{color:var(--blue-dark)}
+</style>
+<style>
+/* ============================================================
+   屏3 · 周期训练计划（取自原型 C 屏3）
+   ============================================================ */
+.plan-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start}
+.focus-hero{display:flex;align-items:center;gap:22px;margin-bottom:18px}
+.focus-num{font-size:52px;font-weight:700;line-height:1;color:var(--ink)}
+.focus-num .fn-unit{font-size:15px;font-weight:500;color:var(--muted);margin-left:4px}
+.focus-meta{display:flex;flex-direction:column;gap:6px}
+.focus-name{font-size:19px;font-weight:700;display:flex;align-items:center;gap:10px}
+.focus-why{font-size:12.5px;color:#64748B;line-height:1.7}
+.week-list{display:flex;flex-direction:column;gap:9px}
+.day-row{
+  display:flex;align-items:center;gap:14px;border:1px solid var(--line);border-radius:12px;
+  padding:13px 16px;background:#FFFFFF;transition:all .15s ease;
+}
+.day-row.done{background:#FBFCFE}
+.day-row.today{border-color:var(--blue);background:var(--blue-tint);box-shadow:0 0 0 3px rgba(37,99,235,.10)}
+.day-row.lock{opacity:.62}
+.dr-date{width:64px;flex-shrink:0}
+.dr-date .dd{font-size:13px;font-weight:700;color:#334155}
+.dr-date .dw{font-size:11px;color:#94A3B8;margin-top:2px}
+.dr-main{flex:1;min-width:0}
+.dr-title{font-size:13.5px;font-weight:600;color:#1E293B;line-height:1.5}
+.dr-chips{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.dr-chips .chip{font-size:11px;padding:3px 9px;border-radius:7px}
+.dr-side{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.dr-score{font-size:19px;font-weight:700;color:var(--ink)}
+.reject-zone{
+  margin-top:16px;border-top:1px dashed #E2E8F0;padding-top:14px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.reject-note{font-size:12px;color:#94A3B8;line-height:1.6}
+.review-num{font-size:34px;font-weight:700;color:var(--blue-dark);line-height:1}
+.review-delta{display:flex;align-items:center;gap:8px;font-size:13px;color:#64748B;margin-top:8px}
+.delta-up{
+  font-size:15px;font-weight:700;color:var(--green);
+  background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;padding:3px 10px;
+}
+.rule-list{display:flex;flex-direction:column;gap:11px;font-size:12.5px;color:#64748B;line-height:1.7}
+.rule-list .rl{display:flex;gap:9px}
+.rule-list .rl .ic{color:var(--blue);flex-shrink:0}
+
+/* ============================================================
+   屏4 · 专项训练包（取自原型 C 屏4）
+   ============================================================ */
+.pack-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:start}
+.ladder{display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12px;color:#64748B}
+.ladder .ld{
+  border-radius:999px;padding:5px 13px;font-weight:600;font-size:11.5px;white-space:nowrap;
+}
+.ld-basic{color:#047857;background:var(--green-bg);border:1px solid var(--green-border)}
+.ld-mid{color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border)}
+.ld-hard{color:var(--amber-deep);background:var(--amber-bg);border:1px solid var(--amber-border)}
+.ladder .ld-arr{color:#CBD5E1}
+.pk-q{
+  border:1px solid var(--line);border-radius:13px;background:#FFFFFF;margin-bottom:10px;
+  cursor:pointer;transition:all .15s ease;overflow:hidden;
+}
+.pk-q:hover{border-color:#C9D6EA}
+.pk-q.lock{cursor:not-allowed}
+.pk-q-head{display:flex;align-items:center;gap:13px;padding:14px 16px}
+.pk-q.done{background:#FBFCFE}
+.pk-q.doing{border-color:var(--blue);background:var(--blue-tint)}
+.pk-q .pqi{
+  width:32px;height:32px;border-radius:9px;background:#F1F5F9;color:#64748B;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;
+}
+.pk-q.done .pqi{background:var(--blue-tint);color:var(--blue-dark)}
+.pk-q.doing .pqi{background:var(--blue);color:#fff}
+.pk-q.lock .pqi{background:#F8FAFC;color:#CBD5E1}
+.pq-main{flex:1;min-width:0}
+.pq-title{font-size:13.5px;font-weight:600;color:#334155;line-height:1.5}
+.pq-title .pq-lock-ic{color:#B6C2D4;margin-right:5px}
+.pq-sub{font-size:11.5px;color:#94A3B8;margin-top:3px}
+.pk-q.lock .pq-title{color:#B6C2D4}
+.pq-side{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.pq-score{font-size:18px;font-weight:700;color:var(--ink)}
+.pk-q-body{
+  max-height:0;overflow:hidden;transition:max-height .28s ease;
+  border-top:1px dashed transparent;
+}
+.pk-q.open .pk-q-body{max-height:220px;border-top-color:#E2E8F0}
+.pk-q-body-in{padding:13px 16px 15px 61px;font-size:12.5px;color:#64748B;line-height:1.8}
+.pk-q-body-in .b-k{font-weight:700;color:#334155}
+.pk-q-body-in .b-arr{color:var(--blue);font-weight:600;padding:0 3px}
+.pk-q .pq-caret{color:#B6C2D4;font-size:11px;transition:transform .2s ease}
+.pk-q.open .pq-caret{transform:rotate(90deg)}
+.pk-q.lock .pq-caret{visibility:hidden}
+.traj{display:flex;align-items:flex-end;gap:14px;height:96px;margin:6px 0 10px}
+.traj-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.traj-bar{width:100%;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,#3B82F6,#2563EB);min-height:8px}
+.traj-bar.pending{background:#EDF1F7}
+.traj-val{font-size:13px;font-weight:700;color:var(--ink)}
+.traj-lab{font-size:10.5px;color:#94A3B8}
+
+/* ============================================================
+   屏5 · 成长阶段与复测（取自原型 C 屏5）
+   ============================================================ */
+.stage-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.stage-card{padding:22px 22px;position:relative}
+.stage-card.cur{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.10),0 12px 32px -20px rgba(16,24,40,.16)}
+.stage-card.done-card{background:#FBFCFE}
+.sc-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sc-orb{
+  width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;flex-shrink:0;background:#EDF1F7;color:#94A3B8;
+}
+.stage-card.done-card .sc-orb{background:var(--green-bg);color:var(--green)}
+.stage-card.cur .sc-orb{background:var(--blue);color:#fff}
+.sc-name{font-size:16px;font-weight:700}
+.sc-state{margin-left:auto}
+.sc-desc{font-size:12.5px;color:#64748B;line-height:1.75;margin-bottom:13px;min-height:44px}
+.sc-rules{border-top:1px dashed #E2E8F0;padding-top:11px;display:flex;flex-direction:column;gap:7px;font-size:11.5px;color:#94A3B8;line-height:1.6}
+.sc-rules b{color:#64748B;font-weight:600}
+.stage-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:22px;align-items:start}
+.retest-chips{display:flex;gap:10px;margin-bottom:14px}
+.retest-chip{
+  flex:1;border:1px solid var(--green-border);background:var(--green-bg);border-radius:12px;
+  padding:12px 10px;text-align:center;
+}
+.retest-chip .rc-check{color:var(--green);font-size:12px;font-weight:700}
+.retest-chip .rc-n{font-size:24px;font-weight:700;color:var(--green);line-height:1.1;margin-top:3px}
+.retest-chip .rc-d{font-size:10.5px;color:#6B9E8A;margin-top:3px}
+.retest-banner{
+  display:flex;align-items:center;gap:10px;background:var(--amber-bg);border:1px solid var(--amber-border);
+  border-left:3px solid var(--amber);border-radius:11px;padding:12px 16px;
+  font-size:13px;color:#713F12;font-weight:600;margin-bottom:14px;
+}
+.tl{position:relative;padding-left:24px;display:flex;flex-direction:column;gap:16px}
+.tl::before{content:"";position:absolute;left:7px;top:8px;bottom:8px;width:2px;background:#E2E8F0}
+.tl-item{position:relative}
+.tl-item::before{
+  content:"";position:absolute;left:-22.5px;top:5px;width:11px;height:11px;border-radius:50%;
+  background:#FFFFFF;border:2.5px solid #CBD5E1;
+}
+.tl-item.hot::before{border-color:var(--blue);background:var(--blue);box-shadow:0 0 0 4px rgba(37,99,235,.15)}
+.tl-item.ok::before{border-color:var(--green);background:var(--green)}
+.tl-date{font-size:11.5px;color:#94A3B8;margin-bottom:3px}
+.tl-text{font-size:13px;color:#334155;font-weight:600;line-height:1.6}
+.tl-text .tl-tag{color:var(--blue-dark)}
+
+/* ============================================================
+   屏6 · 能力画像（取自原型 A 屏6 画像部分，已移除成长三阶段 stepper）
+   ============================================================ */
+.pf-wrap{max-width:1040px;margin:0 auto}
+.observed-card{margin-bottom:20px;overflow:hidden}
+.obs-head{display:flex;align-items:center;justify-content:space-between;padding:19px 26px;border-bottom:1px solid var(--line)}
+.obs-head h3{font-size:16px;font-weight:700}
+.obs-head span{font-size:12px;color:var(--muted)}
+.dim-row{border-bottom:1px solid #F0F3F8}
+.dim-row:last-child{border-bottom:none}
+.dim-row:hover{background:#FAFBFE}
+.dim-main{display:grid;grid-template-columns:150px 96px 110px 1fr 168px;align-items:center;gap:14px;padding:14px 26px}
+.dim-name{font-size:14px;font-weight:600;color:#1E293B}
+.dim-score{font-size:22px;font-weight:700;line-height:1}
+.dim-row.rise .dim-score{color:var(--blue)}
+.dim-row.weak .dim-score{color:var(--amber-deep)}
+.dim-obs{font-size:12.5px;color:#64748B}
+.dim-cta{justify-self:end}
+.btn-mini{background:#FFFFFF;border:1px solid #D8DFEA;color:#334155;font-family:inherit;font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;transition:all .18s ease;white-space:nowrap}
+.btn-mini:hover{border-color:var(--blue-mid);color:var(--blue-dark);background:#FAFCFF}
+.btn-mini.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-mini.primary:hover{background:var(--blue-dark)}
+.btn-mini[disabled]{color:#A6B2C6;background:#F8FAFD;border-color:#E9EDF3;cursor:not-allowed}
+.btn-mini[disabled]:hover{color:#A6B2C6;background:#F8FAFD;border-color:#E9EDF3}
+.dep-card{display:flex;align-items:center;gap:34px;padding:20px 28px}
+.dep-info h4{font-size:15px;font-weight:700;margin-bottom:4px}
+.dep-info p{font-size:12px;color:var(--muted)}
+.dep-gauge{display:flex;flex-direction:column;gap:7px;margin-left:auto}
+.segs{display:flex;gap:5px}
+.seg{width:30px;height:8px;border-radius:5px;background:#E2E8F0}
+.seg.on-1{background:#BFDBFE}
+.seg.on-2{background:#60A5FA}
+.seg.on-3{background:#2563EB}
+.segs.big .seg{width:46px;height:9px}
+.segs-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.dep-badge{font-size:17px;font-weight:700;color:var(--blue-dark);background:var(--blue-tint);border:1px solid var(--blue-border);border-radius:12px;padding:10px 22px}
+</style>
+</head>
+<body>
+
+<!-- review bar: evaluation chrome, not part of the design -->
+<div class="review-bar">
+  <div class="rb-left">
+    <span class="rb-badge">V2 最终原型 · 组合版</span>
+    <span class="rb-name">自适应产品经理训练平台</span>
+    <span class="rb-divider"></span>
+    <span class="rb-concept">分模块拼合：屏1/2 取原型 B（战役地图 · 起点关卡），屏3/4/5 取原型 C（周计划 · 训练包 · 成长阶段），屏6 取原型 A（画像，已移除三阶段 stepper）；侧边栏统一常驻成长阶段标识，同一虚拟用户数据贯穿 6 屏</span>
+  </div>
+  <div class="rb-tabs">
+    <button class="rb-tab" data-target="s1">屏1 首页</button>
+    <button class="rb-tab" data-target="s2">屏2 基线测评</button>
+    <button class="rb-tab" data-target="s3">屏3 周计划</button>
+    <button class="rb-tab" data-target="s4">屏4 训练包</button>
+    <button class="rb-tab" data-target="s5">屏5 成长与复测</button>
+    <button class="rb-tab" data-target="s6">屏6 能力画像</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     屏 1 · 首页 · 战役地图（取自原型 B 屏2）
+     ============================================================ -->
+<div class="screen-label" id="s1"><span class="sl-num">屏 1</span><h2>首页 · 战役地图</h2><p>横向关卡路径：起点✓ → 探索期✓ → 强化期（你在这里）→ 复测期（置灰锁定含解锁条件）；周计划卡与训练包卡悬挂在当前阶段节点下方；下半区为今日任务（命中本周主攻维度）+ 阶段进度</p></div>
+<div class="canvas">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2 8 2.6l5.5 4.6v5.6a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9V7.2z"/><path d="M6.2 13.7V9.8h3.6v3.9"/></svg>
+        首页
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        产品训练
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="stage-block" title="成长阶段：探索期 → 强化期 → 复测期">
+      <div class="sb-label"><span>成长阶段</span><span class="sb-cur">强化期</span></div>
+      <div class="sb-track"><span class="sb-seg done"></span><span class="sb-seg now"></span><span class="sb-seg"></span></div>
+      <div class="sb-names"><span class="on">探索期</span><span class="on">强化期</span><span>复测期</span></div>
+      <div class="sb-sub">第 2 周 · 按周计划与弱项持续训练</div>
+    </div>
+    <div class="side-foot">
+      <div class="sf-row"><span>今日状态</span><b class="sf-warn">待开始</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>本周主攻</span><b>产品取舍</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>连续训练</span><b>12 天</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="page-head">
+      <div class="greet">
+        <h1>早上好，回到训练场。</h1>
+        <p><b>战役地图 · 强化期 第 2 周</b> · 本周主攻「产品取舍」，每一步都有方向</p>
+      </div>
+    </header>
+
+    <div class="map-banner">
+      <span class="mb-flag">⚑</span>
+      <div class="mb-txt">
+        <b>你的成长战役地图</b>
+        <p>完成基线测评出发，穿过探索期，当前正在强化期攻坚「产品取舍」（55 分 · 画像最弱边缘）</p>
+      </div>
+      <div class="mb-stage">
+        <div class="mbs-num">2 / 3</div>
+        <div class="mbs-label">成长阶段</div>
+      </div>
+    </div>
+
+    <!-- 横向路径图 -->
+    <section class="card path-wrap">
+      <div class="path-track">
+        <div class="pnode done">
+          <div class="pnode-dot">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          </div>
+          <div class="pnode-title">起点关卡 · 基线测评</div>
+          <div class="pnode-sub">8 题起步 · 自动加深至 12 题<br>完成即点亮八维画像</div>
+          <span class="pnode-state">✓ 已通过 · 初评 65 分</span>
+        </div>
+        <div class="pnode done">
+          <div class="pnode-dot">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          </div>
+          <div class="pnode-title">第 1 关 · 探索期</div>
+          <div class="pnode-sub">画像存在未知维度<br>系统优先探索补齐盲区</div>
+          <span class="pnode-state">✓ 已通过 · 历时 2 天</span>
+        </div>
+        <div class="pnode current">
+          <span class="pnode-flag">你在这里</span>
+          <div class="pnode-dot">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/></svg>
+          </div>
+          <div class="pnode-title">第 2 关 · 强化期</div>
+          <div class="pnode-sub">常态训练：按周计划主攻弱项<br>专项训练包逐题解锁</div>
+          <span class="pnode-state">进行中 · 第 2 周</span>
+        </div>
+        <div class="pnode future">
+          <div class="pnode-dot">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="10.5" width="13" height="9" rx="2"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/></svg>
+          </div>
+          <div class="pnode-title">第 3 关 · 复测期</div>
+          <div class="pnode-sub">某维度连续 3 次有效分 ≥75<br>换题复测，验证真提升</div>
+          <span class="pnode-lock">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>
+            未解锁 · 解锁条件：任一维度连续 3 次 ≥75
+          </span>
+          <div class="pnode-unlock">「产品价值判断」已达触发条件<br>完成复测后开启</div>
+        </div>
+      </div>
+
+      <!-- 挂在当前阶段节点下的两张卡 -->
+      <div class="hang-row">
+        <div class="hang-card">
+          <div class="hc-top">
+            <span class="hc-flag">本周计划</span>
+            <span class="hc-title">第 2 周 · 主攻「产品取舍」</span>
+          </div>
+          <div class="hc-body">周一由系统生成，本周 5 题全部围绕该维度命题。<b>周日生成周回顾</b>，核对主攻维度有效分变化。</div>
+          <div class="hc-foot">
+            <div class="hc-prog"><i style="width:40%"></i></div>
+            <span class="hc-prog-txt">本周已完成 2/5 天</span>
+            <span class="hc-link js-goto" data-target="s3">查看计划 ▸</span>
+          </div>
+        </div>
+        <div class="hang-card">
+          <div class="hc-top">
+            <span class="hc-flag pack">专项训练包</span>
+            <span class="hc-title">「产品取舍」5 题攻坚包</span>
+          </div>
+          <div class="hc-body">同维度难度递进：基础 2 题 → 进阶 2 题 → 挑战 1 题，<b>逐题解锁</b>，完成输出包级诊断。</div>
+          <div class="hc-foot">
+            <div class="hc-prog"><i style="width:40%;background:linear-gradient(90deg,#3B82F6,#2563EB)"></i></div>
+            <span class="hc-prog-txt">已解锁至第 3/5 题</span>
+            <span class="hc-link js-goto" data-target="s4">继续攻坚 ▸</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 下半区：今日任务 + 阶段进度 -->
+    <div class="dash-grid">
+      <div class="col-left">
+        <section class="card task-card">
+          <div class="task-top">
+            <span class="eyebrow">今日任务 · 选题命中本周主攻维度</span>
+            <span class="day-badge">今日训练 · 第 12 天</span>
+          </div>
+          <h2 class="task-title">Cursor <span class="dash">——</span> AI 代码编辑器</h2>
+          <div class="task-meta">
+            <span class="chip">服务谁：开发者</span>
+            <span class="chip">场景：编写、修改、理解大型代码库</span>
+            <span class="chip">相关功能：代码补全、Agent 模式</span>
+            <span class="chip">状态：Agent 模式上线 3 个月</span>
+          </div>
+          <div class="focus-box">
+            <span class="fb-label"><span class="star">★</span>训练重点：产品取舍（本周主攻维度 · 当前 55 分）</span>
+            <p>今天主要训练你识别一个产品决策同时带来的收益、成本和风险。</p>
+          </div>
+          <div class="why-line">
+            <span class="why-ic">◇</span>
+            为什么是它：本周主攻「产品取舍」，且你最近 3 次取舍训练有 2 次依赖提示
+          </div>
+          <div class="question-box">
+            <span class="qb-label">今日问题</span>
+            <p>Cursor 为什么需要 Agent 模式，而不仅仅提供代码补全？</p>
+          </div>
+          <div class="task-actions">
+            <button class="btn-primary">开始今日训练<span class="arr">▸</span></button>
+            <span class="actions-note">作答后，AI 产品总监将追问并给出诊断</span>
+          </div>
+        </section>
+      </div>
+
+      <section class="card stage-progress-card">
+        <div class="card-head">
+          <div>
+            <h3>阶段进度</h3>
+            <p class="card-sub">距离下一阶段还差什么，一目了然</p>
+          </div>
+          <span class="tag tag-up">强化期 · 进行中</span>
+        </div>
+        <div class="stage-now">
+          <span class="sn-ic">2</span>
+          <div class="sn-txt">
+            <b>强化期 · 常态训练</b>
+            <span>按周计划主攻弱项，可叠加专项训练包加速</span>
+          </div>
+        </div>
+        <div class="retest-meter">
+          <div class="rm-label">进入「复测期」进度 <span>· 任一维度连续 3 次有效分 ≥75</span></div>
+          <div class="rm-cells">
+            <div class="rm-cell hit"><div class="rmc-num">78</div><div class="rmc-cap">产品价值判断 ①</div></div>
+            <div class="rm-cell hit"><div class="rmc-num">76</div><div class="rmc-cap">产品价值判断 ②</div></div>
+            <div class="rm-cell hit"><div class="rmc-num">79</div><div class="rmc-cap">产品价值判断 ③</div></div>
+            <div class="rm-cell go"><div class="rmc-num">✓</div><div class="rmc-cap">复测已触发</div></div>
+          </div>
+          <div class="rm-link"><span class="hc-link js-goto" data-target="s5">前往屏 5 完成复测 ▸</span></div>
+        </div>
+        <div class="minimap">
+          <div class="mm-title">成长路径速览</div>
+          <div class="mm-track">
+            <div class="mm-node done"><span></span><span class="mm-cap">起点</span></div>
+            <div class="mm-node done"><span></span><span class="mm-cap">探索期</span></div>
+            <div class="mm-node cur"><span></span><span class="mm-cap">强化期</span></div>
+            <div class="mm-node"><span></span><span class="mm-cap">复测期</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ============================================================
+     屏 2 · 基线测评 · 起点关卡（取自原型 B 屏1）
+     ============================================================ -->
+<div class="screen-label" id="s2"><span class="sl-num">屏 2</span><h2>基线测评 · 起点关卡</h2><p>同一用户注册初期（9/26–9/27）的画面：断点续测「第 5/8 题 · 可分两次完成」· 低置信度维度自动加深（上限 12 题）· 完成后八维一次点亮</p></div>
+<div class="canvas">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2 8 2.6l5.5 4.6v5.6a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9V7.2z"/><path d="M6.2 13.7V9.8h3.6v3.9"/></svg>
+        首页
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        产品训练
+        <span class="nav-tag">基线中</span>
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="stage-block" title="成长阶段：探索期 → 强化期 → 复测期">
+      <div class="sb-label"><span>成长阶段</span><span class="sb-cur">探索期</span></div>
+      <div class="sb-track"><span class="sb-seg now"></span><span class="sb-seg"></span><span class="sb-seg"></span></div>
+      <div class="sb-names"><span class="on">探索期</span><span>强化期</span><span>复测期</span></div>
+      <div class="sb-sub">基线测评中 · 完成后点亮八维画像</div>
+    </div>
+    <div class="side-foot">
+      <div class="sf-row"><span>基线进度</span><b class="sf-warn">第 5/8 题</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>测评题数</span><b>8 题 · 可加深</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>已用断点</span><b>1 / 2 次</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="base-grid">
+      <!-- 起点关卡卡 -->
+      <section class="card level-card">
+        <div class="lc-top">
+          <span class="eyebrow">起点关卡</span>
+          <span class="lc-badge"><span class="dot"></span>进行中 · 可分 2 次完成</span>
+        </div>
+        <div class="level-title">
+          <div class="level-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+          </div>
+          <div>
+            <h2>八维基线测评</h2>
+            <div class="lt-sub">每题主测 1 个能力维度 · 8 题覆盖全部维度 · 系统按表现自动加深</div>
+          </div>
+        </div>
+        <div class="resume-line">
+          <span class="rl-ic">◆</span>
+          欢迎回来，进度已保存——<b>继续基线测评：第 5/8 题</b>（上次作答：9月26日 21:32 · 可分两次完成）
+        </div>
+        <div class="q-dots">
+          <span class="qdot done">1</span><span class="qdot done">2</span><span class="qdot done">3</span><span class="qdot done">4</span>
+          <span class="qdot cur">5</span><span class="qdot">6</span><span class="qdot">7</span><span class="qdot">8</span>
+          <span class="qdot deep">+1</span><span class="qdot deep">+2</span><span class="qdot deep">+3</span><span class="qdot deep">+4</span>
+        </div>
+        <div class="deep-note">
+          <span class="dn-ic">◇</span>
+          系统检测到「根因分析」评分置信度低（首答与追问表现差异大），已自动加深 1 题；如仍有维度表现异常，最多加深至 12 题
+        </div>
+        <div class="q-preview">
+          <span class="qp-label">第 5 题 · 预览</span>
+          <p>Notion 的 AI 功能应该全部收费、全部免费，还是部分免费？请给出你的方案，并说明边界画在哪里。</p>
+          <div class="qp-dim">本题主测维度：<b>方案设计</b> · 预计 8 分钟</div>
+        </div>
+        <div class="lc-actions">
+          <button class="btn-primary">继续基线测评：第 5/8 题<span class="arr">▸</span></button>
+          <span class="pause-note">✓ 现在离开随时可续测，不丢失进度</span>
+        </div>
+      </section>
+
+      <!-- 右侧：规则 + 完成后点亮预览 -->
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <section class="card rules-card">
+          <h3>测评规则</h3>
+          <div class="rule-row">
+            <span class="rule-ic">1</span>
+            <p><b>8 题起步</b>：每题主测 1 个能力维度，一轮覆盖全部 8 维</p>
+          </div>
+          <div class="rule-row">
+            <span class="rule-ic">2</span>
+            <p><b>自动加深</b>：评分置信度低或表现异常的维度，系统自动加深 1 题复核，最多 12 题</p>
+          </div>
+          <div class="rule-row">
+            <span class="rule-ic">3</span>
+            <p><b>分 2 次完成</b>：中途退出自动保存，再进入显示「继续基线测评：第 X/8 题」断点续测</p>
+          </div>
+          <div class="rule-row">
+            <span class="rule-ic">4</span>
+            <p><b>一次点亮</b>：完成后八维能力画像全部点亮，进入成长路径「探索期」</p>
+          </div>
+        </section>
+        <section class="card rules-card">
+          <div class="preview-lit">
+            <div class="pl-head">
+              <h4>完成后的能力画像</h4>
+              <span>八维一次点亮 · 基线初评</span>
+            </div>
+            <div class="lit-grid">
+              <div class="lit-cell on"><span class="lit-dot"></span>问题定义<span class="lit-score">74</span></div>
+              <div class="lit-cell on"><span class="lit-dot"></span>用户理解<span class="lit-score">64</span></div>
+              <div class="lit-cell on"><span class="lit-dot"></span>根因分析<span class="lit-score">58</span></div>
+              <div class="lit-cell on"><span class="lit-dot"></span>产品价值判断<span class="lit-score">76</span></div>
+              <div class="lit-cell on"><span class="lit-dot"></span>方案设计<span class="lit-score">62</span></div>
+              <div class="lit-cell on"><span class="lit-dot"></span>产品取舍<span class="lit-score">59</span></div>
+              <div class="lit-cell on"><span class="lit-dot"></span>指标与验证<span class="lit-score">60</span></div>
+              <div class="lit-cell on"><span class="lit-dot"></span>产品表达<span class="lit-score">67</span></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============================================================
+     屏 3 · 周期训练计划（取自原型 C 屏3）
+     ============================================================ -->
+<div class="screen-label" id="s3"><span class="sl-num">屏 3</span><h2>周期训练计划 · 本周主攻</h2><p>周一生成主攻卡（主攻维度、当前分→目标分、AI 选择理由）· 周一至周五真实案例排期（已完成/今日/待解锁三态）· 可拒绝本周计划（可撤销，拒绝后本周不再重复推荐）· 右侧上周日回顾 + 生成规则</p></div>
+<div class="canvas">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2 8 2.6l5.5 4.6v5.6a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9V7.2z"/><path d="M6.2 13.7V9.8h3.6v3.9"/></svg>
+        首页
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        产品训练
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="stage-block" title="成长阶段：探索期 → 强化期 → 复测期">
+      <div class="sb-label"><span>成长阶段</span><span class="sb-cur">强化期</span></div>
+      <div class="sb-track"><span class="sb-seg done"></span><span class="sb-seg now"></span><span class="sb-seg"></span></div>
+      <div class="sb-names"><span class="on">探索期</span><span class="on">强化期</span><span>复测期</span></div>
+      <div class="sb-sub">第 2 周 · 周计划驱动日常选题</div>
+    </div>
+    <div class="side-foot">
+      <div class="sf-row"><span>本周主攻</span><b>产品取舍</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>本周完成</span><b class="sf-warn">2/5 天</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>今日状态</span><b class="sf-warn">待开始</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="page-head">
+      <div class="greet">
+        <h1>本周训练计划</h1>
+        <p>每周一 06:00 生成主攻维度 · 周日 20:00 输出周回顾 · 基于画像边缘自动生成，<b>计划可以拒绝</b></p>
+      </div>
+    </header>
+
+    <div class="insight-bar">
+      <span class="ib-ic">◇</span>
+      <span>第 2 周计划生效中：本周主攻 <b>产品取舍</b>（画像最弱边缘 55 分，近两周 -4）<span class="ib-dot">·</span>日常选题已全部匹配该维度</span>
+    </div>
+
+    <div class="plan-grid">
+      <!-- 左：本周主攻与五天安排 -->
+      <section class="card" style="padding:26px 28px">
+        <div class="card-head">
+          <div>
+            <span class="eyebrow">本周主攻维度 · 周一 10月5日 生成</span>
+          </div>
+          <span class="tag tag-up">生效中</span>
+        </div>
+        <div class="focus-hero">
+          <div class="focus-num">55<span class="fn-unit">分</span></div>
+          <div class="focus-meta">
+            <div class="focus-name">产品取舍 <span class="tag tag-warn">弱项</span><span class="tag tag-grey">目标 62（+7）</span></div>
+            <div class="focus-why">AI 选择理由：八维中最低分 · 近 2 周下降 4 分 · 3 次观察中 2 次依赖 2+ 提示。本周 5 题全部围绕「产品取舍」命题。</div>
+          </div>
+        </div>
+
+        <div class="week-list">
+          <div class="day-row done">
+            <div class="dr-date"><div class="dd">10/5</div><div class="dw">周一</div></div>
+            <div class="dr-main">
+              <div class="dr-title">微信读书 · 「想法」公开化的边界在哪里</div>
+              <div class="dr-chips"><span class="chip">产品取舍</span><span class="chip">每日一题</span></div>
+            </div>
+            <div class="dr-side"><span class="dr-score">63</span><span class="tag tag-ok">已完成</span></div>
+          </div>
+          <div class="day-row done">
+            <div class="dr-date"><div class="dd">10/6</div><div class="dw">周二</div></div>
+            <div class="dr-main">
+              <div class="dr-title">抖音 · 下沉市场流量与社区氛围的取舍</div>
+              <div class="dr-chips"><span class="chip">产品取舍</span><span class="chip">每日一题</span></div>
+            </div>
+            <div class="dr-side"><span class="dr-score">68</span><span class="tag tag-ok">已完成</span></div>
+          </div>
+          <div class="day-row today">
+            <div class="dr-date"><div class="dd">10/7</div><div class="dw">周三 · 今天</div></div>
+            <div class="dr-main">
+              <div class="dr-title">Cursor · 为什么需要 Agent 模式，而不仅仅是代码补全</div>
+              <div class="dr-chips"><span class="chip">产品取舍</span><span class="chip">每日一题</span><span class="chip">预计 15 分钟</span></div>
+            </div>
+            <div class="dr-side"><button class="btn-primary btn-sm">开始今日训练</button></div>
+          </div>
+          <div class="day-row lock">
+            <div class="dr-date"><div class="dd">10/8</div><div class="dw">周四</div></div>
+            <div class="dr-main">
+              <div class="dr-title">Notion · 工具箱的边界：该做到哪一步</div>
+              <div class="dr-chips"><span class="chip">产品取舍</span><span class="chip">完成今日后解锁</span></div>
+            </div>
+            <div class="dr-side"><span class="tag tag-lock">待解锁</span></div>
+          </div>
+          <div class="day-row lock">
+            <div class="dr-date"><div class="dd">10/9</div><div class="dw">周五</div></div>
+            <div class="dr-main">
+              <div class="dr-title">B 站 · 大会员涨价的时机与幅度</div>
+              <div class="dr-chips"><span class="chip">产品取舍</span><span class="chip">完成周四后解锁</span></div>
+            </div>
+            <div class="dr-side"><span class="tag tag-lock">待解锁</span></div>
+          </div>
+        </div>
+
+        <div class="reject-zone" id="reject-zone">
+          <div class="reject-note">计划不符合预期？拒绝后本周恢复均衡选题，<b>且本周不再重复推荐</b>。</div>
+          <button class="btn-ghost btn-sm" data-reject="no">拒绝本周计划</button>
+        </div>
+      </section>
+
+      <!-- 右：上周回顾 + 规则 -->
+      <div class="hub-side">
+        <section class="card hs-card">
+          <div class="hs-top">
+            <span class="eyebrow">上周回顾 · 周日 10月4日 生成</span>
+            <span class="tag tag-grey">第 1 周</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
+            <span class="review-num">4/5</span>
+            <span style="font-size:13px;color:#64748B">天完成训练</span>
+          </div>
+          <div class="review-delta">
+            <span>主攻「用户理解」有效分</span><span class="delta-up">64 → 69 · +5</span>
+          </div>
+          <div class="review-delta">
+            <span>整体提示依赖度</span><span class="tag tag-ok">中 → 低</span>
+          </div>
+          <div style="margin-top:12px;border-top:1px dashed #E2E8F0;padding-top:12px;font-size:12.5px;color:#64748B;line-height:1.8">
+            周总结：「用户理解」边界在拉近，但样本仍少；下周建议转向更弱的「产品取舍」。—— 该建议已被采纳生成本周计划
+          </div>
+        </section>
+
+        <section class="card hs-card">
+          <div class="hs-top">
+            <span class="eyebrow">计划如何生成</span>
+          </div>
+          <div class="rule-list">
+            <div class="rl"><span class="ic">◆</span><span>取画像边缘最弱的维度为主攻，优先打通能力边界</span></div>
+            <div class="rl"><span class="ic">◆</span><span>参考近 2 周得分斜率：持续下降的维度优先介入</span></div>
+            <div class="rl"><span class="ic">◆</span><span>每周一 06:00 生成、周日 20:00 回顾，全自动完成</span></div>
+            <div class="rl"><span class="ic">◆</span><span>拒绝后本周不再重复推荐；不拒绝则默认延续</span></div>
+            <div class="rl"><span class="ic">◆</span><span>弱项节点也可随时从能力画像发起专项训练包（见屏 6）</span></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============================================================
+     屏 4 · 专项训练包（取自原型 C 屏4）
+     ============================================================ -->
+<div class="screen-label" id="s4"><span class="sl-num">屏 4</span><h2>专项训练包 · 弱项攻坚</h2><p>难度阶梯：基础 2 题 → 进阶 2 题 → 挑战 1 题，逐题解锁；已完成题带分数、可点击展开作答摘要与 AI 点评（锁定题不可点）；右侧包级诊断（有效分轨迹 + 下一阶段建议）+ 规则卡（一次只进行一个包 · 从画像弱项节点发起）</p></div>
+<div class="canvas">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2 8 2.6l5.5 4.6v5.6a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9V7.2z"/><path d="M6.2 13.7V9.8h3.6v3.9"/></svg>
+        首页
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        产品训练
+        <span class="nav-tag">训练包</span>
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="stage-block" title="成长阶段：探索期 → 强化期 → 复测期">
+      <div class="sb-label"><span>成长阶段</span><span class="sb-cur">强化期</span></div>
+      <div class="sb-track"><span class="sb-seg done"></span><span class="sb-seg now"></span><span class="sb-seg"></span></div>
+      <div class="sb-names"><span class="on">探索期</span><span class="on">强化期</span><span>复测期</span></div>
+      <div class="sb-sub">「产品取舍」训练包进行中</div>
+    </div>
+    <div class="side-foot">
+      <div class="sf-row"><span>进行中训练包</span><b>1 个</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>包内进度</span><b class="sf-warn">2/5 题</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>包内最高分</span><b>71</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="page-head">
+      <div class="greet">
+        <h1>专项训练包</h1>
+        <p>按弱项维度组织的 5 题系列 · <b>一次只进行一个包</b> · 发起入口：能力画像的弱项节点</p>
+      </div>
+    </header>
+
+    <div class="insight-bar">
+      <span class="ib-ic">◇</span>
+      <span>当前训练包：<b>产品取舍 · 弱项攻坚包</b>（第 3/5 题已解锁，待作答）<span class="ib-dot">·</span>完成全部 5 题后输出包级诊断与下一阶段建议</span>
+    </div>
+
+    <div class="pack-grid">
+      <!-- 左：包内题目 -->
+      <section class="card" style="padding:24px 26px">
+        <div class="card-head">
+          <div>
+            <span class="eyebrow">产品取舍 · 专项训练包</span>
+            <h3 style="margin-top:8px">同一个维度，打穿为止</h3>
+            <p class="card-sub">发起自：能力画像 · 产品取舍弱项节点「发起攻坚包」</p>
+          </div>
+          <span class="tag tag-up">包内 2/5 完成</span>
+        </div>
+        <div class="ladder">
+          <span>难度递进：</span>
+          <span class="ld ld-basic">基础 × 2</span><span class="ld-arr">→</span>
+          <span class="ld ld-mid">进阶 × 2</span><span class="ld-arr">→</span>
+          <span class="ld ld-hard">挑战 × 1</span>
+          <span style="margin-left:auto">逐题解锁 · 答完上一题解锁下一题</span>
+        </div>
+
+        <div class="pk-q done">
+          <div class="pk-q-head">
+            <div class="pqi">1</div>
+            <div class="pq-main">
+              <div class="pq-title">微信读书 · 墨水屏版该保留哪些功能</div>
+              <div class="pq-sub">基础 · 识别核心场景与功能保留优先级</div>
+            </div>
+            <div class="pq-side"><span class="pq-score">62</span><span class="tag tag-ok">已完成</span><span class="pq-caret">▸</span></div>
+          </div>
+          <div class="pk-q-body"><div class="pk-q-body-in">
+            <span class="b-k">你的作答摘要</span>：保留阅读、批注、同步三项核心，砍掉社交与直播。<br>
+            <span class="b-k">AI 点评</span>：场景识别准确，但忽略了墨水屏用户的<b style="color:var(--amber-deep)">成本约束</b>（设备售价与内容付费的叠加），这是典型的取舍盲区。<span class="b-arr">→</span>已记入包级诊断
+          </div></div>
+        </div>
+
+        <div class="pk-q done">
+          <div class="pk-q-head">
+            <div class="pqi">2</div>
+            <div class="pq-main">
+              <div class="pq-title">抖音 · 极速版与主版的功能裁剪逻辑</div>
+              <div class="pq-sub">基础 · 按用户分层裁剪功能、说明取舍依据</div>
+            </div>
+            <div class="pq-side"><span class="pq-score">71</span><span class="tag tag-ok">已完成</span><span class="pq-caret">▸</span></div>
+          </div>
+          <div class="pk-q-body"><div class="pk-q-body-in">
+            <span class="b-k">你的作答摘要</span>：以「低端机 + 弱网 + 省流量」三层用户画像裁剪功能，保留拍摄与金币体系。<br>
+            <span class="b-k">AI 点评</span>：能按用户分层给出裁剪框架，结构完整。<span class="b-arr">→</span>较第 1 题 +9 分，基础题已过关
+          </div></div>
+        </div>
+
+        <div class="pk-q doing open">
+          <div class="pk-q-head">
+            <div class="pqi">3</div>
+            <div class="pq-main">
+              <div class="pq-title">B 站 · 竖屏 Story 模式的资源取舍</div>
+              <div class="pq-sub">进阶 · 在社区氛围与增长压力之间做取舍：Story 该不该继续推</div>
+            </div>
+            <div class="pq-side"><button class="btn-primary btn-sm">继续作答</button></div>
+          </div>
+          <div class="pk-q-body"><div class="pk-q-body-in">
+            <span class="b-k">考察要点</span>：资源投入的机会成本与社区心智的平衡；进阶题要求你直接给出决策——推不推、怎么推、先对哪类用户推，并用指标定义验证标准。完成后解锁第 4 题。
+          </div></div>
+        </div>
+
+        <div class="pk-q lock">
+          <div class="pk-q-head">
+            <div class="pqi">4</div>
+            <div class="pq-main">
+              <div class="pq-title"><span class="pq-lock-ic">🔒</span>Notion · 离线功能该不该做</div>
+              <div class="pq-sub">进阶 · 完成第 3 题后解锁</div>
+            </div>
+            <div class="pq-side"><span class="tag tag-lock">待解锁</span><span class="pq-caret">▸</span></div>
+          </div>
+        </div>
+
+        <div class="pk-q lock">
+          <div class="pk-q-head">
+            <div class="pqi">5</div>
+            <div class="pq-main">
+              <div class="pq-title"><span class="pq-lock-ic">🔒</span>Cursor · Agent 模式默认全开还是严格灰度</div>
+              <div class="pq-sub">挑战 · 信息不全时做取舍并给出验证方案 · 需前 4 题均 ≥60 分</div>
+            </div>
+            <div class="pq-side"><span class="tag tag-lock">待解锁</span><span class="pq-caret">▸</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右：包级诊断 + 规则 -->
+      <div class="hub-side">
+        <section class="card hs-card">
+          <div class="hs-top">
+            <span class="eyebrow">包级诊断（进行中）</span>
+            <span class="tag tag-up">产品取舍</span>
+          </div>
+          <div class="card-sub" style="margin-bottom:6px">已答题目有效分轨迹 · 挑战题将验证上限</div>
+          <div class="traj">
+            <div class="traj-col"><div class="traj-val">62</div><div class="traj-bar" style="height:62%"></div><div class="traj-lab">基础 1</div></div>
+            <div class="traj-col"><div class="traj-val">71</div><div class="traj-bar" style="height:71%"></div><div class="traj-lab">基础 2</div></div>
+            <div class="traj-col"><div class="traj-val" style="color:#94A3B8">—</div><div class="traj-bar pending" style="height:8%"></div><div class="traj-lab">进阶 1</div></div>
+            <div class="traj-col"><div class="traj-val" style="color:#94A3B8">—</div><div class="traj-bar pending" style="height:8%"></div><div class="traj-lab">进阶 2</div></div>
+            <div class="traj-col"><div class="traj-val" style="color:#94A3B8">—</div><div class="traj-bar pending" style="height:8%"></div><div class="traj-lab">挑战</div></div>
+          </div>
+          <div style="font-size:12.5px;color:#64748B;line-height:1.8;border-top:1px dashed #E2E8F0;padding-top:12px">
+            <b style="color:var(--ink)">下一阶段建议</b>：基础题进步明显（62 → 71，+9），但「成本约束」盲区未消。建议作答第 3 题前先回看第 1 题点评；进阶题将把「风险的双向推演」显性化进评分，与基线加深题互补。
+          </div>
+          <div style="margin-top:12px;font-size:12px;color:#94A3B8">完成全部 5 题后，输出完整包级诊断（轨迹 + 维度判定 + 下一阶段计划）。</div>
+        </section>
+
+        <section class="card hs-card">
+          <div class="hs-top">
+            <span class="eyebrow">训练包规则</span>
+          </div>
+          <div class="rule-list">
+            <div class="rl"><span class="ic">◆</span><span>按弱项维度组织：同维度 5 题，基础 2 → 进阶 2 → 挑战 1</span></div>
+            <div class="rl"><span class="ic">◆</span><span>一次只进行一个包，避免目标分散</span></div>
+            <div class="rl"><span class="ic">◆</span><span>逐题解锁：答完并评分后解锁下一题；挑战题需前 4 题均 ≥60 分</span></div>
+            <div class="rl"><span class="ic">◆</span><span>包内得分照常计入能力画像与周计划</span></div>
+            <div class="rl"><span class="ic">◆</span><span>从能力画像弱项节点一键发起（见屏 6）</span></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============================================================
+     屏 5 · 成长阶段与复测（取自原型 C 屏5）
+     ============================================================ -->
+<div class="screen-label" id="s5"><span class="sl-num">屏 5</span><h2>成长阶段与复测</h2><p>探索期 → 强化期 → 复测期三阶段卡（各含进入/离开条件）· 复测触发卡：「产品价值判断」连续 3 次有效分 ≥75，换题不换维度验证、两种结局说明 · 右侧成长时间线</p></div>
+<div class="canvas">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2 8 2.6l5.5 4.6v5.6a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9V7.2z"/><path d="M6.2 13.7V9.8h3.6v3.9"/></svg>
+        首页
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        产品训练
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="stage-block" title="成长阶段：探索期 → 强化期 → 复测期">
+      <div class="sb-label"><span>成长阶段</span><span class="sb-cur">强化期</span></div>
+      <div class="sb-track"><span class="sb-seg done"></span><span class="sb-seg now"></span><span class="sb-seg"></span></div>
+      <div class="sb-names"><span class="on">探索期</span><span class="on">强化期</span><span>复测期</span></div>
+      <div class="sb-sub">复测已触发 · 通过后进入复测期</div>
+    </div>
+    <div class="side-foot">
+      <div class="sf-row"><span>待复测维度</span><b class="sf-warn">产品价值判断</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>连续达标</span><b class="sf-ok">3 / 3 次</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>连续训练</span><b>12 天</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="page-head">
+      <div class="greet">
+        <h1>成长阶段</h1>
+        <p>三个阶段全程可见（侧边栏常驻标识）· 复测验证真提升，而不是只会一类题</p>
+      </div>
+    </header>
+
+    <div class="stage-cards">
+      <section class="card stage-card done-card">
+        <div class="sc-head">
+          <div class="sc-orb">✓</div>
+          <div class="sc-name">探索期</div>
+          <span class="sc-state tag tag-ok">已完成</span>
+        </div>
+        <div class="sc-desc">注册后通过基线测评点亮八维画像，明确自己的能力边界在哪里。</div>
+        <div class="sc-rules">
+          <div><b>进入</b>：注册即进入</div>
+          <div><b>离开</b>：完成基线测评，八维全部点亮（你用了 2 天）</div>
+        </div>
+      </section>
+      <section class="card stage-card cur">
+        <div class="sc-head">
+          <div class="sc-orb">2</div>
+          <div class="sc-name">强化期</div>
+          <span class="sc-state tag tag-up">当前 · 第 10 天</span>
+        </div>
+        <div class="sc-desc">常态训练阶段：按弱项 + 每周计划持续训练，画像随每次作答更新。</div>
+        <div class="sc-rules">
+          <div><b>进入</b>：基线测评完成</div>
+          <div><b>离开</b>：任一维度连续 3 次有效分 ≥75，触发复测</div>
+        </div>
+      </section>
+      <section class="card stage-card">
+        <div class="sc-head">
+          <div class="sc-orb">3</div>
+          <div class="sc-name">复测期</div>
+          <span class="sc-state tag tag-warn">已触发 · 待完成</span>
+        </div>
+        <div class="sc-desc">换题复测：同一维度、不同案例，验证分数提升是能力而非题型的记忆。</div>
+        <div class="sc-rules">
+          <div><b>进入</b>：连续 3 次有效分 ≥75</div>
+          <div><b>通过</b>：复测 ≥75 → 该维标记「稳定」，选题权重下降</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="stage-grid">
+      <!-- 左：复测触发 -->
+      <section class="card" style="padding:24px 26px">
+        <div class="card-head">
+          <div>
+            <span class="eyebrow">复测触发</span>
+            <h3 style="margin-top:8px">产品价值判断 · 换题复测</h3>
+            <p class="card-sub">强化期中首个达到复测条件的维度</p>
+          </div>
+          <span class="tag tag-warn">待进行</span>
+        </div>
+        <div class="retest-chips">
+          <div class="retest-chip"><div class="rc-check">✓ ≥75</div><div class="rc-n">78</div><div class="rc-d">10月2日 · 每日一题</div></div>
+          <div class="retest-chip"><div class="rc-check">✓ ≥75</div><div class="rc-n">76</div><div class="rc-d">10月4日 · 加练</div></div>
+          <div class="retest-chip"><div class="rc-check">✓ ≥75</div><div class="rc-n">79</div><div class="rc-d">10月6日 · 每日一题</div></div>
+        </div>
+        <div class="retest-banner">
+          <span>◆</span>
+          <span>连续 3 次有效分 ≥75 已达成 · 系统将于 10月8日 日常训练中自动插入复测题（也可现在进行）</span>
+        </div>
+        <div class="rule-list" style="margin-bottom:16px">
+          <div class="rl"><span class="ic">◆</span><span><b>换题不换维度</b>：复测题主测同一维度，但换产品、换案例、换问法</span></div>
+          <div class="rl"><span class="ic">◆</span><span><b>独立完成</b>：复测得分按独立系数满额计入，提示记录照常保留</span></div>
+          <div class="rl"><span class="ic">◆</span><span><b>两种结局</b>：通过 → 标记「稳定」，该维选题权重下降；未通过 → 回到强化期继续按弱项训练</span></div>
+          <div class="rl"><span class="ic">◆</span><span><b>不占每日一题</b>：复测独立计次，不影响本周计划进度</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="btn-primary">现在开始复测<span class="arr">▸</span></button>
+          <button class="btn-ghost">推迟到 10月8日</button>
+        </div>
+      </section>
+
+      <!-- 右：成长时间线 -->
+      <section class="card hs-card">
+        <div class="hs-top">
+          <span class="eyebrow">你的成长时间线</span>
+          <span class="tag tag-grey">注册第 12 天</span>
+        </div>
+        <div class="tl">
+          <div class="tl-item ok">
+            <div class="tl-date">9月26日</div>
+            <div class="tl-text">注册并完成基线第 1 次作答 <span class="tl-tag">（探索期 · 第 1 次断点）</span></div>
+          </div>
+          <div class="tl-item ok">
+            <div class="tl-date">9月27日</div>
+            <div class="tl-text">基线测评完成：9 题（含加深 1 题 · 根因分析），八维一次点亮，初评 65 分</div>
+          </div>
+          <div class="tl-item ok">
+            <div class="tl-date">9月28日</div>
+            <div class="tl-text">进入强化期，生成第 1 份周计划 · 主攻「用户理解」</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-date">10月4日</div>
+            <div class="tl-text">第 1 周回顾：完成 4/5 天，用户理解 64 → 69（+5）</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-date">10月5日</div>
+            <div class="tl-text">第 2 周计划生效：主攻「产品取舍」；同日从画像弱项节点发起 5 题攻坚包</div>
+          </div>
+          <div class="tl-item hot">
+            <div class="tl-date">10月6日</div>
+            <div class="tl-text">产品价值判断连续 3 次 ≥75 · <span class="tl-tag">复测已触发（当前节点）</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ============================================================
+     屏 6 · 能力画像（取自原型 A 屏6 画像部分；成长三阶段 stepper 已移除，由屏 5 独立承担）
+     ============================================================ -->
+<div class="screen-label" id="s6"><span class="sl-num">屏 6</span><h2>能力画像 · 弱项发起入口</h2><p>8 个能力维度呈现（分数 / 观察次数 / 趋势）· 弱项节点带「发起攻坚包」入口：产品取舍（55）为进行中攻坚包、根因分析（58）因「一次仅一个包」规则显示禁用态 · 产品价值判断复测已触发联动屏 5</p></div>
+<div class="canvas">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">训</div>
+      <div>
+        <div class="brand-name">训练台</div>
+        <div class="brand-sub">产品经理刻意练习</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2 8 2.6l5.5 4.6v5.6a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9V7.2z"/><path d="M6.2 13.7V9.8h3.6v3.9"/></svg>
+        首页
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>
+        产品训练
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3.2 12.8v-4.2M8 12.8V5.6M12.8 12.8V9"/></svg>
+        能力画像
+      </a>
+      <a class="nav-item">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="5.5" r="2.6"/><path d="M3.1 13.5c.8-2.5 2.7-3.7 4.9-3.7s4.1 1.2 4.9 3.7"/></svg>
+        我的
+      </a>
+    </nav>
+    <div class="stage-block" title="成长阶段：探索期 → 强化期 → 复测期">
+      <div class="sb-label"><span>成长阶段</span><span class="sb-cur">强化期</span></div>
+      <div class="sb-track"><span class="sb-seg done"></span><span class="sb-seg now"></span><span class="sb-seg"></span></div>
+      <div class="sb-names"><span class="on">探索期</span><span class="on">强化期</span><span>复测期</span></div>
+      <div class="sb-sub">攻坚包 2/5 · 复测已触发待完成</div>
+    </div>
+    <div class="side-foot">
+      <div class="sf-row"><span>今日状态</span><b class="sf-warn">待开始</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>攻坚包</span><b class="sf-warn">进行中 2/5</b></div>
+      <div class="sf-div"></div>
+      <div class="sf-row"><span>连续训练</span><b>12 天</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="pf-wrap">
+      <header class="page-head">
+        <div class="greet">
+          <h1>能力画像</h1>
+          <p>AI 基于你的每次作答持续更新 · 8/8 维度已点亮 · 综合有效分 <b>66</b></p>
+        </div>
+      </header>
+
+      <div class="insight-bar">
+        <span class="ib-ic">◇</span>
+        <span>本周主攻 <b>产品取舍</b>（攻坚包 2/5 进行中）<span class="ib-dot">·</span><b>根因分析</b> 为第二弱项，当前包完成后可发起攻坚<span class="ib-dot">·</span><b>产品价值判断</b> 已连续 3 次 ≥75，复测已触发</span>
+      </div>
+
+      <!-- 已观测维度：弱项节点一键发起攻坚包 -->
+      <section class="card observed-card">
+        <div class="obs-head">
+          <h3>已观测维度</h3>
+          <span>共 8 个维度 · 每次训练后更新 · 弱项可直接发起攻坚包（一次仅一个包）</span>
+        </div>
+
+        <div class="dim-row">
+          <div class="dim-main">
+            <span class="dim-name">产品价值判断</span>
+            <span class="dim-score">78</span>
+            <span class="dim-obs">观察 8 次</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,18 43,16 77,13 112,9" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="9" r="2.6" fill="#2563EB"/>
+            </svg>
+            <span class="dim-cta"><button class="btn-mini js-goto" data-target="s5">查看复测 · 已触发</button></span>
+          </div>
+        </div>
+
+        <div class="dim-row">
+          <div class="dim-main">
+            <span class="dim-name">问题定义</span>
+            <span class="dim-score">74</span>
+            <span class="dim-obs">观察 6 次</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,12 60,12 112,11" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="11" r="2.4" fill="#94A3B8"/>
+            </svg>
+            <span class="dim-cta"><span class="tag tag-ok">稳定</span></span>
+          </div>
+        </div>
+
+        <div class="dim-row">
+          <div class="dim-main">
+            <span class="dim-name">产品表达</span>
+            <span class="dim-score">70</span>
+            <span class="dim-obs">观察 5 次</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,14 60,13 112,13" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="13" r="2.4" fill="#94A3B8"/>
+            </svg>
+            <span class="dim-cta"><span class="tag tag-ok">稳定</span></span>
+          </div>
+        </div>
+
+        <div class="dim-row rise">
+          <div class="dim-main">
+            <span class="dim-name">用户理解</span>
+            <span class="dim-score">69</span>
+            <span class="dim-obs">观察 6 次</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,20 60,15 112,12" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="12" r="2.6" fill="#2563EB"/>
+            </svg>
+            <span class="dim-cta"><span class="tag tag-up">↑ 上升中 · 第 1 周主攻 +5</span></span>
+          </div>
+        </div>
+
+        <div class="dim-row">
+          <div class="dim-main">
+            <span class="dim-name">方案设计</span>
+            <span class="dim-score">64</span>
+            <span class="dim-obs">观察 4 次</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,16 60,16 112,17" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="17" r="2.4" fill="#94A3B8"/>
+            </svg>
+            <span class="dim-cta"><span class="tag tag-grey">样本较少</span></span>
+          </div>
+        </div>
+
+        <div class="dim-row">
+          <div class="dim-main">
+            <span class="dim-name">指标与验证</span>
+            <span class="dim-score">63</span>
+            <span class="dim-obs">观察 4 次</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,17 60,16 112,15" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="15" r="2.4" fill="#94A3B8"/>
+            </svg>
+            <span class="dim-cta"><span class="tag tag-grey">样本较少</span></span>
+          </div>
+        </div>
+
+        <div class="dim-row weak">
+          <div class="dim-main">
+            <span class="dim-name">根因分析</span>
+            <span class="dim-score">58</span>
+            <span class="dim-obs">观察 5 次 · 第二弱项</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,16 60,16 112,16" stroke="#D97706" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="16" r="2.4" fill="#D97706"/>
+            </svg>
+            <span class="dim-cta"><button class="btn-mini" disabled title="一次仅可进行一个攻坚包：完成「产品取舍」攻坚包后可发起">攻坚包 · 取舍包进行中</button></span>
+          </div>
+        </div>
+
+        <div class="dim-row weak">
+          <div class="dim-main">
+            <span class="dim-name">产品取舍</span>
+            <span class="dim-score">55</span>
+            <span class="dim-obs">观察 7 次 · 本周主攻</span>
+            <svg class="spark" viewBox="0 0 120 32" width="110" height="30" fill="none">
+              <polyline points="8,12 60,17 112,21" stroke="#D97706" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="112" cy="21" r="2.4" fill="#D97706"/>
+            </svg>
+            <span class="dim-cta"><button class="btn-mini primary js-goto" data-target="s4">继续攻坚包 · 2/5</button></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 整体提示依赖度 -->
+      <section class="card dep-card">
+        <div class="dep-info">
+          <h4>整体提示依赖度</h4>
+          <p>提示使用越独立，得分系数越高（有效分 = 原始分 × 独立完成系数）</p>
+        </div>
+        <div class="dep-gauge">
+          <div class="segs big">
+            <span class="seg on-1"></span>
+            <span class="seg on-2"></span>
+            <span class="seg on-3"></span>
+            <span class="seg"></span>
+            <span class="seg"></span>
+          </div>
+          <div class="segs-label"><span>低</span><span>中</span><span>高</span></div>
+        </div>
+        <span class="dep-badge">低</span>
+      </section>
+    </div>
+  </main>
+</div>
+
+<noscript><style>.pk-q-body{max-height:none;border-top-color:#E2E8F0}</style></noscript>
+<script>
+(function(){
+  /* 顶栏：平滑滚动到对应屏幕分区 */
+  var tabs = document.querySelectorAll('.rb-tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      var el = document.getElementById(t.dataset.target);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+  /* 滚动高亮当前屏对应的顶栏 tab */
+  var labels = document.querySelectorAll('.screen-label');
+  if ('IntersectionObserver' in window && labels.length){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting){
+          tabs.forEach(function(t){ t.classList.toggle('active', t.dataset.target === e.target.id); });
+        }
+      });
+    }, {rootMargin:'-10% 0px -70% 0px'});
+    labels.forEach(function(l){ io.observe(l); });
+  }
+
+  /* 跨屏跳转串联：屏1 悬挂卡 → 屏3/屏4；屏1 复测入口 → 屏5；屏6 弱项入口 → 屏4/屏5 */
+  document.querySelectorAll('.js-goto').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var el = document.getElementById(btn.dataset.target);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+
+  /* 屏3：拒绝本周计划（可撤销，演示「已拒绝 · 本周不再重复推荐」状态） */
+  var rejectZone = document.getElementById('reject-zone');
+  if (rejectZone) {
+    var rejectHTML =
+      '<div class="reject-note">计划不符合预期？拒绝后本周恢复均衡选题，<b>且本周不再重复推荐</b>。</div>' +
+      '<button class="btn-ghost btn-sm" data-reject="no">拒绝本周计划</button>';
+    var rejectedHTML =
+      '<div class="reject-note"><b style="color:var(--amber-deep)">已拒绝 · 本周不再重复推荐</b>：本周恢复均衡选题，下周一将正常生成新计划。</div>' +
+      '<button class="btn-ghost btn-sm" data-reject="yes">撤销拒绝</button>';
+    rejectZone.addEventListener('click', function(e){
+      var btn = e.target.closest('[data-reject]');
+      if (!btn) return;
+      rejectZone.innerHTML = (btn.dataset.reject === 'no') ? rejectedHTML : rejectHTML;
+    });
+  }
+
+  /* 屏4：已完成/进行中题目点击展开作答摘要与 AI 点评（锁定题不可点） */
+  document.querySelectorAll('.pk-q:not(.lock)').forEach(function(q){
+    q.addEventListener('click', function(){ q.classList.toggle('open'); });
+  });
+})();
+</script>
+</body>
+</html>

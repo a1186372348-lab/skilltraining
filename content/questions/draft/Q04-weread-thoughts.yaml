@@ -50,6 +50,7 @@ ability_tags:
   - 根因分析
   - 产品表达
 difficulty: 中等
+domain: "内容/社交"
 rubric:
   dimensions:
     用户理解:

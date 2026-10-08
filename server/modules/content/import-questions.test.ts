@@ -54,6 +54,7 @@ function makeContent(id: string): QuestionContent {
     },
     uncertainty: ["未核实数据"],
     status: "draft",
+    domain: "工具/效率",
   });
 }
 
@@ -172,5 +173,13 @@ describe("toQuestionUpsertArgs：kind 题目用途映射（T17a / D19）", () =>
     });
     const args = toQuestionUpsertArgs(content);
     expect(args.create.kind).toBe("baseline");
+  });
+});
+
+describe("toQuestionUpsertArgs：domain 领域标签映射（T33）", () => {
+  it("YAML 的 domain 原样落入 create 与 update（供 T29 维度匹配复用）", () => {
+    const args = toQuestionUpsertArgs(makeContent("Q01"));
+    expect(args.create.domain).toBe("工具/效率");
+    expect(args.update).toEqual(args.create);
   });
 });

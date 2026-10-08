@@ -50,6 +50,7 @@ ability_tags:
   - 产品价值判断
   - 产品取舍
 difficulty: 基础
+domain: "工具/效率"
 rubric:
   dimensions:
     用户理解:

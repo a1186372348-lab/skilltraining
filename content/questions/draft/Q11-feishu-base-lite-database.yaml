@@ -54,6 +54,7 @@ ability_tags:
   - 方案设计
   - 产品表达
 difficulty: 基础
+domain: "办公协同"
 rubric:
   dimensions:
     用户理解:

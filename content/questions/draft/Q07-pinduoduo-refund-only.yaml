@@ -46,6 +46,7 @@ ability_tags:
   - 根因分析
   - 产品取舍
 difficulty: 挑战
+domain: "电商"
 rubric:
   dimensions:
     问题定义:

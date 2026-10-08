@@ -48,6 +48,7 @@ materials:
     - { title: "t4", source: "s4", url: "https://example.com/4", summary: "m4" }
     - { title: "t5", source: "s5", url: "https://example.com/5", summary: "m5" }
 status: draft
+domain: "工具/效率"
 `;
 
 describe("parseQuestionYaml：单文件解析与校验", () => {

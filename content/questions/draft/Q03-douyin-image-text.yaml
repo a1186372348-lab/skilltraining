@@ -42,6 +42,7 @@ ability_tags:
   - 产品价值判断
   - 方案设计
 difficulty: 基础
+domain: "内容/社交"
 rubric:
   dimensions:
     用户理解:

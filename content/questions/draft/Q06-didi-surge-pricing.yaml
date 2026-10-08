@@ -46,6 +46,7 @@ ability_tags:
   - 产品取舍
   - 产品表达
 difficulty: 中等
+domain: "出行"
 rubric:
   dimensions:
     用户理解:

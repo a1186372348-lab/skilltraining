@@ -40,6 +40,9 @@ export type QuestionKindLabel = (typeof QUESTION_KINDS)[number];
 
 const nonEmpty = (label: string) => z.string().min(1, `${label}不能为空`);
 
+// 题目内容 id 命名规则（T33 起与标准答案契约 reference-answers.ts 共用，保证两边口径一致）
+export const QUESTION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
 const abilityTagSchema = z.enum(ABILITY_DIMENSIONS);
 
 // 案例背景单字段（T13 / BR-8）：事实文本 + 引用编号（指向 case_sources，逐字段可核验）
@@ -101,7 +104,7 @@ export const questionContentSchema = z
   .strictObject({
     id: z
       .string()
-      .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, "id 只能由字母、数字、连字符、下划线组成"),
+      .regex(QUESTION_ID_PATTERN, "id 只能由字母、数字、连字符、下划线组成"),
     title: nonEmpty("title"),
     case_title: nonEmpty("case_title"),
     case_background: caseBackgroundSchema,
@@ -123,6 +126,9 @@ export const questionContentSchema = z
     status: z.enum(QUESTION_STATUS),
     // 题目用途（T17a / D19）：baseline 为基线测评题；缺省为日常题（daily）
     kind: z.enum(QUESTION_KINDS).optional(),
+    // 领域标签（T33 / BR-V2-8：题库领域分布统计与缺口核对的数据源；
+    // 词表按任务文件约定管理、评审统一口径，不进 schema 枚举，随题库演进不改契约）
+    domain: z.string().trim().min(1, "domain 不能为空"),
   })
   .superRefine((q, ctx) => {
     // 能力标签不可重复

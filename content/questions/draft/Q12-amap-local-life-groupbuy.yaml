@@ -50,6 +50,7 @@ ability_tags:
   - 方案设计
   - 指标与验证
 difficulty: 基础
+domain: "出行"
 rubric:
   dimensions:
     产品价值判断:

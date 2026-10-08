@@ -131,6 +131,7 @@ skilltraining/
 | `npm run content:validate` | 校验题库 YAML 契约 |
 | `npm run content:import` | 题库 YAML 导入数据库 |
 | `docker compose up -d` | 启动本地 PostgreSQL（端口 5433） |
+| `/sync-docs` | Kimi 斜杠命令：分析未提交改动，按下方 DoD 同步 maps/ 文档并仅提交文档变更（项目级 Skill，见 `.kimi-code/skills/sync-docs/SKILL.md`） |
 
 **命令文档治理规则**：本表只保留日常高频命令。随着脚本增多，完整命令手册（含各运维脚本用法、测试细则、环境与故障诊断）独立为 `maps/commands.md` 长期维护；届时本表保留高频项并链接过去，命令细节不堆回本文件。新增脚本时优先更新命令手册而非本表。
 
@@ -141,7 +142,7 @@ skilltraining/
 - 每次合并到 main、发布或文档治理变化 → 在 [`maps/changelog.md`](maps/changelog.md) 变更时间线追加条目；
 - 新锁定决策 → 全文追加到 [`maps/changelog.md`](maps/changelog.md)「决策记录」章节，其余文档只引用 D 编号。
 
-未完成文档同步的改动一律视为未结束，不得汇报为「已完成」。后续将构建一条一键指令自动化「检查改动 → 更新文档 → 追加 changelog」流程（尚未实现，见后续讨论）。
+未完成文档同步的改动一律视为未结束，不得汇报为「已完成」。日常同步使用 `/sync-docs` 一键执行「检查改动 → 更新文档 → 提交文档变更」流程：命令只提交文档文件，代码仍须通过检查后由用户自行提交。
 
 ## 10. 文档路由（大型上下文渐进读取）
 

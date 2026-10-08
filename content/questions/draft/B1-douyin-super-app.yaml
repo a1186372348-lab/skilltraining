@@ -67,6 +67,7 @@ ability_tags:
   - 根因分析
   - 产品价值判断
 difficulty: 挑战
+domain: "内容/社交"
 kind: baseline
 rubric:
   dimensions:

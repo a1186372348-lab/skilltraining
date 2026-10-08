@@ -116,6 +116,7 @@ model Question {
   materials      Json              // jsonb：{ core: [核心 2], extended: [扩展 3] }（D9）
   status         QuestionStatus    @default(draft)
   kind           QuestionKind      @default(daily) // 题目用途（D19：baseline 基线题不参与日常选题）
+  domain         String?           // 领域标签（T33 / BR-V2-8：只落库与统计，V1 运行时不读取，T29 起消费）
   sessions       TrainingSession[]
 
   @@map("questions")

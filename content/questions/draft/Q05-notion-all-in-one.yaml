@@ -50,6 +50,7 @@ ability_tags:
   - 产品价值判断
   - 方案设计
 difficulty: 中等
+domain: "工具/效率"
 rubric:
   dimensions:
     问题定义:
