@@ -183,3 +183,23 @@ describe("toQuestionUpsertArgs：domain 领域标签映射（T33）", () => {
     expect(args.update).toEqual(args.create);
   });
 });
+
+describe("toQuestionUpsertArgs：reveal_after_first_answer 防泄露（T33 追加）", () => {
+  // 初答后揭示材料是首答前绝不可见的内容：导入映射是 YAML 进入运行时载荷的唯一通道，
+  // 本用例锁定该通道不带出此字段（today/hub/history 视图均只读 questions 表行）
+  it("reveal_after_first_answer 不落库、不进 questions 表行任何位置", () => {
+    const content = questionContentSchema.parse({
+      ...JSON.parse(JSON.stringify(makeContent("Q01"))),
+      reveal_after_first_answer: { text: "上线三个月后次留翻倍。", citations: [1] },
+    });
+    const args = toQuestionUpsertArgs(content);
+    expect(JSON.stringify(args)).not.toContain("上线三个月后次留翻倍");
+    expect(JSON.stringify(args)).not.toContain("reveal_after_first_answer");
+    // caseBackground jsonb 结构不受新字段影响（仍只有五字段 + case_sources + uncertainty）
+    expect(args.create.caseBackground).toEqual({
+      ...content.case_background,
+      case_sources: content.case_sources,
+      uncertainty: content.uncertainty,
+    });
+  });
+});

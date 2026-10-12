@@ -26,6 +26,8 @@ export interface ImportSummary {
 // 字段映射对齐 prisma/schema.prisma 的 Question 模型：
 // 难度标签转 Int（2/3/4）；case_sources（T13/BR-8）与 uncertainty 并入 case_background jsonb
 //（R6：jsonb 预留扩展；不新增表字段，今日/历史视图从同一 jsonb 读取，归档会话原样兼容）
+// reveal_after_first_answer（T33 追加）刻意不落库：它是首答前绝不可见的揭示材料，
+// 本映射是 YAML 进入运行时载荷的唯一通道；T28 消费该字段时再决策持久化与视图剔除
 export function toQuestionUpsertArgs(content: QuestionContent): QuestionUpsertArgs {
   const id = questionUuid(content.id);
   const row: Record<string, unknown> = {

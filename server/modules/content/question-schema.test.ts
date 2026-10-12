@@ -481,3 +481,88 @@ describe("题库内容 schema：domain 领域标签（T33 / BR-V2-8）", () => {
     expect(r.success).toBe(true);
   });
 });
+
+describe("题库内容 schema：reveal_after_first_answer 初答后揭示材料（T33 追加）", () => {
+  // 决策时点类题目把「后续实际结果」从案例背景剥离，首答提交后由 AI 总监在追问中引用；
+  // 结构复用案例背景 {text, citations[]}（BR-8 可溯源），citations 允许空数组
+  it("字段缺失通过（可选字段，非决策时点题无需标注）", () => {
+    expect(questionContentSchema.safeParse(validQuestion()).success).toBe(true);
+  });
+
+  it("字段完整通过：text + 引用既有 case_sources 的 citations", () => {
+    const r = questionContentSchema.safeParse({
+      ...validQuestion(),
+      reveal_after_first_answer: { text: "上线三个月后留存翻倍。", citations: [1, 2] },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("citations 空数组通过（为空时不校验引用）", () => {
+    const r = questionContentSchema.safeParse({
+      ...validQuestion(),
+      reveal_after_first_answer: { text: "后续结果暂无公开来源。", citations: [] },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("text 空串或纯空白被拒绝（字段存在时 text 必填且非空）", () => {
+    expect(
+      questionContentSchema.safeParse({
+        ...validQuestion(),
+        reveal_after_first_answer: { text: "", citations: [1] },
+      }).success,
+    ).toBe(false);
+    expect(
+      questionContentSchema.safeParse({
+        ...validQuestion(),
+        reveal_after_first_answer: { text: "   ", citations: [1] },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("citations 键缺省被拒绝（字段存在时结构必须完整）", () => {
+    expect(
+      questionContentSchema.safeParse({
+        ...validQuestion(),
+        reveal_after_first_answer: { text: "后续结果。" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("引用不存在的来源 id 被拒绝（BR-8：标号必须可溯源）", () => {
+    const r = questionContentSchema.safeParse({
+      ...validQuestion(),
+      reveal_after_first_answer: { text: "后续结果。", citations: [9] },
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const paths = r.error.issues.map((issue) => issue.path.join("."));
+      expect(paths).toContain("reveal_after_first_answer.citations.0");
+    }
+  });
+
+  it("citations 非正整数被拒绝", () => {
+    const base = validQuestion();
+    expect(
+      questionContentSchema.safeParse({
+        ...base,
+        reveal_after_first_answer: { text: "后续结果。", citations: [0] },
+      }).success,
+    ).toBe(false);
+    expect(
+      questionContentSchema.safeParse({
+        ...base,
+        reveal_after_first_answer: { text: "后续结果。", citations: [1.5] },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("字段内未知键被拒绝（strictObject，防笔误静默通过）", () => {
+    expect(
+      questionContentSchema.safeParse({
+        ...validQuestion(),
+        reveal_after_first_answer: { text: "后续结果。", citations: [1], urls: ["https://a.com"] },
+      }).success,
+    ).toBe(false);
+  });
+});

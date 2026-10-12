@@ -6,25 +6,58 @@ import { z } from "zod";
 
 import { QUESTION_ID_PATTERN } from "./question-schema.ts";
 
-// 标准答案最小契约（T33 / D31）：每题 1~2 份参考答案 + 评审状态，AI 起草 + 人工评审修订。
+// 评分样本契约（T33 / D31 扩展）：每题 1~4 份不同表现水平的评分样本
+//（覆盖：不同立场的高质量答案 / 写得流畅但依据不足的答案 / 合理承认未知的答案），
+// 供 T28 评分回归与双评审校准使用；AI 起草 + 人工评审修订。
 // 只入 Git 的 content/eval/（每题 <内容id>.yaml），不进 questions 表、不下发前端，
 // 泄露口径与 rubric 同级管理；T28 在本契约之上扩展完整评测集契约（期望分数带等）
 
 export const REVIEW_STATUS = ["draft", "approved"] as const;
 export type ReviewStatus = (typeof REVIEW_STATUS)[number];
 
-export const referenceAnswerSchema = z.strictObject({
-  // 必须引用已存在的题目内容 id（存在性由 parseReferenceAnswerYaml 按题库集合校验）
-  question_id: z
-    .string()
-    .regex(QUESTION_ID_PATTERN, "question_id 只能由字母、数字、连字符、下划线组成"),
-  // 1~2 份完整可参考作答
-  answers: z
-    .array(z.string().trim().min(1, "答案正文不能为空"))
-    .min(1, "标准答案至少 1 份")
-    .max(2, "标准答案至多 2 份"),
-  review_status: z.enum(REVIEW_STATUS),
+// 表现水平分层：high=高质量锚点 / medium / low（分层语义由 note 注明评审用途）
+export const ANSWER_QUALITIES = ["high", "medium", "low"] as const;
+export type AnswerQuality = (typeof ANSWER_QUALITIES)[number];
+
+// 单份评分样本：正文 + 表现水平 + 可选评审用途注记（如「立场 B 高质量」「流畅但依据不足」「合理承认未知」）
+export const answerSampleSchema = z.strictObject({
+  text: z.string().trim().min(1, "答案正文不能为空"),
+  quality: z.enum(ANSWER_QUALITIES),
+  note: z.string().trim().min(1, "note 不能为空").optional(),
 });
+export type AnswerSample = z.infer<typeof answerSampleSchema>;
+
+export const referenceAnswerSchema = z
+  .strictObject({
+    // 必须引用已存在的题目内容 id（存在性由 parseReferenceAnswerYaml 按题库集合校验）
+    question_id: z
+      .string()
+      .regex(QUESTION_ID_PATTERN, "question_id 只能由字母、数字、连字符、下划线组成"),
+    // 1~4 份不同表现水平的评分样本
+    answers: z
+      .array(answerSampleSchema)
+      .min(1, "评分样本至少 1 份")
+      .max(4, "评分样本至多 4 份"),
+    review_status: z.enum(REVIEW_STATUS),
+  })
+  .superRefine((data, ctx) => {
+    // 每题至少 1 份 quality=high 样本（评分回归的高质量锚点）
+    if (!data.answers.some((answer) => answer.quality === "high")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["answers"],
+        message: "每题至少包含 1 份 quality=high 的评分样本",
+      });
+    }
+    // 多份样本时 quality 不得全部相同（保证覆盖不同表现水平；单份样本天然满足）
+    if (data.answers.length > 1 && new Set(data.answers.map((answer) => answer.quality)).size === 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["answers"],
+        message: "同一题目的评分样本 quality 不得全部相同（需覆盖不同表现水平）",
+      });
+    }
+  });
 
 export type ReferenceAnswer = z.infer<typeof referenceAnswerSchema>;
 

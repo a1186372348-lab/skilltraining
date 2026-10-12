@@ -54,6 +54,17 @@ const caseFieldSchema = z.strictObject({
     .min(1, "案例背景字段 citations 不能为空（BR-8：每字段必须有来源标记）"),
 });
 
+// 初答后揭示材料（T33 追加）：决策时点类题目把「后续实际结果」从案例背景剥离，
+// 首答提交后由 AI 总监在追问中引用（追问消费属 T28 范围）。
+// 结构复用案例背景 {text, citations[]}（BR-8 同样要求可溯源），但 citations 允许空数组
+//（为空时不校验引用）；字段存在时 text 必填且 trim 后非空。
+// 防泄露：该字段只入 Git 内容契约，导入落库刻意不带出（见 import-questions 防泄露用例），
+// 因此不会进入首答前用户可见的任何运行时载荷。
+const revealAfterFirstAnswerSchema = z.strictObject({
+  text: z.string().trim().min(1, "reveal_after_first_answer text 不能为空"),
+  citations: z.array(z.number().int("引用编号必须是整数").positive("引用编号必须 ≥ 1")),
+});
+
 // 案例背景五要素：产品 / 服务谁 / 场景 / 相关功能 / 当前状态（T13 新契约键名）
 const caseBackgroundSchema = z.strictObject({
   product: caseFieldSchema,
@@ -123,6 +134,8 @@ export const questionContentSchema = z
     }),
     // 编辑注记（未经官方确认的数据说明），评审用，可选
     uncertainty: z.array(nonEmpty("uncertainty 条目")).optional(),
+    // 初答后揭示材料（T33 追加）：决策时点类题目的「后续实际结果」，首答前绝不下发；可选
+    reveal_after_first_answer: revealAfterFirstAnswerSchema.optional(),
     status: z.enum(QUESTION_STATUS),
     // 题目用途（T17a / D19）：baseline 为基线测评题；缺省为日常题（daily）
     kind: z.enum(QUESTION_KINDS).optional(),
@@ -190,6 +203,16 @@ export const questionContentSchema = z
           });
         }
       });
+    });
+    // 初答后揭示材料的引用 id 同样必须可溯源（BR-8；空数组时不校验）
+    q.reveal_after_first_answer?.citations.forEach((citationId, citationIndex) => {
+      if (!sourceIds.has(citationId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["reveal_after_first_answer", "citations", citationIndex],
+          message: `reveal_after_first_answer 引用了不存在的来源 id ${citationId}`,
+        });
+      }
     });
   });
 
