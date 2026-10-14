@@ -14,6 +14,7 @@ import {
 // 对齐 server/ai/followup 的结构化输出范式（json_object + 低 temperature）。
 
 const input: RubricScoringInput = {
+  mainDimension: "用户理解",
   mainQuestion: "Cursor 的 Agent 模式为什么是质变？",
   rubricDimensions: {
     用户理解: ["区分两类任务的差异", "识别写代码之外的时间消耗", "指出人机关系变化"],
@@ -49,7 +50,7 @@ function catchError(fn: () => unknown): unknown {
   return undefined;
 }
 
-describe("buildScoringMessages：评分 prompt 硬性约束", () => {
+describe("buildScoringMessages：评分 prompt 分档锚定与评分纪律", () => {
   it("包含主问题、Rubric 各维度标准、首答/追问/终答全文", () => {
     const messages = buildScoringMessages(input);
     const text = messages.map((m) => m.content).join("\n");
@@ -79,6 +80,36 @@ describe("buildScoringMessages：评分 prompt 硬性约束", () => {
     expect(text).toContain("用户理解");
     expect(text).toContain("产品取舍");
     expect(text).not.toContain("根因分析");
+  });
+
+  it("T33：system prompt 含六档分数锚定、立场中立与「暂缓判断」保护（抑制中间档压缩）", () => {
+    const system = buildScoringMessages(input)[0];
+    expect(system.role).toBe("system");
+    expect(system.content).toContain("先定档、再定分");
+    expect(system.content).toContain("90~100 优秀");
+    expect(system.content).toContain("80~89 高质量");
+    expect(system.content).toContain("0~39 低质量");
+    expect(system.content).toContain("立场方向（支持/反对/暂缓/折中）不影响得分");
+    expect(system.content).toContain("暂缓判断、条件式结论");
+    expect(system.content).toContain("不得因存在任何缺项就跨档压低");
+  });
+
+  it("T33 R3：user 消息在主问题后、Rubric 前标注本题主测维度", () => {
+    const user = buildScoringMessages(input)[1];
+    expect(user.role).toBe("user");
+    expect(user.content).toContain("本题主测维度：用户理解");
+    expect(user.content.indexOf("本题主测维度：用户理解")).toBeLessThan(
+      user.content.indexOf("【评分维度与 Rubric 标准】"),
+    );
+  });
+
+  it("T33 R3：纪律 3 缺陷按维度归因、纪律 7 诊断与分数相互印证、纪律 9 top_issue 优先主测维度", () => {
+    const system = buildScoringMessages(input)[0];
+    expect(system.content).toContain("缺陷归因必须准确");
+    expect(system.content).toContain("不得自行增设考点");
+    expect(system.content).toContain("诊断与分数必须相互印证");
+    expect(system.content).toContain("不得进入优秀档（90+）");
+    expect(system.content).toContain("优先从主测维度的最关键缺陷中产生");
   });
 
   it("无追问时追问区明确标注「无」，不伪造对话", () => {

@@ -9,6 +9,8 @@ import { QUESTION_ID_PATTERN } from "./question-schema.ts";
 // 评分样本契约（T33 / D31 扩展）：每题 1~4 份不同表现水平的评分样本
 //（覆盖：不同立场的高质量答案 / 写得流畅但依据不足的答案 / 合理承认未知的答案），
 // 供 T28 评分回归与双评审校准使用；AI 起草 + 人工评审修订。
+// T33 校准 R3：quality 标签以人审定档为准（预设 high 只是编写意图），
+// 人审后某题可以没有 high 样本，契约不再强制「每题至少 1 份 high」。
 // 只入 Git 的 content/eval/（每题 <内容id>.yaml），不进 questions 表、不下发前端，
 // 泄露口径与 rubric 同级管理；T28 在本契约之上扩展完整评测集契约（期望分数带等）
 
@@ -41,14 +43,6 @@ export const referenceAnswerSchema = z
     review_status: z.enum(REVIEW_STATUS),
   })
   .superRefine((data, ctx) => {
-    // 每题至少 1 份 quality=high 样本（评分回归的高质量锚点）
-    if (!data.answers.some((answer) => answer.quality === "high")) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["answers"],
-        message: "每题至少包含 1 份 quality=high 的评分样本",
-      });
-    }
     // 多份样本时 quality 不得全部相同（保证覆盖不同表现水平；单份样本天然满足）
     if (data.answers.length > 1 && new Set(data.answers.map((answer) => answer.quality)).size === 1) {
       ctx.addIssue({

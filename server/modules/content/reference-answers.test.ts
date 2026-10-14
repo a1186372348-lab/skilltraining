@@ -69,7 +69,7 @@ describe("评分样本契约（T33 / D31 扩展：1~4 份表现水平分层样�
     expect(r.issues.join("\n")).toContain("answers");
   });
 
-  it("缺少 quality=high 样本被拒绝（每题至少 1 份高质量锚点）", () => {
+  it("人审定档后某题无 high 样本也可入库（T33 校准 R3：预设 high 只是编写意图）", () => {
     const r = referenceAnswerSchema.safeParse({
       ...validAnswer(),
       answers: [
@@ -77,10 +77,7 @@ describe("评分样本契约（T33 / D31 扩展：1~4 份表现水平分层样�
         { text: "偏离题意的作答。", quality: "low" },
       ],
     });
-    expect(r.success).toBe(false);
-    if (!r.success) {
-      expect(r.error.issues.map((i) => i.message).join("\n")).toContain("high");
-    }
+    expect(r.success).toBe(true);
   });
 
   it("quality 全部相同被拒绝（多份样本必须覆盖不同表现水平）", () => {

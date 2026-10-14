@@ -143,6 +143,7 @@ describe("scoreSession：评分主链路（US-006/FR-5）", () => {
 
     // AI 只对该题能力标签覆盖的维度评分（BR-1），且拿到首答/追问/终答全文
     expect(tracker.calls).toBe(1);
+    expect(tracker.lastInput!.mainDimension).toBe(SEED_DIMENSIONS[0]); // 首标签即主测维度（T33 R3）
     expect(Object.keys(tracker.lastInput!.rubricDimensions).sort()).toEqual(
       [...SEED_DIMENSIONS].sort(),
     );

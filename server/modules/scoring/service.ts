@@ -168,8 +168,11 @@ export async function scoreSession(
   nextState(session.state, "MARK_SCORED");
 
   // AI 评分（事务外）：解析失败/网关失败直接抛出，不落任何数据，可安全重试
+  // 主测维度约定：extractRubricDimensions 按 abilityTags 顺序插入，首标签即本题主测维度
+  const mainDimension = Object.keys(rubricDimensions)[0];
   const score = deps.scoreWithRubric ?? scoreWithRubric;
   const output = await score({
+    mainDimension,
     mainQuestion: session.question.mainQuestion,
     rubricDimensions,
     firstAnswer: session.firstAnswer ?? "",
