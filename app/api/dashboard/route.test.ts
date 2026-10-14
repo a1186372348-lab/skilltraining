@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { GET } from "./route";
 
@@ -63,10 +63,16 @@ async function ensureSeedQuestion(): Promise<void> {
   }
 }
 
-function buildRequest(email?: string): Request {
-  const headers: Record<string, string> = {};
-  if (email) headers[DEV_USER_HEADER] = email;
-  return new Request("http://localhost/api/dashboard", { method: "GET", headers });
+async function buildRequest(email?: string): Promise<Request> {
+  if (!email) {
+    return new Request("http://localhost/api/dashboard", { method: "GET" });
+  }
+  const user = await prisma.user.upsert({ where: { email }, create: { email }, update: {} });
+  createdUserIds.push(user.id);
+  return new Request("http://localhost/api/dashboard", {
+    method: "GET",
+    headers: { cookie: sessionCookieHeader(user) },
+  });
 }
 
 async function newEmail(): Promise<string> {
@@ -79,11 +85,6 @@ function utcDaysAgo(days: number): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days));
 }
 
-async function trackUser(email: string): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (user) createdUserIds.push(user.id);
-}
-
 beforeAll(ensureSeedQuestion);
 
 afterAll(async () => {
@@ -94,7 +95,7 @@ afterAll(async () => {
 describe("GET /api/dashboard（US-002）", () => {
   it("新用户全未知：今日任务卡自动就绪，统计/画像/诊断均为空态", async () => {
     const email = await newEmail();
-    const res = await GET(buildRequest(email));
+    const res = await GET(await buildRequest(email));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -119,8 +120,6 @@ describe("GET /api/dashboard（US-002）", () => {
     // 最近诊断：无反馈记录 → 空态
     expect(view.latestDiagnosis).toBeNull();
     expect(view.todayDateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-
-    await trackUser(email);
   });
 
   it("有历史用户：连续天数、本周进度、能力条形与最近诊断正确装配", async () => {
@@ -163,7 +162,7 @@ describe("GET /api/dashboard（US-002）", () => {
       data: { sessionId: todaySession.id, topIssueText: longIssue, nextFocusText: "下一步" },
     });
 
-    const res = await GET(buildRequest(email));
+    const res = await GET(await buildRequest(email));
     const body = await res.json();
     expect(res.status).toBe(200);
     const view = body.data;
@@ -201,9 +200,9 @@ describe("GET /api/dashboard（US-002）", () => {
     expect(view.latestDiagnosis.dateKey).toBe(view.todayDateKey);
   });
 
-  it("生产环境（T03 未接入）无会话：401", async () => {
+  it("生产环境无会话 cookie：401（安全默认不随环境变化，T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await GET(buildRequest(await newEmail()));
+    const res = await GET(await buildRequest());
     expect(res.status).toBe(401);
     vi.unstubAllEnvs();
   });

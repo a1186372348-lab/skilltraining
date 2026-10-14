@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { GET } from "./route";
 
@@ -105,9 +105,12 @@ async function createSession(
   return session.id;
 }
 
-function callNotifications(email?: string): Promise<Response> {
+async function callNotifications(email?: string): Promise<Response> {
   const headers: Record<string, string> = {};
-  if (email) headers[DEV_USER_HEADER] = email;
+  if (email) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    headers.cookie = sessionCookieHeader(user);
+  }
   return GET(new Request("http://localhost/api/training/score-notifications", { headers }));
 }
 
@@ -119,10 +122,10 @@ afterAll(async () => {
 });
 
 describe("GET /api/training/score-notifications（T24 / D26）", () => {
-  it("未登录（生产环境无身份解析）：401 UNAUTHORIZED", async () => {
+  it("未登录（生产环境无会话 cookie）：401 UNAUTHORIZED（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
-      const res = await callNotifications("t24-anon@example.com");
+      const res = await callNotifications();
       expect(res.status).toBe(401);
       expect((await res.json()).error.code).toBe("UNAUTHORIZED");
     } finally {

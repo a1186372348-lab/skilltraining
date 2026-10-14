@@ -2,7 +2,7 @@ import {
   jsonOk,
   unauthorized,
 } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { getTrainingHubView } from "@/server/modules/training/hub-view";
 
@@ -13,7 +13,7 @@ import { getTrainingHubView } from "@/server/modules/training/hub-view";
  * 轻量 DB 查询、非 AI 端点，不接 aiEndpointRateLimiter（参照 /api/training/today）。
  */
 export async function GET(request: Request) {
-  const user = await ensureRequestUser(prisma, request);
+  const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
   return jsonOk(await getTrainingHubView(prisma, user.id));
 }

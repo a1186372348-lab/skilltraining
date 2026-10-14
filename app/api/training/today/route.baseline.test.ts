@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 import { BASELINE_ERROR_CODES, BaselineError } from "@/server/modules/baseline/errors";
 import {
   getBaselineStatus,
@@ -69,10 +69,16 @@ function makeSession(questionId: string) {
   };
 }
 
-function buildRequest(email: string): Request {
+async function buildRequest(email: string): Promise<Request> {
+  const user = await prisma.user.upsert({
+    where: { email },
+    create: { email },
+    update: {},
+  });
+  createdUserIds.push(user.id);
   return new Request("http://localhost/api/training/today", {
     method: "GET",
-    headers: { [DEV_USER_HEADER]: email },
+    headers: { cookie: sessionCookieHeader(user) },
   });
 }
 
@@ -81,14 +87,9 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-/** dev-identity 走真实用户 upsert（不触门禁），用全新邮箱避免与基线会话数据串扰 */
+/** 真实会话 cookie 需用户已存在（不触门禁），用全新邮箱避免与基线会话数据串扰 */
 async function newEmail(): Promise<string> {
   return `t17a-today-gate-${randomUUID()}@example.com`;
-}
-
-async function trackUser(email: string): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (user) createdUserIds.push(user.id);
 }
 
 describe("GET /api/training/today：基线门禁分支（T17a / D19 / BR-9）", () => {
@@ -108,7 +109,7 @@ describe("GET /api/training/today：基线门禁分支（T17a / D19 / BR-9）", 
     } as never);
 
     const email = await newEmail();
-    const res = await GET(buildRequest(email));
+    const res = await GET(await buildRequest(email));
     const json = await res.json();
 
     expect(json.success).toBe(true);
@@ -116,7 +117,6 @@ describe("GET /api/training/today：基线门禁分支（T17a / D19 / BR-9）", 
     expect(json.data.baselineProgress).toEqual({ done: 0, total: 2 });
     expect(json.data.caseTitle).toBe("基线题一");
     expect(mockedGetOrCreateTodaySession).not.toHaveBeenCalled();
-    await trackUser(email);
   });
 
   it("基线完成/无基线题 → 走每日一题（kind=daily，progress 为 null）", async () => {
@@ -134,14 +134,13 @@ describe("GET /api/training/today：基线门禁分支（T17a / D19 / BR-9）", 
     } as never);
 
     const email = await newEmail();
-    const res = await GET(buildRequest(email));
+    const res = await GET(await buildRequest(email));
     const json = await res.json();
 
     expect(json.data.kind).toBe("daily");
     expect(json.data.baselineProgress).toBeNull();
     expect(json.data.caseTitle).toBe("日常题");
     expect(mockedGetOrCreateBaselineSession).not.toHaveBeenCalled();
-    await trackUser(email);
   });
 
   it("竞态：状态检查后基线恰好完成（BaselineError）→ 回退每日一题", async () => {
@@ -162,11 +161,10 @@ describe("GET /api/training/today：基线门禁分支（T17a / D19 / BR-9）", 
     } as never);
 
     const email = await newEmail();
-    const res = await GET(buildRequest(email));
+    const res = await GET(await buildRequest(email));
     const json = await res.json();
 
     expect(json.data.kind).toBe("daily");
     expect(json.data.caseTitle).toBe("日常题");
-    await trackUser(email);
   });
 });

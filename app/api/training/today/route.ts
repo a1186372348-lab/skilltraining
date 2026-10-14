@@ -3,7 +3,7 @@ import {
   jsonOk,
   unauthorized,
 } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { BaselineError } from "@/server/modules/baseline/errors";
 import {
@@ -26,7 +26,7 @@ import { toTodayView } from "@/server/modules/training/today-view";
  * （startedAt 倒序，进行中自然优先）；没有才创建每日一题。
  */
 export async function GET(request: Request) {
-  const user = await ensureRequestUser(prisma, request);
+  const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
 
   try {

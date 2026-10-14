@@ -3,7 +3,7 @@ import {
   jsonOk,
   unauthorized,
 } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { dashboardViewSchema } from "@/server/modules/dashboard/contract";
 import { getDashboardView } from "@/server/modules/dashboard/service";
@@ -13,7 +13,7 @@ import { getDashboardView } from "@/server/modules/dashboard/service";
  * 四卡独立装配、单卡失败降级空态；出口经 zod 边界校验（快速失败）。
  */
 export async function GET(request: Request) {
-  const user = await ensureRequestUser(prisma, request);
+  const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
 
   const view = await getDashboardView(prisma, user.id);

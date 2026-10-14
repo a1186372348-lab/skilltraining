@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 import type { RubricScoringInput, RubricScoringOutput } from "@/server/modules/scoring/rubric-scorer";
 
 import { createFeedbackGetHandler } from "./route";
@@ -114,9 +114,10 @@ const GET = createFeedbackGetHandler({
   scoreWithRubric: fakeScorer({ 用户理解: 85, 产品价值判断: 90, 产品取舍: 70 }),
 });
 
-function callFeedback(email: string, sessionId: string) {
+async function callFeedback(email: string, sessionId: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
   const request = new Request(`http://localhost/api/training/${sessionId}/feedback`, {
-    headers: { [DEV_USER_HEADER]: email },
+    headers: { cookie: sessionCookieHeader(user) },
   });
   return GET(request, { params: Promise.resolve({ id: sessionId }) });
 }
@@ -180,7 +181,7 @@ describe("GET /api/training/:id/feedback（懒触发与轮询）", () => {
     const call = () =>
       trackedGET(
         new Request(`http://localhost/api/training/${session.id}/feedback`, {
-          headers: { [DEV_USER_HEADER]: email },
+          headers: { cookie: sessionCookieHeader(user) },
         }),
         { params: Promise.resolve({ id: session.id }) },
       );

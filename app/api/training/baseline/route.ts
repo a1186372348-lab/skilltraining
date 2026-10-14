@@ -2,7 +2,7 @@ import {
   jsonOk,
   unauthorized,
 } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { getBaselineStatus } from "@/server/modules/baseline/service";
 
@@ -13,7 +13,7 @@ import { getBaselineStatus } from "@/server/modules/baseline/service";
  * 出口只下发题目 id 与标题，Rubric/提示树绝不下发（FR-10）。
  */
 export async function GET(request: Request) {
-  const user = await ensureRequestUser(prisma, request);
+  const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
 
   const status = await getBaselineStatus(prisma, user.id);

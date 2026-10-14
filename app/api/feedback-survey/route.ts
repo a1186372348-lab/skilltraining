@@ -5,7 +5,7 @@ import {
   jsonOk,
   unauthorized,
 } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { submitFeedbackSurvey } from "@/server/modules/feedback/survey";
 import { ScoringError } from "@/server/modules/scoring/errors";
@@ -35,7 +35,7 @@ const SAFE_MESSAGES: Record<string, string> = {
  * 幂等：同会话重复提交不覆盖、不重复落库（可安全重试）。
  */
 export async function POST(request: Request) {
-  const user = await ensureRequestUser(prisma, request);
+  const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
 
   let body: unknown;

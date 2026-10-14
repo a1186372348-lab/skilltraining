@@ -15,7 +15,7 @@ interface ApiEnvelope<T> {
 
 /**
  * GET /api/auth/session：读取当前登录身份。
- * 未登录/无 cookie 返回 null——开发态由页面回退为 dev 占位身份展示（dev-identity 约定）。
+ * 未登录/无 cookie 返回 null——由页面回退为 dev 占位身份展示（仅展示，不代表已登录）。
  */
 export async function fetchSession(): Promise<SessionData | null> {
   const res = await fetch("/api/auth/session", {

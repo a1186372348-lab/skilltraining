@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { GET } from "./route";
 
@@ -58,9 +58,14 @@ async function newUser(prefix: string) {
   return user;
 }
 
-function callDetail(email: string, sessionId: string) {
+async function callDetail(email: string | undefined, sessionId: string) {
+  const headers: Record<string, string> = {};
+  if (email) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    headers.cookie = sessionCookieHeader(user);
+  }
   const request = new Request(`http://localhost/api/history/${sessionId}`, {
-    headers: { [DEV_USER_HEADER]: email },
+    headers,
   });
   return GET(request, { params: Promise.resolve({ id: sessionId }) });
 }
@@ -229,10 +234,10 @@ describe("GET /api/history/:id（详情回放）", () => {
     expect((await res.json()).error.code).toBe("INVALID_SESSION_ID");
   });
 
-  it("未登录（生产环境无身份解析）：401 UNAUTHORIZED", async () => {
+  it("未登录（生产环境无会话 cookie）：401 UNAUTHORIZED（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
-      const res = await callDetail("t10-detail-anon@example.com", randomUUID());
+      const res = await callDetail(undefined, randomUUID());
       expect(res.status).toBe(401);
       expect((await res.json()).error.code).toBe("UNAUTHORIZED");
     } finally {

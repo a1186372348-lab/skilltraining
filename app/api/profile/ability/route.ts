@@ -1,5 +1,5 @@
 import { jsonOk, unauthorized } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { getAbilityPageView } from "@/server/modules/profile/ability-page";
 
@@ -10,7 +10,7 @@ import { getAbilityPageView } from "@/server/modules/profile/ability-page";
  * 整体提示依赖度。响应负载经 zod 校验（系统边界防御），统一响应封装。
  */
 export async function GET(request: Request) {
-  const user = await ensureRequestUser(prisma, request);
+  const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
   return jsonOk(await getAbilityPageView(prisma, user.id));
 }

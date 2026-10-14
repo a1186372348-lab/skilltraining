@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { POST } from "./route";
 
@@ -64,9 +64,12 @@ async function ensureSeedQuestion(): Promise<void> {
   }
 }
 
-function buildRequest(email?: string): Request {
+async function buildRequest(email?: string): Promise<Request> {
   const headers: Record<string, string> = {};
-  if (email) headers[DEV_USER_HEADER] = email;
+  if (email) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    headers.cookie = sessionCookieHeader(user);
+  }
   return new Request("http://localhost/api/training/extra", { method: "POST", headers });
 }
 
@@ -88,7 +91,7 @@ describe("POST /api/training/extra（T21 / D3：加练会话入口）", () => {
   it("成功：创建加练会话并返回 sessionId（isExtra=true、state=reading）", async () => {
     const { email, userId } = await newUser();
 
-    const res = await POST(buildRequest(email));
+    const res = await POST(await buildRequest(email));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
@@ -106,15 +109,15 @@ describe("POST /api/training/extra（T21 / D3：加练会话入口）", () => {
   it("幂等：进行中会话存在时重复调用返回同一 sessionId（防连点）", async () => {
     const { email, userId } = await newUser();
 
-    const first = await (await POST(buildRequest(email))).json();
-    const second = await (await POST(buildRequest(email))).json();
+    const first = await (await POST(await buildRequest(email))).json();
+    const second = await (await POST(await buildRequest(email))).json();
     expect(second.data.sessionId).toBe(first.data.sessionId);
     expect(await prisma.trainingSession.count({ where: { userId } })).toBe(1);
   });
 
-  it("生产环境（T03 未接入）无会话：401", async () => {
+  it("生产环境无会话 cookie：401（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await POST(buildRequest());
+    const res = await POST(await buildRequest());
     expect(res.status).toBe(401);
     expect((await res.json()).error.code).toBe("UNAUTHORIZED");
     vi.unstubAllEnvs();
@@ -124,10 +127,10 @@ describe("POST /api/training/extra（T21 / D3：加练会话入口）", () => {
     const { email } = await newUser();
     // 进行中会话幂等复用，30 次额度内全部放行
     for (let i = 0; i < 30; i += 1) {
-      const res = await POST(buildRequest(email));
+      const res = await POST(await buildRequest(email));
       expect(res.status).toBe(200);
     }
-    const res = await POST(buildRequest(email));
+    const res = await POST(await buildRequest(email));
     expect(res.status).toBe(429);
     const json = await res.json();
     expect(json.error.code).toBe("RATE_LIMITED");

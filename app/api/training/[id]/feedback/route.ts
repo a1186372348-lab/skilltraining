@@ -5,7 +5,7 @@ import {
   jsonOk,
   unauthorized,
 } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import {
   getFeedbackView,
@@ -39,7 +39,7 @@ export function createFeedbackGetHandler(deps: FeedbackViewDeps = {}) {
     request: Request,
     context: { params: Promise<{ id: string }> },
   ) {
-    const user = await ensureRequestUser(prisma, request);
+    const user = await getRequestUser(prisma, request);
     if (!user) return unauthorized();
 
     const limit = aiEndpointRateLimiter.check(`feedback:${user.id}`);
