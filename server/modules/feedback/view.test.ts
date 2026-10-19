@@ -21,6 +21,11 @@ const createdUserIds: string[] = [];
 const SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000a1";
 const SEED_DIMENSIONS = ["用户理解", "产品价值判断", "产品取舍"];
 
+// 基线题种子（T36 / D38：反馈视图下发题目类型，前端据此切换按钮）。
+// 刻意 status=draft：反馈视图不按上架状态过滤；避免上架基线题干扰共享库中
+// baseline 服务测试的题数统计（既有双向竞争的规避口径）。
+const SEED_BASELINE_QUESTION_ID = "00000000-0000-4000-8000-0000000000b1";
+
 const SEED_QUESTION_DATA = {
   id: SEED_QUESTION_ID,
   caseTitle: "T05 集成测试种子题",
@@ -59,6 +64,11 @@ async function ensureSeedQuestion(): Promise<void> {
   const { id, ...data } = SEED_QUESTION_DATA;
   try {
     await prisma.question.upsert({ where: { id }, create: SEED_QUESTION_DATA, update: data });
+    await prisma.question.upsert({
+      where: { id: SEED_BASELINE_QUESTION_ID },
+      create: { ...SEED_QUESTION_DATA, id: SEED_BASELINE_QUESTION_ID, kind: "baseline", status: "draft" },
+      update: { kind: "baseline", status: "draft" },
+    });
   } catch {
     // 并发播种冲突：忽略
   }
@@ -80,12 +90,13 @@ async function seedScorableSession(
     hintCount: number;
     finalAnswer: string | null;
     finalSubmittedAt: Date | null;
+    questionId: string;
   }> = {},
 ): Promise<string> {
   const session = await prisma.trainingSession.create({
     data: {
       userId,
-      questionId: SEED_QUESTION_ID,
+      questionId: overrides.questionId ?? SEED_QUESTION_ID,
       date: new Date(Date.UTC(2026, 9, 3)),
       state: overrides.state ?? "followup",
       hintCount: overrides.hintCount ?? 0,
@@ -323,6 +334,23 @@ describe("getFeedbackView 视图装配（四元组 / BR-7 反馈文本）", () =
       expect(view.survey.submitted).toBe(true);
       expect(view.survey.needsPeriodicQ3).toBe(false);
     }
+  });
+
+  it("题目类型下发（T36 / D38）：日常题 questionKind=daily，基线题 questionKind=baseline（前端据此切换动作按钮）", async () => {
+    const userId = await newUser();
+    const dailyId = await seedScorableSession(userId);
+    const baselineId = await seedScorableSession(userId, {
+      questionId: SEED_BASELINE_QUESTION_ID,
+    });
+    await scoreSession(prisma, dailyId, userId, { scoreWithRubric: fastScorer({}) });
+    await scoreSession(prisma, baselineId, userId, { scoreWithRubric: fastScorer({}) });
+
+    const dailyView = await getFeedbackView(prisma, dailyId, userId);
+    const baselineView = await getFeedbackView(prisma, baselineId, userId);
+    expect(dailyView.status).toBe("ready");
+    expect(baselineView.status).toBe("ready");
+    if (dailyView.status === "ready") expect(dailyView.questionKind).toBe("daily");
+    if (baselineView.status === "ready") expect(baselineView.questionKind).toBe("baseline");
   });
 });
 

@@ -5,6 +5,8 @@ import {
 } from "@/server/lib/api-response";
 import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
+import { BASELINE_ERROR_CODES, BaselineError } from "@/server/modules/baseline/errors";
+import { getBaselineStatus } from "@/server/modules/baseline/service";
 import { TrainingError } from "@/server/modules/training/errors";
 import { aiEndpointRateLimiter } from "@/server/modules/training/rate-limit";
 import { getOrCreateExtraSession } from "@/server/modules/training/service";
@@ -14,6 +16,8 @@ import { getOrCreateExtraSession } from "@/server/modules/training/service";
  * 创建或复用加练会话，返回 { sessionId }。
  * 当天存在未提交终答的非基线会话时幂等复用（防连点重复建题）；
  * 鉴权与限流模式与既有训练端点一致（Prd.md 3.5：接口级统一限流兜底加练滥用）。
+ * T36 / D38 基线门禁：基线未完成（含全部作答待评分）拒绝创建日常加练会话——
+ * 409 BASELINE_REQUIRED，前端各「再练一题」入口据 code 挡回 /baseline。
  */
 export async function POST(request: Request) {
   const user = await getRequestUser(prisma, request);
@@ -27,10 +31,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    // 基线门禁（D19 / D38：画像未齐前一切日常训练入口指回 /baseline）
+    const baseline = await getBaselineStatus(prisma, user.id);
+    if (baseline.required) {
+      throw new BaselineError(
+        BASELINE_ERROR_CODES.BASELINE_REQUIRED,
+        409,
+        "请先完成能力基线测评",
+      );
+    }
     const { session } = await getOrCreateExtraSession(prisma, user.id);
     return jsonOk({ sessionId: session.id });
   } catch (error) {
-    if (error instanceof TrainingError) {
+    if (error instanceof TrainingError || error instanceof BaselineError) {
       return jsonError(error.httpStatus, error.code, error.message);
     }
     throw error;

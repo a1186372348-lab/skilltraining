@@ -1,14 +1,38 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sessionCookieHeader } from "@/app/api/_test/session";
+import { getBaselineStatus } from "@/server/modules/baseline/service";
 
 import { POST } from "./route";
 
 // POST /api/training/extra 集成测试（T21 / D3）：真实数据库。
-// 覆盖：鉴权 401、统一限流 429、成功返回 sessionId、进行中幂等复用返回同 id。
+// 覆盖：鉴权 401、统一限流 429、成功返回 sessionId、进行中幂等复用返回同 id、
+// 基线门禁 409（T36 / D38：基线未完成不得创建日常加练会话）。
+//
+// 基线门禁 mock 服务层（与 today/route.baseline.test.ts 同一理由）：
+// 门禁依赖 questions 表全局状态，多文件并行共享测试库时上架基线题会双向干扰。
+
+vi.mock("@/server/modules/baseline/service", () => ({
+  getBaselineStatus: vi.fn(),
+}));
+
+const mockedGetBaselineStatus = vi.mocked(getBaselineStatus);
+
+/** 构造基线状态（仅 required 参与门禁判定，其余字段补全契约形状） */
+function baselineStatusOf(required: boolean) {
+  return {
+    required,
+    total: 8,
+    answeredCount: 0,
+    doneCount: 0,
+    nextQuestion: null,
+    completedAt: null,
+    pendingScoringSessionIds: [],
+  };
+}
 
 const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
@@ -82,6 +106,11 @@ async function newUser(): Promise<{ email: string; userId: string }> {
 
 beforeAll(ensureSeedQuestion);
 
+beforeEach(() => {
+  // 默认基线已完成（不拦截）；门禁用例单独覆盖
+  mockedGetBaselineStatus.mockResolvedValue(baselineStatusOf(false));
+});
+
 afterAll(async () => {
   await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   await prisma.$disconnect();
@@ -113,6 +142,18 @@ describe("POST /api/training/extra（T21 / D3：加练会话入口）", () => {
     const second = await (await POST(await buildRequest(email))).json();
     expect(second.data.sessionId).toBe(first.data.sessionId);
     expect(await prisma.trainingSession.count({ where: { userId } })).toBe(1);
+  });
+
+  it("基线门禁：基线未完成时拒绝创建加练会话（409 BASELINE_REQUIRED，T36 / D38）", async () => {
+    const { email, userId } = await newUser();
+    mockedGetBaselineStatus.mockResolvedValue(baselineStatusOf(true));
+
+    const res = await POST(await buildRequest(email));
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe("BASELINE_REQUIRED");
+    expect(await prisma.trainingSession.count({ where: { userId } })).toBe(0);
   });
 
   it("生产环境无会话 cookie：401（T34）", async () => {
