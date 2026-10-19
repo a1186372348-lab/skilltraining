@@ -9,8 +9,11 @@ import {
   canSubmitAnswer,
   coefficientForHintCount,
   followupEmptyState,
+  followupFailureMode,
+  followupInputPlaceholder,
   formatCoefficient,
   hintMicrocopy,
+  isFollowupInputVisible,
   isHintButtonVisible,
   stageLabel,
   stageOfSession,
@@ -347,5 +350,41 @@ describe("案例事实引用视图（T13 / BR-8：字段结尾内联引用链接
       );
       expect(views.map((v) => v.label)).toEqual(["服务对象", "典型场景"]);
     });
+  });
+});
+
+describe("追问失败态渲染判定（T37 / D39：隐藏输入区 + 重试/跳过出口）", () => {
+  it("有总监消息（追问非空）时始终为 none，与 emptyState/skipped 无关", () => {
+    expect(followupFailureMode(true, null, false)).toBe("none");
+    expect(followupFailureMode(true, "generating", false)).toBe("none");
+    expect(followupFailureMode(true, "failed", true)).toBe("none");
+  });
+
+  it("追问为空但仍在生成中：none（等待卡，不按失败处理）", () => {
+    expect(followupFailureMode(false, "generating", false)).toBe("none");
+  });
+
+  it("追问为空且非失败态（null）：none", () => {
+    expect(followupFailureMode(false, null, false)).toBe("none");
+  });
+
+  it("失败态未跳过：failed（隐藏输入区，渲染重试/跳过出口）", () => {
+    expect(followupFailureMode(false, "failed", false)).toBe("failed");
+  });
+
+  it("失败态已跳过：skipped（恢复输入区，直接作答终案）", () => {
+    expect(followupFailureMode(false, "failed", true)).toBe("skipped");
+  });
+
+  it("输入区显隐：仅 failed 态隐藏，none/skipped 均显示", () => {
+    expect(isFollowupInputVisible("failed")).toBe(false);
+    expect(isFollowupInputVisible("none")).toBe(true);
+    expect(isFollowupInputVisible("skipped")).toBe(true);
+  });
+
+  it("输入框占位文案：skipped 引导直接作答终案，其余为回应追问", () => {
+    expect(followupInputPlaceholder("skipped")).toContain("最终");
+    expect(followupInputPlaceholder("none")).toBe("回应追问，修正或深化你的结论……");
+    expect(followupInputPlaceholder("failed")).toBe("回应追问，修正或深化你的结论……");
   });
 });

@@ -10,21 +10,25 @@ import {
   fetchTodaySession,
   requestFollowupHint,
   requestHint,
+  retryFollowups,
   startExtraSession,
   submitFinalAnswer,
   submitFirstAnswer,
 } from "./api";
 import type { FollowupRound, TodayView } from "./contract";
 import { TodayShell } from "./shell";
-import type { ChatMessage, MaterialView } from "./view-model";
+import type { ChatMessage, FollowupFailureMode, MaterialView } from "./view-model";
 import {
   MAX_HINT_LAYERS,
   THINKING_DIRECTIONS,
   buildFollowupMessages,
   canSubmitAnswer,
   followupEmptyState,
+  followupFailureMode,
+  followupInputPlaceholder,
   formatCoefficient,
   hintMicrocopy,
+  isFollowupInputVisible,
   isHintButtonVisible,
   stageLabel,
   stageOfSession,
@@ -41,6 +45,8 @@ import {
  * 刷新后由 GET /api/training/[id] 返回的会话状态恢复到对应阶段（R4）——
  * 已完成阶段重访仍渲染内嵌完成卡，作为回看入口（附反馈页链接）。
  * 基线会话由服务端拒绝（BASELINE_SESSION），本组件据 code 重定向 /baseline。
+ * 追问生成失败态（T37 / D39）：隐藏作答输入区，提供「重试本次对话」（followup-retry，幂等）
+ * 与「跳过追问，直接作答」逃生口；重试中复用「总监思考中…」生成中样式。
  * 全部状态→视图判定走 view-model 纯函数，本组件只负责渲染与调用适配层。
  */
 
@@ -51,21 +57,27 @@ const PRIMARY_BTN =
 const TEXTAREA =
   "w-full resize-y rounded-xl border border-[#E9EDF4] bg-white px-4 py-3 text-sm leading-6 text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus:border-[#2563EB]";
 
-type PendingAction = "hint" | "first" | "final" | "followup-hint" | "extra" | null;
+type PendingAction = "hint" | "first" | "final" | "followup-hint" | "followup-retry" | "extra" | null;
 
 export function TrainingFlow({
   withShell = true,
   redirectToFeedbackOnDone = true,
   sessionId,
+  onFinalSubmitted,
 }: {
   withShell?: boolean;
-  /** 终答提交成功后直接跳转反馈页 P4；基线测评复用时置 false（由 BaselineFlow 轮询推进下一题/跳画像页） */
+  /** 终答提交成功后直接跳转反馈页 P4；基线测评复用时置 false（由 BaselineFlow 推进下一题/跳画像页） */
   redirectToFeedbackOnDone?: boolean;
   /**
    * T25 / D27：按会话寻址（/training/session/[id]，GET /api/training/[id]）；
    * 缺省走 GET /api/training/today（baseline 复用路径：基线门禁下 today 返回当前基线会话）
    */
   sessionId?: string;
+  /**
+   * T36 / D38：终答提交成功后回调一次（仅 redirectToFeedbackOnDone=false 的基线复用模式），
+   * BaselineFlow 借此立即刷新状态推进下一题，轮询仅作兜底
+   */
+  onFinalSubmitted?: () => void;
 }) {
   const router = useRouter();
   const [payload, setPayload] = useState<TodayView | null>(null);
@@ -78,6 +90,10 @@ export function TrainingFlow({
   // T22：提交首答的响应追问为空（服务端重试已耗尽的确定失败）时置 true，直接按失败渲染；
   // 会话变化/重新 load 后重置
   const [followupFailed, setFollowupFailed] = useState(false);
+  // T37 / D39：失败态「跳过追问，直接作答」逃生口——展开输入区直接终答；load 后重置
+  const [followupSkipped, setFollowupSkipped] = useState(false);
+  // T37 / D39：「重试本次对话」未成功的就地提示（按钮旁「重试未成功…」）；load/重试发起后重置
+  const [retryFailed, setRetryFailed] = useState(false);
   // T22：最近一次 load 完成的时间戳，作为「生成中」窗口判定的当前时间基准（渲染期不调 Date.now）
   const [payloadLoadedAt, setPayloadLoadedAt] = useState(0);
 
@@ -88,9 +104,15 @@ export function TrainingFlow({
       setPayload(sessionId ? await fetchSessionById(sessionId) : await fetchTodaySession());
       setPayloadLoadedAt(Date.now());
       setFollowupFailed(false);
+      setFollowupSkipped(false);
+      setRetryFailed(false);
     } catch (error) {
-      // T25：基线会话不属于日常工作台（服务端 409 BASELINE_SESSION）→ 回基线独立入口
-      if (error instanceof ApiError && error.code === "BASELINE_SESSION") {
+      // T25：基线会话不属于日常工作台（服务端 409 BASELINE_SESSION）→ 回基线独立入口；
+      // T36 / D38：基线全部已作答待评分（409 BASELINE_SCORING_PENDING）同样挡回 /baseline 收尾页
+      if (
+        error instanceof ApiError &&
+        (error.code === "BASELINE_SESSION" || error.code === "BASELINE_SCORING_PENDING")
+      ) {
         router.replace("/baseline");
         return;
       }
@@ -160,7 +182,7 @@ export function TrainingFlow({
     }
   }, [payload, pendingAction, draft]);
 
-  /** 提交终答：日常训练直接跳转反馈页（评分等待态由反馈页承接）；接口幂等，重复点击不覆盖不重复计分 */
+  /** 提交终答：日常训练直接跳转反馈页（评分等待态由反馈页承接）；基线复用模式回调 onFinalSubmitted 立即推进（T36）；接口幂等，重复点击不覆盖不重复计分 */
   const onSubmitFinal = useCallback(async () => {
     if (!payload || pendingAction || !canSubmitAnswer(finalDraft)) return;
     setPendingAction("final");
@@ -172,13 +194,15 @@ export function TrainingFlow({
       );
       if (redirectToFeedbackOnDone) {
         router.push(`/training/feedback/${payload.sessionId}`);
+      } else {
+        onFinalSubmitted?.();
       }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "提交失败，请重试");
     } finally {
       setPendingAction(null);
     }
-  }, [payload, pendingAction, finalDraft, redirectToFeedbackOnDone, router]);
+  }, [payload, pendingAction, finalDraft, redirectToFeedbackOnDone, onFinalSubmitted, router]);
 
   /** 释放某轮追问的预生成提示（T19 / D22）：读库响应零等待；就地展开并同步组合系数 */
   const onRequestFollowupHint = useCallback(
@@ -209,6 +233,44 @@ export function TrainingFlow({
     [payload, pendingAction],
   );
 
+  /**
+   * 重试本次对话（T37 / D39）：追问生成失败后的用户侧重新生成入口。
+   * 接口幂等（已有追问直接返回）；成功就地渲染追问气泡并恢复输入区；
+   * 再次失败（空追问）或请求级失败都回失败态，就地提示可再试或跳过。
+   */
+  const onRetryFollowup = useCallback(async () => {
+    if (!payload || pendingAction) return;
+    setPendingAction("followup-retry");
+    setActionError(null);
+    setRetryFailed(false);
+    try {
+      const res = await retryFollowups(payload.sessionId);
+      if (res.followups.length === 0) {
+        // 重试仍未成功（语义与首答一致：空追问 = 失败）
+        setRetryFailed(true);
+        return;
+      }
+      setFollowupFailed(false);
+      setFollowupSkipped(false);
+      setPayload((prev) =>
+        prev
+          ? { ...prev, state: res.state, followups: res.followups, coefficient: res.coefficient }
+          : prev,
+      );
+    } catch {
+      // 请求级失败同样回失败态并就地提示（保留重试/跳过出口）
+      setRetryFailed(true);
+    } finally {
+      setPendingAction(null);
+    }
+  }, [payload, pendingAction]);
+
+  /** 跳过追问直接作答（T37 / D39 逃生口）：展开输入区，placeholder 引导直接终答 */
+  const onSkipFollowup = useCallback(() => {
+    setFollowupSkipped(true);
+    setRetryFailed(false);
+  }, []);
+
   /** 再练一题（T21 / D3）：创建/复用加练会话后进入新题工作台；失败行内提示 */
   const onStartExtra = useCallback(async () => {
     if (pendingAction) return;
@@ -224,6 +286,11 @@ export function TrainingFlow({
         await load();
       }
     } catch (error) {
+      // T36 / D38：基线未完成 → 挡回基线测评（服务端 409 BASELINE_REQUIRED）
+      if (error instanceof ApiError && error.code === "BASELINE_REQUIRED") {
+        router.push("/baseline");
+        return;
+      }
       setActionError(error instanceof Error ? error.message : "创建加练失败，请重试");
     } finally {
       setPendingAction(null);
@@ -244,6 +311,12 @@ export function TrainingFlow({
         ? "failed"
         : followupEmptyState(payload.firstSubmittedAt, payloadLoadedAt)
       : null;
+
+  // T37 / D39：失败态判定下沉 view-model 纯函数——failed 隐藏输入区并给重试/跳过出口，skipped 恢复输入区直接终答
+  const failureMode: FollowupFailureMode =
+    payload && isFollowup
+      ? followupFailureMode(payload.followups.length > 0, followupEmpty, followupSkipped)
+      : "none";
 
   // T22：生成中每 5 秒重拉；追问到达或超窗后 followupEmpty 转非 generating，依赖变化自动停止轮询
   useEffect(() => {
@@ -324,11 +397,15 @@ export function TrainingFlow({
                   <FollowupSection
                     payload={payload}
                     emptyState={followupEmpty}
+                    failureMode={failureMode}
+                    retryFailed={retryFailed}
                     finalDraft={finalDraft}
                     pendingAction={pendingAction}
                     onFinalDraftChange={setFinalDraft}
                     onSubmitFinal={() => void onSubmitFinal()}
                     onRequestFollowupHint={(round) => void onRequestFollowupHint(round)}
+                    onRetryFollowup={() => void onRetryFollowup()}
+                    onSkipFollowup={onSkipFollowup}
                   />
                 ) : null}
 
@@ -566,28 +643,43 @@ function AnsweringSection({
   );
 }
 
-/** 追问阶段：单一对话卡（T20 追加改版）——标题行 + 消息历史区（xl 起内部滚动、自动滚底）+ 底部紧凑输入条（shrink-0，始终完整可见）；每轮追问提示入口保留在对应消息旁（T19/D22）；追问为空时按 emptyState 区分生成中等待卡/失败兜底（T22） */
+/** 追问阶段：单一对话卡（T20 追加改版）——标题行 + 消息历史区（xl 起内部滚动、自动滚底）+ 底部紧凑输入条（shrink-0，始终完整可见）；每轮追问提示入口保留在对应消息旁（T19/D22）；追问为空时按 emptyState 区分生成中等待卡/失败兜底（T22）；失败态隐藏输入区并提供「重试本次对话」+「跳过追问，直接作答」出口（T37 / D39） */
 function FollowupSection({
   payload,
   emptyState,
+  failureMode,
+  retryFailed,
   finalDraft,
   pendingAction,
   onFinalDraftChange,
   onSubmitFinal,
   onRequestFollowupHint,
+  onRetryFollowup,
+  onSkipFollowup,
 }: {
   payload: TodayView;
   /** 追问为空时的状态（T22：generating 显示等待卡并轮询，failed 显示兜底）；null 表示追问非空或不适用 */
   emptyState: "generating" | "failed" | null;
+  /** 失败态渲染模式（T37 / D39）：failed 隐藏输入区 + 重试/跳过出口；skipped 恢复输入区直接终答 */
+  failureMode: FollowupFailureMode;
+  /** 重试未成功的就地提示（按钮旁「重试未成功，可再试一次或跳过追问」） */
+  retryFailed: boolean;
   finalDraft: string;
   pendingAction: PendingAction;
   onFinalDraftChange: (value: string) => void;
   onSubmitFinal: () => void;
   onRequestFollowupHint: (round: number) => void;
+  onRetryFollowup: () => void;
+  onSkipFollowup: () => void;
 }) {
   const messages = buildFollowupMessages(payload.firstAnswer, payload.followups);
   const userBubble = messages.find((message) => message.role === "user");
   const hasDirectorMessage = payload.followups.length > 0;
+  // T37：重试期间复用「生成中」等待卡样式（总监思考中…）
+  const retrying = pendingAction === "followup-retry";
+  const showGenerating = !hasDirectorMessage && (emptyState === "generating" || retrying);
+  const showFailure = !hasDirectorMessage && failureMode === "failed" && !retrying;
+  const inputVisible = isFollowupInputVisible(failureMode);
   // T20 交付项 7：进入追问阶段或新追问到达时消息区滚到底部；仅消息数变化触发，用户手动上翻不回弹
   const messageListRef = useRef<HTMLDivElement>(null);
   const messageCount = messages.length;
@@ -619,7 +711,7 @@ function FollowupSection({
             />
           </Fragment>
         ))}
-        {!hasDirectorMessage && emptyState === "generating" ? (
+        {showGenerating ? (
           <div className="rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3 text-xs leading-5 text-[#475569]">
             <p className="font-semibold text-[#12233F]">总监思考中…</p>
             <p className="mt-1">
@@ -627,34 +719,58 @@ function FollowupSection({
             </p>
           </div>
         ) : null}
-        {!hasDirectorMessage && emptyState !== "generating" ? (
-          <p className="rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3 text-xs leading-5 text-[#475569]">
-            总监暂时离开（追问生成失败），不影响本次训练——可直接提交最终答案。若追问稍后生成成功，刷新页面即可看到。
-          </p>
+        {showFailure ? (
+          <div className="rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3 text-xs leading-5 text-[#475569]">
+            <p className="font-semibold text-[#12233F]">总监暂时离开（追问生成失败）</p>
+            <p className="mt-1">不影响本次训练——可重试生成追问，或跳过追问直接作答最终答案。</p>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                onClick={onRetryFollowup}
+                disabled={pendingAction !== null}
+                className="rounded-lg bg-[#2563EB] px-4 py-2 text-xs font-bold text-white shadow-[0_2px_8px_rgba(37,99,235,0.25)] transition-colors hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:bg-[#94A3B8] disabled:shadow-none"
+              >
+                重试本次对话
+              </button>
+              <button
+                type="button"
+                onClick={onSkipFollowup}
+                disabled={pendingAction !== null}
+                className="text-xs font-medium text-[#2563EB] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                跳过追问，直接作答
+              </button>
+            </div>
+            {retryFailed ? (
+              <p className="mt-2 text-[#B45309]">重试未成功，可再试一次或跳过追问。</p>
+            ) : null}
+          </div>
         ) : null}
       </div>
-      <div className="mt-5 border-t border-[#E9EDF4] pt-5 xl:shrink-0">
-        <textarea
-          className={`${TEXTAREA} min-h-20`}
-          placeholder="回应追问，修正或深化你的结论……"
-          value={finalDraft}
-          onChange={(event) => onFinalDraftChange(event.target.value)}
-        />
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <span className="text-xs text-[#94A3B8]">
-            本题提示 {payload.hintCount} 次 · 追问提示 {payload.followupHintCount ?? 0} 次 ·
-            独立完成系数 {formatCoefficient(payload.coefficient)}
-          </span>
-          <button
-            type="button"
-            onClick={onSubmitFinal}
-            disabled={!canSubmitAnswer(finalDraft) || pendingAction !== null}
-            className={PRIMARY_BTN}
-          >
-            {pendingAction === "final" ? "提交中…" : "提交最终答案"}
-          </button>
+      {inputVisible ? (
+        <div className="mt-5 border-t border-[#E9EDF4] pt-5 xl:shrink-0">
+          <textarea
+            className={`${TEXTAREA} min-h-20`}
+            placeholder={followupInputPlaceholder(failureMode)}
+            value={finalDraft}
+            onChange={(event) => onFinalDraftChange(event.target.value)}
+          />
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <span className="text-xs text-[#94A3B8]">
+              本题提示 {payload.hintCount} 次 · 追问提示 {payload.followupHintCount ?? 0} 次 ·
+              独立完成系数 {formatCoefficient(payload.coefficient)}
+            </span>
+            <button
+              type="button"
+              onClick={onSubmitFinal}
+              disabled={!canSubmitAnswer(finalDraft) || pendingAction !== null}
+              className={PRIMARY_BTN}
+            >
+              {pendingAction === "final" ? "提交中…" : "提交最终答案"}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

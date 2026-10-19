@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 import { todayUtc } from "@/server/modules/training/service";
 
 import { GET as getToday } from "../today/route";
@@ -75,9 +75,12 @@ async function ensureSeedQuestions(): Promise<void> {
   }
 }
 
-function buildRequest(id: string, email?: string): Request {
+async function buildRequest(id: string, email?: string): Promise<Request> {
   const headers: Record<string, string> = {};
-  if (email) headers[DEV_USER_HEADER] = email;
+  if (email) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    headers.cookie = sessionCookieHeader(user);
+  }
   return new Request(`http://localhost/api/training/${id}`, { method: "GET", headers });
 }
 
@@ -154,10 +157,10 @@ afterAll(async () => {
 });
 
 describe("GET /api/training/[id]：鉴权与归属", () => {
-  it("生产环境（T03 未接入）无会话：401", async () => {
+  it("生产环境无会话 cookie：401（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
     const res = await callRoute(
-      buildRequest("00000000-0000-4000-8000-0000000000ff"),
+      await buildRequest("00000000-0000-4000-8000-0000000000ff"),
       "00000000-0000-4000-8000-0000000000ff",
     );
     expect(res.status).toBe(401);
@@ -166,7 +169,7 @@ describe("GET /api/training/[id]：鉴权与归属", () => {
 
   it("非法会话 id：400 INVALID_SESSION_ID", async () => {
     const { email } = await newUser();
-    const res = await callRoute(buildRequest("not-a-uuid", email), "not-a-uuid");
+    const res = await callRoute(await buildRequest("not-a-uuid", email), "not-a-uuid");
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error.code).toBe("INVALID_SESSION_ID");
@@ -175,7 +178,7 @@ describe("GET /api/training/[id]：鉴权与归属", () => {
   it("会话不存在：404 SESSION_NOT_FOUND", async () => {
     const { email } = await newUser();
     const missingId = "00000000-0000-4000-8000-0000000000ee";
-    const res = await callRoute(buildRequest(missingId, email), missingId);
+    const res = await callRoute(await buildRequest(missingId, email), missingId);
     expect(res.status).toBe(404);
     const json = await res.json();
     expect(json.error.code).toBe("SESSION_NOT_FOUND");
@@ -185,7 +188,7 @@ describe("GET /api/training/[id]：鉴权与归属", () => {
     const owner = await newUser();
     const outsider = await newUser();
     const session = await seedSession(owner.userId);
-    const res = await callRoute(buildRequest(session.id, outsider.email), session.id);
+    const res = await callRoute(await buildRequest(session.id, outsider.email), session.id);
     expect(res.status).toBe(404);
     const json = await res.json();
     expect(json.error.code).toBe("SESSION_NOT_FOUND");
@@ -197,7 +200,7 @@ describe("GET /api/training/[id]：鉴权与归属", () => {
       questionId: BASELINE_KIND_QUESTION_ID,
       isExtra: true, // 基线会话以 isExtra=true 落库（T17a）
     });
-    const res = await callRoute(buildRequest(session.id, email), session.id);
+    const res = await callRoute(await buildRequest(session.id, email), session.id);
     expect(res.status).toBe(409);
     const json = await res.json();
     expect(json.error.code).toBe("BASELINE_SESSION");
@@ -218,11 +221,15 @@ describe("GET /api/training/[id]：工作台载荷", () => {
     });
 
     const [byIdJson, todayJson] = await Promise.all([
-      callRoute(buildRequest(session.id, email), session.id).then((res) => res.json()),
+      callRoute(await buildRequest(session.id, email), session.id).then((res) => res.json()),
       getToday(
         new Request("http://localhost/api/training/today", {
           method: "GET",
-          headers: { [DEV_USER_HEADER]: email },
+          headers: {
+            cookie: sessionCookieHeader(
+              await prisma.user.findUniqueOrThrow({ where: { email } }),
+            ),
+          },
         }),
       ).then((res) => res.json()),
     ]);
@@ -261,7 +268,7 @@ describe("GET /api/training/[id]：工作台载荷", () => {
         startedAt: yesterday,
       },
     });
-    const res = await callRoute(buildRequest(session.id, email), session.id);
+    const res = await callRoute(await buildRequest(session.id, email), session.id);
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.data.sessionId).toBe(session.id);

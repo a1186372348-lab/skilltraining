@@ -1,14 +1,38 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
+import { getBaselineStatus } from "@/server/modules/baseline/service";
 
 import { POST } from "./route";
 
 // POST /api/training/extra 集成测试（T21 / D3）：真实数据库。
-// 覆盖：鉴权 401、统一限流 429、成功返回 sessionId、进行中幂等复用返回同 id。
+// 覆盖：鉴权 401、统一限流 429、成功返回 sessionId、进行中幂等复用返回同 id、
+// 基线门禁 409（T36 / D38：基线未完成不得创建日常加练会话）。
+//
+// 基线门禁 mock 服务层（与 today/route.baseline.test.ts 同一理由）：
+// 门禁依赖 questions 表全局状态，多文件并行共享测试库时上架基线题会双向干扰。
+
+vi.mock("@/server/modules/baseline/service", () => ({
+  getBaselineStatus: vi.fn(),
+}));
+
+const mockedGetBaselineStatus = vi.mocked(getBaselineStatus);
+
+/** 构造基线状态（仅 required 参与门禁判定，其余字段补全契约形状） */
+function baselineStatusOf(required: boolean) {
+  return {
+    required,
+    total: 8,
+    answeredCount: 0,
+    doneCount: 0,
+    nextQuestion: null,
+    completedAt: null,
+    pendingScoringSessionIds: [],
+  };
+}
 
 const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
@@ -64,9 +88,12 @@ async function ensureSeedQuestion(): Promise<void> {
   }
 }
 
-function buildRequest(email?: string): Request {
+async function buildRequest(email?: string): Promise<Request> {
   const headers: Record<string, string> = {};
-  if (email) headers[DEV_USER_HEADER] = email;
+  if (email) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    headers.cookie = sessionCookieHeader(user);
+  }
   return new Request("http://localhost/api/training/extra", { method: "POST", headers });
 }
 
@@ -79,6 +106,11 @@ async function newUser(): Promise<{ email: string; userId: string }> {
 
 beforeAll(ensureSeedQuestion);
 
+beforeEach(() => {
+  // 默认基线已完成（不拦截）；门禁用例单独覆盖
+  mockedGetBaselineStatus.mockResolvedValue(baselineStatusOf(false));
+});
+
 afterAll(async () => {
   await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   await prisma.$disconnect();
@@ -88,7 +120,7 @@ describe("POST /api/training/extra（T21 / D3：加练会话入口）", () => {
   it("成功：创建加练会话并返回 sessionId（isExtra=true、state=reading）", async () => {
     const { email, userId } = await newUser();
 
-    const res = await POST(buildRequest(email));
+    const res = await POST(await buildRequest(email));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
@@ -106,15 +138,27 @@ describe("POST /api/training/extra（T21 / D3：加练会话入口）", () => {
   it("幂等：进行中会话存在时重复调用返回同一 sessionId（防连点）", async () => {
     const { email, userId } = await newUser();
 
-    const first = await (await POST(buildRequest(email))).json();
-    const second = await (await POST(buildRequest(email))).json();
+    const first = await (await POST(await buildRequest(email))).json();
+    const second = await (await POST(await buildRequest(email))).json();
     expect(second.data.sessionId).toBe(first.data.sessionId);
     expect(await prisma.trainingSession.count({ where: { userId } })).toBe(1);
   });
 
-  it("生产环境（T03 未接入）无会话：401", async () => {
+  it("基线门禁：基线未完成时拒绝创建加练会话（409 BASELINE_REQUIRED，T36 / D38）", async () => {
+    const { email, userId } = await newUser();
+    mockedGetBaselineStatus.mockResolvedValue(baselineStatusOf(true));
+
+    const res = await POST(await buildRequest(email));
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe("BASELINE_REQUIRED");
+    expect(await prisma.trainingSession.count({ where: { userId } })).toBe(0);
+  });
+
+  it("生产环境无会话 cookie：401（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await POST(buildRequest());
+    const res = await POST(await buildRequest());
     expect(res.status).toBe(401);
     expect((await res.json()).error.code).toBe("UNAUTHORIZED");
     vi.unstubAllEnvs();
@@ -124,10 +168,10 @@ describe("POST /api/training/extra（T21 / D3：加练会话入口）", () => {
     const { email } = await newUser();
     // 进行中会话幂等复用，30 次额度内全部放行
     for (let i = 0; i < 30; i += 1) {
-      const res = await POST(buildRequest(email));
+      const res = await POST(await buildRequest(email));
       expect(res.status).toBe(200);
     }
-    const res = await POST(buildRequest(email));
+    const res = await POST(await buildRequest(email));
     expect(res.status).toBe(429);
     const json = await res.json();
     expect(json.error.code).toBe("RATE_LIMITED");

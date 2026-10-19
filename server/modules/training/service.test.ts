@@ -125,6 +125,22 @@ async function ensureExtraSeedQuestion(): Promise<void> {
   await prisma.question.upsert({ where: { id }, create: data, update: rest });
 }
 
+/**
+ * 防御并发测试文件干扰：选题前把上架池收敛为 {a1, a2}。
+ * 邻文件的归档会把 a2 一并下架，邻文件的自有种子（如 a9/b0）也可能正处于上架态；
+ * 先下架其余上架题、再确保 a1/a2 上架，使随后的选题断言不依赖全局题库瞬时状态。
+ */
+async function pinExtraSelectionPool(): Promise<void> {
+  await prisma.question.updateMany({
+    where: { status: "published", id: { notIn: [SEED_QUESTION_ID, EXTRA_SEED_QUESTION_ID] } },
+    data: { status: "archived" },
+  });
+  await prisma.question.updateMany({
+    where: { id: { in: [SEED_QUESTION_ID, EXTRA_SEED_QUESTION_ID] } },
+    data: { status: "published" },
+  });
+}
+
 /** 基线题（kind=baseline；draft 状态双保险不入日常选题池，仅作会话关联） */
 async function ensureBaselineKindQuestion(): Promise<void> {
   const data = {
@@ -601,6 +617,7 @@ describe("getOrCreateExtraSession：加练会话创建与幂等（T21 / D3）", 
       startedAt: new Date(Date.now() - 60_000),
     });
     await ensureExtraSeedQuestion();
+    await pinExtraSelectionPool();
 
     const first = await getOrCreateExtraSession(prisma, userId);
     // 已练 a1 被引擎排除 → 确定选中 a2
@@ -611,6 +628,8 @@ describe("getOrCreateExtraSession：加练会话创建与幂等（T21 / D3）", 
       where: { id: first.session.id },
       data: { state: "followup", finalAnswer: "终答", finalSubmittedAt: new Date() },
     });
+    // 两次选题之间邻文件可能上架自有种子题：再次收敛上架池，确保「放宽后升序取 a1」确定成立
+    await pinExtraSelectionPool();
     const second = await getOrCreateExtraSession(prisma, userId);
     expect(second.session.id).not.toBe(first.session.id);
     expect(second.session.isExtra).toBe(true);

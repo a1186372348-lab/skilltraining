@@ -1,11 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { PrismaClient } from "@prisma/client";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 import { TRAINING_ERROR_CODES, TrainingError } from "@/server/modules/training/errors";
 
 import { GET } from "./route";
 
-// GET /api/training/today 错误映射测试：mock 服务层抛业务错误（不出网、不碰数据库）。
+// GET /api/training/today 错误映射测试：mock 服务层抛业务错误（不出网）；
+// 身份解析走真实会话 cookie（T34），需真实用户行。
 
 vi.mock("@/server/modules/training/service", () => ({
   getOrCreateTodaySession: vi.fn(async () => {
@@ -31,11 +33,23 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+const prisma = new PrismaClient();
+const createdUserIds: string[] = [];
+
+afterAll(async () => {
+  await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  await prisma.$disconnect();
+});
+
 describe("GET /api/training/today：错误映射", () => {
   it("无上架题目：404 NO_PUBLISHED_QUESTION，统一错误封装", async () => {
+    const user = await prisma.user.create({
+      data: { email: `t05-today-error-${Date.now()}@example.com` },
+    });
+    createdUserIds.push(user.id);
     const request = new Request("http://localhost/api/training/today", {
       method: "GET",
-      headers: { [DEV_USER_HEADER]: `t05-today-error-${Date.now()}@example.com` },
+      headers: { cookie: sessionCookieHeader(user) },
     });
     const res = await GET(request);
     expect(res.status).toBe(404);

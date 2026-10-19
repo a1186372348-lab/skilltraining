@@ -8,12 +8,12 @@ import { selectTodayQuestion } from "@/server/modules/selection/service";
 import { BASELINE_ERROR_CODES, BaselineError } from "./errors";
 import { getBaselineStatus, getOrCreateBaselineSession } from "./service";
 
-// 基线服务（T17a / D19 / BR-9）单元测试：桩 DB（不触真实数据库）。
+// 基线服务（T17a / D19 / BR-9；T36 / D38 双计数语义）单元测试：桩 DB（不触真实数据库）。
 //
 // 为什么不用真实库：基线门禁依赖 questions 表的全局状态（kind=baseline 且上架），
 // 而测试套件多文件并行共享同一测试库——上架基线题会把其他文件全新用户的
 // 今日训练门禁打开，其他文件的归档扫尾又会击落本题，双向竞争必然偶发失败。
-// 因此查询过滤（kind/published/scoredAt）以「捕获 where 入参」方式验证，
+// 因此查询过滤（kind/published/scoredAt/finalSubmittedAt）以「捕获 where 入参」方式验证，
 // 分支逻辑全部桩定；迁移对空库/现库的正确性由 prisma migrate 冒烟单独验证。
 // 路由级门禁分支见 app/api/training/today/route.baseline.test.ts（mock 服务层）。
 
@@ -25,13 +25,33 @@ function makeQuestion(id: string): Question {
 const Q1 = makeQuestion("00000000-0000-4000-8000-0000000000b1");
 const Q2 = makeQuestion("00000000-0000-4000-8000-0000000000b2");
 
+const STAMP = new Date("2026-10-10T00:00:00Z");
+
+/** 基线题会话行（getBaselineStatus 计数查询的 select 形状） */
+interface StubSessionRow {
+  id: string;
+  questionId: string;
+  scoredAt: Date | null;
+  finalSubmittedAt: Date | null;
+}
+
+/** 已评分会话（评分完成必已提交终答） */
+function scoredSession(questionId: string, id = `s-scored-${questionId}`): StubSessionRow {
+  return { id, questionId, scoredAt: STAMP, finalSubmittedAt: STAMP };
+}
+
+/** 已提交终答、评分进行中的会话（T36：作答推进口径） */
+function answeredSession(questionId: string, id = `s-answered-${questionId}`): StubSessionRow {
+  return { id, questionId, scoredAt: null, finalSubmittedAt: STAMP };
+}
+
 interface StubConfig {
   /** question.findMany 返回（基线题池，调用方按 id 升序传入） */
   baselineQuestions: Question[];
   /** userProfile.findUnique 返回（无画像行传 null） */
   profile: { baselineCompletedAt: Date | null } | null;
-  /** 用户已评分基线会话的题目 id 列表 */
-  scoredQuestionIds: string[];
+  /** 用户基线题会话行（一次查询同时取 scoredAt/finalSubmittedAt 双计数） */
+  sessions: StubSessionRow[];
   /** userProfile.updateMany 受影响行数（并发另一方已写入时为 0） */
   updateManyCount?: number;
   /** updateMany 未命中后回读的画像（并发另一方写入的标记） */
@@ -71,7 +91,7 @@ function makeDb(config: StubConfig) {
     trainingSession: {
       findMany: async (args: unknown) => {
         calls.sessionFindManyArgs.push(args);
-        return config.scoredQuestionIds.map((questionId) => ({ questionId }));
+        return config.sessions;
       },
       findFirst: async () => config.existingSession ?? null,
       findFirstOrThrow: async () => config.existingSession,
@@ -86,50 +106,93 @@ function makeDb(config: StubConfig) {
 
 describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
   it("库中无上架基线题 → required=false（老用户与新库不受影响）", async () => {
-    const { db } = makeDb({ baselineQuestions: [], profile: null, scoredQuestionIds: [] });
+    const { db } = makeDb({ baselineQuestions: [], profile: null, sessions: [] });
     const status = await getBaselineStatus(db, "u-1");
-    expect(status).toMatchObject({ required: false, total: 0, doneCount: 0, nextQuestion: null });
+    expect(status).toMatchObject({
+      required: false,
+      total: 0,
+      answeredCount: 0,
+      doneCount: 0,
+      nextQuestion: null,
+    });
   });
 
   it("基线题池按 kind=baseline + published 过滤、按 id 升序取题", async () => {
-    const { db, calls } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, scoredQuestionIds: [] });
+    const { db, calls } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, sessions: [] });
     await getBaselineStatus(db, "u-1");
     expect(calls.questionFindManyArgs[0]).toMatchObject({
       where: { kind: "baseline", status: "published" },
       orderBy: { id: "asc" },
     });
-    // 完成计数只认已评分会话（scoredAt 非空）
+    // T36：一次查询同时取已评分/已作答两套计数的事实源（不再只查 scoredAt 非空）
     expect(calls.sessionFindManyArgs[0]).toMatchObject({
-      where: { userId: "u-1", scoredAt: { not: null } },
+      where: { userId: "u-1", questionId: { in: [Q1.id, Q2.id] } },
     });
   });
 
-  it("新用户：required=true，total=2，doneCount=0，nextQuestion 为第一题", async () => {
-    const { db } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, scoredQuestionIds: [] });
+  it("新用户：required=true，total=2，answeredCount=doneCount=0，nextQuestion 为第一题", async () => {
+    const { db } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, sessions: [] });
     const status = await getBaselineStatus(db, "u-1");
     expect(status.required).toBe(true);
     expect(status.total).toBe(2);
+    expect(status.answeredCount).toBe(0);
     expect(status.doneCount).toBe(0);
     expect(status.nextQuestion?.id).toBe(Q1.id);
+    expect(status.pendingScoringSessionIds).toEqual([]);
   });
 
-  it("完成第 1 题：doneCount=1，nextQuestion 为第 2 题，仍需基线", async () => {
+  it("第 1 题已评分：answeredCount=doneCount=1，nextQuestion 为第 2 题，仍需基线", async () => {
     const { db } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: null,
-      scoredQuestionIds: [Q1.id],
+      sessions: [scoredSession(Q1.id)],
     });
     const status = await getBaselineStatus(db, "u-1");
     expect(status.required).toBe(true);
+    expect(status.answeredCount).toBe(1);
     expect(status.doneCount).toBe(1);
     expect(status.nextQuestion?.id).toBe(Q2.id);
+  });
+
+  it("第 1 题仅作答未评分（T36）：answeredCount=1、doneCount=0，nextQuestion 仍推进到第 2 题", async () => {
+    const { db, calls } = makeDb({
+      baselineQuestions: [Q1, Q2],
+      profile: null,
+      sessions: [answeredSession(Q1.id)],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.required).toBe(true);
+    expect(status.answeredCount).toBe(1);
+    expect(status.doneCount).toBe(0);
+    expect(status.nextQuestion?.id).toBe(Q2.id);
+    // 待评分会话带出（路由层补触发自愈用）
+    expect(status.pendingScoringSessionIds).toEqual([`s-answered-${Q1.id}`]);
+    // 未全部评完：不得写入完成标记
+    expect(calls.updateManyArgs).toHaveLength(0);
+  });
+
+  it("同一题多条会话只按题去重计数（中断重建的防御）", async () => {
+    const { db } = makeDb({
+      baselineQuestions: [Q1, Q2],
+      profile: null,
+      sessions: [
+        answeredSession(Q1.id, "s-1"),
+        scoredSession(Q1.id, "s-2"),
+        answeredSession(Q1.id, "s-3"),
+      ],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.answeredCount).toBe(1);
+    expect(status.doneCount).toBe(1);
+    // 已评分题下的未评分会话仍属待评分（重复会话各自补触发，评分幂等兜底）
+    expect(status.pendingScoringSessionIds).toEqual(["s-1", "s-3"]);
   });
 
   it("只评了第 2 题（跳题异常）：nextQuestion 仍按固定顺序指向第 1 题", async () => {
     const { db } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: null,
-      scoredQuestionIds: [Q2.id],
+      sessions: [scoredSession(Q2.id)],
     });
     const status = await getBaselineStatus(db, "u-1");
     expect(status.required).toBe(true);
@@ -137,14 +200,32 @@ describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
     expect(status.nextQuestion?.id).toBe(Q1.id);
   });
 
+  it("边界：全部已作答未全部评完 → required=true 且 nextQuestion=null，不写完成标记", async () => {
+    const { db, calls } = makeDb({
+      baselineQuestions: [Q1, Q2],
+      profile: null,
+      sessions: [scoredSession(Q1.id), answeredSession(Q2.id)],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.required).toBe(true);
+    expect(status.answeredCount).toBe(2);
+    expect(status.doneCount).toBe(1);
+    expect(status.nextQuestion).toBeNull();
+    expect(status.pendingScoringSessionIds).toEqual([`s-answered-${Q2.id}`]);
+    expect(status.completedAt).toBeNull();
+    // 完成判定只认 doneCount：中途不得写入 baseline_completed_at
+    expect(calls.updateManyArgs).toHaveLength(0);
+  });
+
   it("全部评完且无标记 → 幂等写入 baseline_completed_at（守卫条件 updateMany）", async () => {
     const { db, calls } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: { baselineCompletedAt: null },
-      scoredQuestionIds: [Q1.id, Q2.id],
+      sessions: [scoredSession(Q1.id), scoredSession(Q2.id)],
     });
     const status = await getBaselineStatus(db, "u-1");
     expect(status.required).toBe(false);
+    expect(status.answeredCount).toBe(2);
     expect(status.doneCount).toBe(2);
     expect(status.nextQuestion).toBeNull();
     expect(status.completedAt).not.toBeNull();
@@ -158,7 +239,7 @@ describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
     const { db, calls } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: { baselineCompletedAt: marker },
-      scoredQuestionIds: [Q1.id, Q2.id],
+      sessions: [scoredSession(Q1.id), scoredSession(Q2.id)],
     });
     const status = await getBaselineStatus(db, "u-1");
     expect(status.required).toBe(false);
@@ -172,7 +253,7 @@ describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
       baselineQuestions: [Q1, Q2],
       profile: { baselineCompletedAt: null },
       profileAfterWrite: { baselineCompletedAt: concurrent },
-      scoredQuestionIds: [Q1.id, Q2.id],
+      sessions: [scoredSession(Q1.id), scoredSession(Q2.id)],
       updateManyCount: 0,
     });
     const status = await getBaselineStatus(db, "u-1");
@@ -184,7 +265,7 @@ describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
     const { db } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: null,
-      scoredQuestionIds: [Q1.id, Q2.id],
+      sessions: [scoredSession(Q1.id), scoredSession(Q2.id)],
       updateManyCount: 0,
     });
     const status = await getBaselineStatus(db, "u-1");
@@ -197,7 +278,7 @@ describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
     const { db } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: { baselineCompletedAt: marker },
-      scoredQuestionIds: [],
+      sessions: [],
     });
     const status = await getBaselineStatus(db, "u-1");
     expect(status.required).toBe(false);
@@ -207,7 +288,7 @@ describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
 
 describe("getOrCreateBaselineSession：会话复用训练闭环", () => {
   it("创建指向 nextQuestion 的会话：isExtra=true（不占每日一题槽位）、状态 reading", async () => {
-    const { db, calls } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, scoredQuestionIds: [] });
+    const { db, calls } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, sessions: [] });
     const result = await getOrCreateBaselineSession(db, "u-1");
     expect(result.question.id).toBe(Q1.id);
     expect(result.session.id).toBe("session-new");
@@ -225,7 +306,7 @@ describe("getOrCreateBaselineSession：会话复用训练闭环", () => {
     const { db, calls } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: null,
-      scoredQuestionIds: [],
+      sessions: [],
       existingSession: existing,
     });
     const result = await getOrCreateBaselineSession(db, "u-1");
@@ -233,19 +314,31 @@ describe("getOrCreateBaselineSession：会话复用训练闭环", () => {
     expect(calls.sessionCreateData).toHaveLength(0);
   });
 
-  it("第 1 题评分后：新会话自动指向第 2 题", async () => {
+  it("第 1 题仅作答未评分（T36）：新会话也自动指向第 2 题（按作答推进，不等评分）", async () => {
     const { db, calls } = makeDb({
       baselineQuestions: [Q1, Q2],
       profile: null,
-      scoredQuestionIds: [Q1.id],
+      sessions: [answeredSession(Q1.id)],
     });
     const result = await getOrCreateBaselineSession(db, "u-1");
     expect(result.question.id).toBe(Q2.id);
     expect(calls.sessionCreateData[0]).toMatchObject({ questionId: Q2.id });
   });
 
+  it("全部已作答待评分（nextQuestion=null）→ 抛 BASELINE_NOT_REQUIRED，由 today 路由挡回", async () => {
+    const { db } = makeDb({
+      baselineQuestions: [Q1, Q2],
+      profile: null,
+      sessions: [scoredSession(Q1.id), answeredSession(Q2.id)],
+    });
+    await expect(getOrCreateBaselineSession(db, "u-1")).rejects.toMatchObject({
+      name: "BaselineError",
+      code: BASELINE_ERROR_CODES.BASELINE_NOT_REQUIRED,
+    } satisfies Partial<BaselineError>);
+  });
+
   it("无基线题或基线已完成 → 抛 BaselineError(BASELINE_NOT_REQUIRED)", async () => {
-    const { db } = makeDb({ baselineQuestions: [], profile: null, scoredQuestionIds: [] });
+    const { db } = makeDb({ baselineQuestions: [], profile: null, sessions: [] });
     await expect(getOrCreateBaselineSession(db, "u-1")).rejects.toMatchObject({
       name: "BaselineError",
       code: BASELINE_ERROR_CODES.BASELINE_NOT_REQUIRED,

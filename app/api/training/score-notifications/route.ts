@@ -1,5 +1,5 @@
 import { jsonOk, unauthorized } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { getScoreNotifications } from "@/server/modules/training/score-notifications";
 
@@ -10,7 +10,7 @@ import { getScoreNotifications } from "@/server/modules/training/score-notificat
  * 未登录 401，客户端静默忽略、下一轮再试。
  */
 export async function GET(request: Request) {
-  const user = await ensureRequestUser(prisma, request);
+  const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
 
   return jsonOk(await getScoreNotifications(prisma, user.id));

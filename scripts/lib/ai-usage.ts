@@ -1,13 +1,13 @@
-// MiMo 用量汇总纯函数（T23）：多行日志文本 → 结构化汇总 → 中文报告
-// 事件形状见 server/ai/mimo-client.ts 审计输出（成功带 usage，失败带 error，均单行 JSON）
+// AI 网关用量汇总纯函数（T23；T37 / D39 起随 DeepSeek 切换改 provider 中立命名）
+// 事件形状见 server/ai/client.ts 审计输出（成功带 usage，失败带 error，均单行 JSON）
 
-export const MIMO_AUDIT_EVENT = "ai.mimo.chat_completion";
+export const AI_AUDIT_EVENT = "ai.deepseek.chat_completion";
 /** 当前 max_completion_tokens 预算（D25⑤）；校准标准：峰值 × 约 2 倍余量内为健康 */
 export const COMPLETION_TOKEN_BUDGET = 4096;
 export const HEALTHY_HEADROOM_RATIO = 2;
 
-export interface MimoUsageSummary {
-  /** ai.mimo.chat_completion 事件总数 */
+export interface AiUsageSummary {
+  /** ai.deepseek.chat_completion 事件总数 */
   total: number;
   /** 无 error 字段的事件数 */
   success: number;
@@ -63,8 +63,8 @@ function statsOf(values: number[]): { average: number | null; max: number | null
   };
 }
 
-/** 逐行容错扫描日志，汇总 ai.mimo.chat_completion 审计事件 */
-export function summarizeMimoUsage(logText: string): MimoUsageSummary {
+/** 逐行容错扫描日志，汇总 ai.deepseek.chat_completion 审计事件 */
+export function summarizeAiUsage(logText: string): AiUsageSummary {
   let total = 0;
   let success = 0;
   let failure = 0;
@@ -94,7 +94,7 @@ export function summarizeMimoUsage(logText: string): MimoUsageSummary {
     } catch {
       continue;
     }
-    if (!isRecord(parsed) || parsed.event !== MIMO_AUDIT_EVENT) continue;
+    if (!isRecord(parsed) || parsed.event !== AI_AUDIT_EVENT) continue;
 
     total += 1;
     const error =
@@ -193,15 +193,15 @@ function align(label: string, width: number): string {
   return label + " ".repeat(Math.max(0, width - displayWidth(label)));
 }
 
-export interface FormatMimoUsageOptions {
+export interface FormatAiUsageOptions {
   /** max_completion_tokens 预算，默认 4096 */
   completionTokenBudget?: number;
 }
 
 /** 结构化汇总 → 中文对齐报告（末尾两行判断提示） */
-export function formatMimoUsageReport(
-  summary: MimoUsageSummary,
-  options: FormatMimoUsageOptions = {},
+export function formatAiUsageReport(
+  summary: AiUsageSummary,
+  options: FormatAiUsageOptions = {},
 ): string {
   const budget = options.completionTokenBudget ?? COMPLETION_TOKEN_BUDGET;
   const LABEL_WIDTH = 14;
@@ -209,11 +209,11 @@ export function formatMimoUsageReport(
   const divider = "─".repeat(48);
 
   const rows: string[] = [];
-  rows.push("MiMo 调用健康度汇总（事件：ai.mimo.chat_completion）");
+  rows.push(`AI 网关调用健康度汇总（事件：${AI_AUDIT_EVENT}）`);
   rows.push(divider);
 
   if (summary.total === 0) {
-    rows.push("未找到 ai.mimo.chat_completion 事件（日志可能不含 MiMo 调用）。");
+    rows.push(`未找到 ${AI_AUDIT_EVENT} 事件（日志可能不含 AI 网关调用）。`);
   } else {
     const { attempts, latencyMs, tokens } = summary;
     rows.push(

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { MimoClient } from "./mimo-client";
+import type { AiClient } from "./client";
 import { FollowupGenerationError, buildFollowupMessages, generateFollowups } from "./followup";
 
 // 追问生成：AI 调用以契约 mock（注入假 client），禁止真实出网。
@@ -15,8 +15,8 @@ const rubric = {
   forbidden_leaks: ["「补全省按键、Agent 省任务」的价值对比结论", "具体缓释设计清单"],
 };
 
-function fakeClient(content: string): MimoClient {
-  return { chatCompletion: vi.fn().mockResolvedValue({ content, model: "mimo-v2.6-pro", usage: null }) };
+function fakeClient(content: string): AiClient {
+  return { chatCompletion: vi.fn().mockResolvedValue({ content, model: "deepseek-flash", usage: null }) };
 }
 
 describe("buildFollowupMessages：追问 prompt 硬性约束", () => {

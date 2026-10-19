@@ -12,7 +12,7 @@ import type {
  * 由 view-model.test.ts 覆盖（画像预填映射、dev/真实身份分支、保存载荷构造）。
  */
 
-/** 开发态占位邮箱：与 server/lib/dev-identity.ts 的 DEFAULT_DEV_EMAIL 保持一致（仅用于展示） */
+/** 无会话时的占位展示邮箱（仅展示用 dev 标识；真实身份一律来自会话 cookie，T34） */
 export const DEFAULT_DEV_EMAIL = "dev@skilltraining.local";
 
 export const EMPTY_PROFILE_STATE: ProfileFormState = {

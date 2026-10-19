@@ -254,8 +254,52 @@ export interface FirstAnswerResult {
   firstSubmittedAt: Date;
 }
 
-export interface FirstAnswerDeps {
+/** 追问生成注入点（测试 mock AI，不出网）；submitFirstAnswer 与 retryFollowups 共用 */
+export interface FollowupGenerationDeps {
   generateFollowups?: (input: FollowupInput) => Promise<FollowupDraft[]>;
+}
+
+/**
+ * 生成追问并落库（BR-4 + T19/D22：同一次调用为每条追问附带预生成提示，随追问一并落库，
+ * 用户点击时读库零等待）。submitFirstAnswer 与 retryFollowups（T37 / D39）共用。
+ * 失败不阻塞训练（任务契约：可跳过直达终答）：followups 置空并记审计日志。
+ */
+async function generateAndStoreFollowups(
+  db: DbClient,
+  session: TrainingSession & { question: Question },
+  firstAnswer: string,
+  deps: FollowupGenerationDeps = {},
+): Promise<FollowupRecord[]> {
+  let drafts: FollowupDraft[] = [];
+  try {
+    const rubric = session.question.rubric as unknown as FollowupInput["rubric"];
+    drafts = await (deps.generateFollowups ?? generateFollowups)({
+      mainQuestion: session.question.mainQuestion,
+      firstAnswer,
+      rubric,
+    });
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        event: "training.followup_generation_failed",
+        sessionId: session.id,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
+
+  const records: FollowupRecord[] = drafts.map((draft, index) => ({
+    round: index + 1,
+    question: draft.question,
+    hint: draft.hint,
+    hintReleased: false,
+  }));
+  await db.trainingSession.update({
+    where: { id: session.id },
+    // Prisma Json 写入类型要求 InputJsonValue：此处为纯数据对象数组，经 unknown 收窄
+    data: { followups: records as unknown as Prisma.InputJsonValue },
+  });
+  return records;
 }
 
 /** 提交首答（FR-4/BR-4）：状态推进 → 调 AI 生成追问（1~2 轮）存入 followups jsonb */
@@ -264,7 +308,7 @@ export async function submitFirstAnswer(
   sessionId: string,
   userId: string,
   answer: string,
-  deps: FirstAnswerDeps = {},
+  deps: FollowupGenerationDeps = {},
 ): Promise<FirstAnswerResult> {
   const session = await loadOwnedSession(db, sessionId, userId);
 
@@ -296,44 +340,65 @@ export async function submitFirstAnswer(
   }
 
   // 调 AI 网关生成追问（BR-4：找逻辑漏洞、挑战假设、索要证据）；
-  // T19（D22）：同一次调用为每条追问附带一条预生成提示，随追问一并落库，
-  // 用户点击时读库零等待。失败不阻塞训练（任务契约：可跳过直达终答），
-  // followups 置空并记审计日志。
-  let drafts: FollowupDraft[] = [];
-  try {
-    const rubric = session.question.rubric as unknown as FollowupInput["rubric"];
-    drafts = await (deps.generateFollowups ?? generateFollowups)({
-      mainQuestion: session.question.mainQuestion,
-      firstAnswer: answer,
-      rubric,
-    });
-  } catch (error) {
-    console.warn(
-      JSON.stringify({
-        event: "training.followup_generation_failed",
-        sessionId,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
-  }
-
-  const records: FollowupRecord[] = drafts.map((draft, index) => ({
-    round: index + 1,
-    question: draft.question,
-    hint: draft.hint,
-    hintReleased: false,
-  }));
-  await db.trainingSession.update({
-    where: { id: sessionId },
-    // Prisma Json 写入类型要求 InputJsonValue：此处为纯数据对象数组，经 unknown 收窄
-    data: { followups: records as unknown as Prisma.InputJsonValue },
-  });
+  // 失败不阻塞训练（任务契约：可跳过直达终答），followups 置空并记审计日志。
+  const records = await generateAndStoreFollowups(db, session, answer, deps);
 
   return {
     state: "followup",
     followups: toFollowupViews(records),
     coefficient: independenceCoefficient(session.hintCount, session.followupHintCount),
     firstSubmittedAt: submittedAt,
+  };
+}
+
+export interface FollowupRetryResult {
+  state: TrainingSession["state"];
+  followups: FollowupView[];
+  coefficient: number;
+  firstSubmittedAt: Date;
+}
+
+/**
+ * 追问生成失败后的用户侧重试（T37 / D39）：
+ * - 仅失败态可重试：state=followup、已提交首答、未提交终答、当前 followups 为空数组；
+ * - 幂等：followups 非空时直接返回既有追问，不覆盖、不重复调 AI；
+ * - 失败语义与首答一致：再次失败返回空 followups（落库空数组并记审计日志），
+ *   由前端按失败态处理（可再试或跳过追问直接作答）。
+ */
+export async function retryFollowups(
+  db: DbClient,
+  sessionId: string,
+  userId: string,
+  deps: FollowupGenerationDeps = {},
+): Promise<FollowupRetryResult> {
+  const session = await loadOwnedSession(db, sessionId, userId);
+
+  if (
+    session.state !== "followup" ||
+    session.firstSubmittedAt === null ||
+    session.firstAnswer === null ||
+    session.finalSubmittedAt !== null
+  ) {
+    throw new TrainingError(CODES.INVALID_STATE, 409, "当前状态不可重试追问生成");
+  }
+
+  const existing = parseFollowupRecords(session.followups);
+  if (existing.length > 0) {
+    // 幂等：已有追问 → 返回既有记录，不重复调 AI
+    return {
+      state: session.state,
+      followups: toFollowupViews(existing),
+      coefficient: independenceCoefficient(session.hintCount, session.followupHintCount),
+      firstSubmittedAt: session.firstSubmittedAt,
+    };
+  }
+
+  const records = await generateAndStoreFollowups(db, session, session.firstAnswer, deps);
+  return {
+    state: session.state,
+    followups: toFollowupViews(records),
+    coefficient: independenceCoefficient(session.hintCount, session.followupHintCount),
+    firstSubmittedAt: session.firstSubmittedAt,
   };
 }
 

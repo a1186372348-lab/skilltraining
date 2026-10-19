@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { GET, PUT } from "./route";
 
 // 集成测试：直接调用路由处理函数，打真实数据库（docker PostgreSQL:5433）。
-// 身份走开发态 header 透传（T03 登录就绪前的占位，见 server/lib/dev-identity.ts）。
+// 身份走真实会话 cookie（T34，见 server/lib/request-user.ts）。
 
 const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
@@ -28,25 +28,28 @@ function devEmail(): string {
   return `t04-api-${randomUUID()}@example.com`;
 }
 
-function buildRequest(
+async function buildRequest(
   body: unknown,
   email?: string,
   method = "PUT",
-): Request {
+): Promise<Request> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
-  if (email) headers[DEV_USER_HEADER] = email;
+  if (email) {
+    const user = await prisma.user.upsert({
+      where: { email },
+      create: { email },
+      update: {},
+    });
+    createdUserIds.push(user.id);
+    headers.cookie = sessionCookieHeader(user);
+  }
   return new Request("http://localhost/api/profile", {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-}
-
-async function cleanupByEmail(email: string): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (user) createdUserIds.push(user.id);
 }
 
 afterEach(() => {
@@ -72,7 +75,7 @@ describe("PUT /api/profile：提交画像", () => {
       data: { userId: seed.id, payload: { position: "草稿职位" } },
     });
 
-    const res = await PUT(buildRequest(validBody, email));
+    const res = await PUT(await buildRequest(validBody, email));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
@@ -89,9 +92,8 @@ describe("PUT /api/profile：提交画像", () => {
 
   it("幂等可重试：同一 body 重复提交结果一致，仅一条画像", async () => {
     const email = devEmail();
-    const first = await (await PUT(buildRequest(validBody, email))).json();
-    const second = await (await PUT(buildRequest(validBody, email))).json();
-    await cleanupByEmail(email);
+    const first = await (await PUT(await buildRequest(validBody, email))).json();
+    const second = await (await PUT(await buildRequest(validBody, email))).json();
 
     expect(first.success).toBe(true);
     expect(second).toEqual(first);
@@ -101,8 +103,7 @@ describe("PUT /api/profile：提交画像", () => {
     const email = devEmail();
     const body = { ...validBody } as Record<string, unknown>;
     delete body.position;
-    const res = await PUT(buildRequest(body, email));
-    await cleanupByEmail(email);
+    const res = await PUT(await buildRequest(body, email));
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -113,45 +114,48 @@ describe("PUT /api/profile：提交画像", () => {
 
   it("请求体不是合法 JSON：400", async () => {
     const email = devEmail();
+    const user = await prisma.user.create({ data: { email } });
+    createdUserIds.push(user.id);
     const req = new Request("http://localhost/api/profile", {
       method: "PUT",
       headers: {
         "content-type": "application/json",
-        [DEV_USER_HEADER]: email,
+        cookie: sessionCookieHeader(user),
       },
       body: "{not-json",
     });
     const res = await PUT(req);
-    await cleanupByEmail(email);
 
     expect(res.status).toBe(400);
     expect((await res.json()).error.code).toBe("INVALID_JSON");
   });
 
-  it("生产环境（T03 未接入）无会话：401，不放行", async () => {
+  it("生产环境无会话 cookie：401，不放行（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await PUT(buildRequest(validBody, devEmail()));
+    const res = await PUT(await buildRequest(validBody));
     expect(res.status).toBe(401);
     expect((await res.json()).success).toBe(false);
   });
 
-  it("开发态无 header 时使用默认开发用户，仍可提交", async () => {
-    const res = await PUT(buildRequest(validBody));
-    expect(res.status).toBe(200);
-    const user = await prisma.user.findUnique({
-      where: { email: "dev@skilltraining.local" },
+  it("旧开发头不再生效：仅带 x-dev-user-id、无会话 cookie 时 401（T34 反向断言）", async () => {
+    const req = new Request("http://localhost/api/profile", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "x-dev-user-id": devEmail(),
+      },
+      body: JSON.stringify(validBody),
     });
-    if (user) createdUserIds.push(user.id);
-    expect((await res.json()).success).toBe(true);
+    const res = await PUT(req);
+    expect(res.status).toBe(401);
   });
 });
 
 describe("GET /api/profile：读取画像", () => {
   it("已提交用户返回画像", async () => {
     const email = devEmail();
-    await PUT(buildRequest(validBody, email));
-    const res = await GET(buildRequest(undefined, email, "GET"));
-    await cleanupByEmail(email);
+    await PUT(await buildRequest(validBody, email));
+    const res = await GET(await buildRequest(undefined, email, "GET"));
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -161,19 +165,16 @@ describe("GET /api/profile：读取画像", () => {
 
   it("未提交用户 data 为 null", async () => {
     const email = devEmail();
-    const res = await GET(buildRequest(undefined, email, "GET"));
-    await cleanupByEmail(email);
+    const res = await GET(await buildRequest(undefined, email, "GET"));
 
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data).toBeNull();
   });
 
-  it("生产环境无会话：401", async () => {
+  it("生产环境无会话 cookie：401（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await GET(
-      buildRequest(undefined, devEmail(), "GET"),
-    );
+    const res = await GET(await buildRequest(undefined, undefined, "GET"));
     expect(res.status).toBe(401);
   });
 });

@@ -7,7 +7,7 @@ import type { RubricScoringInput, RubricScoringOutput } from "./rubric-scorer.ts
  * - 每个样例的每个维度给出实际分、期望分数带、是否带内、漂移量（带外距离）；
  * - 任一维度漂出分数带即回归失败（脚本退出码非 0）；
  * - mock 模式用确定性桩评分（取分数带中值），离线验证报告管线本身；
- * - 真实模式经 MiMo 网关跑同一组样例，用于上线前/换模型后的评分回归。
+ * - 真实模式经 AI 网关（DeepSeek，D39）跑同一组样例，用于上线前/换模型后的评分回归。
  *
  * 校准集维护约定（D14）：从首批题库沉淀，20~30 例为目标；MVP 先内置 3 例骨架。
  */
@@ -131,6 +131,7 @@ export const CALIBRATION_SAMPLES: CalibrationSample[] = [
   {
     id: "CAL-01-strong-answer",
     input: {
+      mainDimension: "用户理解", // 首维度即主测维度（T33 R3 必填字段）
       mainQuestion: "Cursor 的 Agent 模式相对传统补全，为什么是产品形态上的质变？",
       rubricDimensions: {
         用户理解: ["区分两类任务的差异", "识别写代码之外的时间消耗", "指出人机关系变化"],
@@ -150,6 +151,7 @@ export const CALIBRATION_SAMPLES: CalibrationSample[] = [
   {
     id: "CAL-02-weak-answer",
     input: {
+      mainDimension: "用户理解",
       mainQuestion: "Cursor 的 Agent 模式相对传统补全，为什么是产品形态上的质变？",
       rubricDimensions: {
         用户理解: ["区分两类任务的差异", "识别写代码之外的时间消耗", "指出人机关系变化"],
@@ -165,6 +167,7 @@ export const CALIBRATION_SAMPLES: CalibrationSample[] = [
   {
     id: "CAL-03-mid-answer",
     input: {
+      mainDimension: "根因分析",
       mainQuestion: "滴滴高峰期动态加价被用户骂「趁火打劫」，作为产品经理你如何回应并决策是否调整？",
       rubricDimensions: {
         根因分析: ["区分情绪表层与机制根因", "识别供需失衡的核心矛盾"],

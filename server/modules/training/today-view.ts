@@ -42,7 +42,7 @@ export interface TodayView {
   date: string; // ISO 日期（每日一题归属日）
   /** 会话用途（T17a / D19）：基线未完成时 today 接口返回基线会话（kind=baseline） */
   kind: "baseline" | "daily";
-  /** 基线进度（仅 kind=baseline 时下发：{ done: 已评完题数, total: 基线题总数 }） */
+  /** 基线进度（仅 kind=baseline 时下发：{ done: 已作答（提交终答）题数（T36 / D38 口径）, total: 基线题总数 }） */
   baselineProgress: { done: number; total: number } | null;
   // 题目展示（US-003）：案例 / 训练重点 / 主问题 / 资料
   caseTitle: string;

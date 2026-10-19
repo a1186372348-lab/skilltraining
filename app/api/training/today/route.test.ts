@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 import { todayUtc } from "@/server/modules/training/service";
 
 import { GET } from "./route";
@@ -64,9 +64,12 @@ async function ensureSeedQuestion(): Promise<void> {
   }
 }
 
-function buildRequest(email?: string): Request {
+async function buildRequest(email?: string): Promise<Request> {
   const headers: Record<string, string> = {};
-  if (email) headers[DEV_USER_HEADER] = email;
+  if (email) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    headers.cookie = sessionCookieHeader(user);
+  }
   return new Request("http://localhost/api/training/today", { method: "GET", headers });
 }
 
@@ -169,7 +172,7 @@ describe("GET /api/training/today：T21 会话选择（最近非基线会话优�
     });
     const extra = await seedTodaySession(userId, { isExtra: true });
 
-    const res = await GET(buildRequest(email));
+    const res = await GET(await buildRequest(email));
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.kind).toBe("daily");
@@ -193,7 +196,7 @@ describe("GET /api/training/today：T21 会话选择（最近非基线会话优�
       startedAt: new Date(Date.now() - 3_600_000),
     });
 
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.data.sessionId).toBe(extra.id);
     expect(json.data.finalAnswer).toBe("加练终答");
   });
@@ -209,7 +212,7 @@ describe("GET /api/training/today：T21 会话选择（最近非基线会话优�
       finalSubmittedAt: new Date(),
     });
 
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.data.kind).toBe("daily");
     expect(json.data.sessionId).not.toBe(baselineSession.id);
     expect(json.data.caseTitle).toBe("T05 集成测试种子题");
@@ -219,8 +222,8 @@ describe("GET /api/training/today：T21 会话选择（最近非基线会话优�
 describe("GET /api/training/today（US-003 / FR-10）", () => {
   it("首次进入创建会话并返回案例/训练重点/主问题/资料；重复进入复用同一会话", async () => {
     const email = await newBaselineDoneEmail();
-    const first = await (await GET(buildRequest(email))).json();
-    const second = await (await GET(buildRequest(email))).json();
+    const first = await (await GET(await buildRequest(email))).json();
+    const second = await (await GET(await buildRequest(email))).json();
 
     expect(first.success).toBe(true);
     expect(first.data.sessionId).toBe(second.data.sessionId);
@@ -237,7 +240,7 @@ describe("GET /api/training/today（US-003 / FR-10）", () => {
 
   it("响应绝不含 Rubric 与未释放提示层（FR-10）", async () => {
     const email = await newBaselineDoneEmail();
-    const res = await GET(buildRequest(email));
+    const res = await GET(await buildRequest(email));
     const raw = JSON.stringify(await res.json());
     expect(raw).not.toContain("绝密要点");
     expect(raw).not.toContain("绝密结论");
@@ -246,9 +249,9 @@ describe("GET /api/training/today（US-003 / FR-10）", () => {
     expect(raw).not.toContain("第1层提示");
   });
 
-  it("生产环境（T03 未接入）无会话：401", async () => {
+  it("生产环境无会话 cookie：401（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await GET(buildRequest(await newEmail()));
+    const res = await GET(await buildRequest());
     expect(res.status).toBe(401);
     vi.unstubAllEnvs();
   });

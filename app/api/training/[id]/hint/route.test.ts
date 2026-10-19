@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { POST } from "./route";
 
@@ -73,20 +73,18 @@ async function newUserWithSession() {
   return { email, sessionId: session.id };
 }
 
-function buildRequest(email: string): [Request, { params: Promise<{ id: string }> }] {
-  return [
-    new Request("http://localhost/api/training/x/hint", {
-      method: "POST",
-      headers: { [DEV_USER_HEADER]: email },
-    }),
-    { params: Promise.resolve({ id: "" }) }, // 调用处替换
-  ];
-}
-
 async function callHint(email: string, sessionId: string) {
-  const [request, context] = buildRequest(email);
-  context.params = Promise.resolve({ id: sessionId });
-  return POST(request, context);
+  const user = await prisma.user.upsert({
+    where: { email },
+    create: { email },
+    update: {},
+  });
+  createdUserIds.push(user.id);
+  const request = new Request("http://localhost/api/training/x/hint", {
+    method: "POST",
+    headers: { cookie: sessionCookieHeader(user) },
+  });
+  return POST(request, { params: Promise.resolve({ id: sessionId }) });
 }
 
 beforeAll(ensureSeedQuestion);
@@ -121,8 +119,6 @@ describe("POST /api/training/:id/hint（FR-3 / D12）", () => {
     const res = await callHint(stranger, sessionId);
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe("SESSION_NOT_FOUND");
-    const user = await prisma.user.findUnique({ where: { email: stranger } });
-    if (user) createdUserIds.push(user.id);
   });
 
   it("首次提交后：409 HINT_DISABLED（D7）", async () => {

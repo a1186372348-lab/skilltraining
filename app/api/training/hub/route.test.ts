@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 import { todayUtc } from "@/server/modules/training/service";
 
 import { GET } from "./route";
@@ -56,9 +56,12 @@ async function ensureSeedQuestions(): Promise<void> {
   }
 }
 
-function buildRequest(email?: string): Request {
+async function buildRequest(email?: string): Promise<Request> {
   const headers: Record<string, string> = {};
-  if (email) headers[DEV_USER_HEADER] = email;
+  if (email) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    headers.cookie = sessionCookieHeader(user);
+  }
   return new Request("http://localhost/api/training/hub", { method: "GET", headers });
 }
 
@@ -105,9 +108,9 @@ afterAll(async () => {
 });
 
 describe("GET /api/training/hub：鉴权", () => {
-  it("生产环境（T03 未接入）无会话：401", async () => {
+  it("生产环境无会话 cookie：401（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const res = await GET(buildRequest());
+    const res = await GET(await buildRequest());
     expect(res.status).toBe(401);
     vi.unstubAllEnvs();
   });
@@ -116,7 +119,7 @@ describe("GET /api/training/hub：鉴权", () => {
 describe("GET /api/training/hub：空大厅（新用户）", () => {
   it("当前卡「未开始」（携带今日日期键）、历史为空、连续 0 天", async () => {
     const { email } = await newUser();
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.success).toBe(true);
     expect(json.data.current).toEqual({
       kind: "not_started",
@@ -141,9 +144,9 @@ describe("GET /api/training/hub：当前训练卡三态", () => {
     });
 
     const [readingJson, followupJson, scoringJson] = await Promise.all([
-      GET(buildRequest(reading.email)).then((res) => res.json()),
-      GET(buildRequest(followup.email)).then((res) => res.json()),
-      GET(buildRequest(scoring.email)).then((res) => res.json()),
+      GET(await buildRequest(reading.email)).then((res) => res.json()),
+      GET(await buildRequest(followup.email)).then((res) => res.json()),
+      GET(await buildRequest(scoring.email)).then((res) => res.json()),
     ]);
     expect(readingJson.data.current).toMatchObject({ kind: "in_progress", stage: "answering" });
     expect(followupJson.data.current).toMatchObject({ kind: "in_progress", stage: "followup" });
@@ -163,7 +166,7 @@ describe("GET /api/training/hub：当前训练卡三态", () => {
       startedAt: new Date(Date.now() - DAY_MS),
       state: "answering",
     });
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.data.current).toMatchObject({
       kind: "in_progress",
       sessionId: stale.id,
@@ -188,7 +191,7 @@ describe("GET /api/training/hub：当前训练卡三态", () => {
         effectiveScore: 80 - index * 10,
       })),
     });
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.data.current.kind).toBe("completed");
     expect(json.data.current.sessionId).toBe(session.id);
     expect(json.data.current.caseTitle).toBe("T25 大厅集成测试种子题");
@@ -206,7 +209,7 @@ describe("GET /api/training/hub：历史列表", () => {
       state: "answering",
     });
     const daily = await seedSession(userId, { state: "answering" });
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     // 进行中的基线会话不算「当前训练」的进行中——daily 会话才是
     expect(json.data.current).toMatchObject({ kind: "in_progress", sessionId: daily.id });
     const historyIds = json.data.history.map((row: { sessionId: string }) => row.sessionId);
@@ -221,7 +224,7 @@ describe("GET /api/training/hub：历史列表", () => {
       isExtra: true,
       state: "answering",
     });
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.data.current.kind).toBe("not_started");
     expect(json.data.history).toEqual([]);
   });
@@ -235,7 +238,7 @@ describe("GET /api/training/hub：历史列表", () => {
       startedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
     });
     const newer = await seedSession(userId, { isExtra: true, state: "answering" });
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.data.history.map((row: { sessionId: string }) => row.sessionId)).toEqual([
       newer.id,
       older.id,
@@ -260,7 +263,7 @@ describe("GET /api/training/hub：历史列表", () => {
         startedAt: new Date(Date.now() - 1000 * (21 - index)),
       })),
     });
-    const json = await (await GET(buildRequest(email))).json();
+    const json = await (await GET(await buildRequest(email))).json();
     expect(json.data.history).toHaveLength(20);
   });
 });
@@ -296,8 +299,8 @@ describe("GET /api/training/hub：连续训练天数", () => {
     });
 
     const [twoJson, oneJson] = await Promise.all([
-      GET(buildRequest(streakTwo.email)).then((res) => res.json()),
-      GET(buildRequest(streakOne.email)).then((res) => res.json()),
+      GET(await buildRequest(streakTwo.email)).then((res) => res.json()),
+      GET(await buildRequest(streakOne.email)).then((res) => res.json()),
     ]);
     expect(twoJson.data.streakDays).toBe(2);
     expect(oneJson.data.streakDays).toBe(1);

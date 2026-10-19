@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { POST } from "./route";
 
@@ -85,10 +85,11 @@ async function newUserWithSession(overrides?: { firstSubmitted?: boolean }) {
   return { email, sessionId: session.id };
 }
 
-function callFirstAnswer(email: string, sessionId: string, body: unknown) {
+async function callFirstAnswer(email: string, sessionId: string, body: unknown) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
   const request = new Request(`http://localhost/api/training/${sessionId}/first-answer`, {
     method: "POST",
-    headers: { "content-type": "application/json", [DEV_USER_HEADER]: email },
+    headers: { "content-type": "application/json", cookie: sessionCookieHeader(user) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return POST(request, { params: Promise.resolve({ id: sessionId }) });
@@ -147,9 +148,10 @@ describe("POST /api/training/:id/first-answer（FR-4 / BR-4）", () => {
 
   it("请求体不是合法 JSON：400 INVALID_JSON", async () => {
     const { email, sessionId } = await newUserWithSession();
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
     const request = new Request(`http://localhost/api/training/${sessionId}/first-answer`, {
       method: "POST",
-      headers: { "content-type": "application/json", [DEV_USER_HEADER]: email },
+      headers: { "content-type": "application/json", cookie: sessionCookieHeader(user) },
       body: "{oops",
     });
     const res = await POST(request, { params: Promise.resolve({ id: sessionId }) });

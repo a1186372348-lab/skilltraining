@@ -163,6 +163,17 @@ export interface FinalAnswerResponse {
   finalAnswer: string;
 }
 
+/** POST /api/training/:id/followup-retry 的 data 负载（T37 / D39：追问生成失败后的用户侧重试，幂等） */
+export interface FollowupRetryResponse {
+  /** 保持 followup（重试不推进状态机） */
+  state: TrainingSessionState;
+  /** 重新生成的追问 1~2 轮；再次失败为空数组（前端按失败态处理）；已有追问时幂等返回既有 */
+  followups: FollowupRound[];
+  coefficient: number;
+  /** 首答提交时间（ISO） */
+  firstSubmittedAt: string;
+}
+
 /** POST /api/training/extra 的 data 负载（T21 / D3：创建或复用加练会话，进行中复用同 id） */
 export interface ExtraSessionResponse {
   sessionId: string;

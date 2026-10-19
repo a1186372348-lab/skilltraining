@@ -1,15 +1,15 @@
-// MiMo 用量汇总纯函数单测（T23）：容错解析 + 汇总计算 + 中文报告格式化
+// AI 网关用量汇总纯函数单测（T23；T37 / D39 起 provider 中立命名）：容错解析 + 汇总计算 + 中文报告格式化
 import { describe, expect, it } from "vitest";
 
-import { formatMimoUsageReport, summarizeMimoUsage } from "./mimo-usage.ts";
+import { formatAiUsageReport, summarizeAiUsage } from "./ai-usage.ts";
 
-const EVENT = "ai.mimo.chat_completion";
+const EVENT = "ai.deepseek.chat_completion";
 
 /** 成功审计事件（默认带 usage，无 error 字段） */
 function okEvent(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     event: EVENT,
-    model: "mimo-v2.6-pro",
+    model: "deepseek-flash",
     status: 200,
     attempts: 1,
     latencyMs: 1000,
@@ -23,7 +23,7 @@ function okEvent(overrides: Record<string, unknown> = {}): string {
 function failEvent(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     event: EVENT,
-    model: "mimo-v2.6-pro",
+    model: "deepseek-flash",
     status: null,
     attempts: 4,
     latencyMs: 240000,
@@ -36,9 +36,9 @@ function lines(...rows: string[]): string {
   return rows.join("\n");
 }
 
-describe("summarizeMimoUsage", () => {
+describe("summarizeAiUsage", () => {
   it("空输入与纯空白行：全部计数为 0、统计值为 null", () => {
-    const s = summarizeMimoUsage("  \n\n   \n");
+    const s = summarizeAiUsage("  \n\n   \n");
     expect(s.total).toBe(0);
     expect(s.success).toBe(0);
     expect(s.failure).toBe(0);
@@ -58,7 +58,7 @@ describe("summarizeMimoUsage", () => {
   });
 
   it("混合非 JSON 行、其他事件行、非对象 JSON：全部容错跳过", () => {
-    const s = summarizeMimoUsage(
+    const s = summarizeAiUsage(
       lines(
         "GET /today 200 in 123ms",
         "Error: boom",
@@ -77,7 +77,7 @@ describe("summarizeMimoUsage", () => {
   });
 
   it("全部成功：成功率 1，失败与错误计数为 0", () => {
-    const s = summarizeMimoUsage(
+    const s = summarizeAiUsage(
       lines(
         okEvent(),
         okEvent({ attempts: 2, latencyMs: 3000, promptTokens: 200, completionTokens: 100 }),
@@ -99,7 +99,7 @@ describe("summarizeMimoUsage", () => {
   });
 
   it("全部失败：成功率 0，token 缺失不计入 missingUsage", () => {
-    const s = summarizeMimoUsage(
+    const s = summarizeAiUsage(
       lines(
         failEvent(),
         failEvent({ error: "failed", status: 500, attempts: 2, latencyMs: 60000 }),
@@ -118,12 +118,12 @@ describe("summarizeMimoUsage", () => {
   });
 
   it("error 为非 timeout/failed 的值时归入其他", () => {
-    const s = summarizeMimoUsage(lines(failEvent({ error: "network" })));
+    const s = summarizeAiUsage(lines(failEvent({ error: "network" })));
     expect(s.errors).toEqual({ timeout: 0, failed: 0, other: 1 });
   });
 
   it("截空指标：仅 status=200 且 error=failed 计入", () => {
-    const s = summarizeMimoUsage(
+    const s = summarizeAiUsage(
       lines(
         failEvent({ error: "failed", status: 200, attempts: 1, latencyMs: 59980 }),
         failEvent({ error: "failed", status: null }),
@@ -135,7 +135,7 @@ describe("summarizeMimoUsage", () => {
   });
 
   it("缺 usage 的成功事件：跳过 token 统计并计数", () => {
-    const s = summarizeMimoUsage(
+    const s = summarizeAiUsage(
       lines(
         okEvent({ promptTokens: null, completionTokens: null }),
         okEvent({ promptTokens: 200, completionTokens: null }),
@@ -149,7 +149,7 @@ describe("summarizeMimoUsage", () => {
   });
 
   it("attempts 分布、一次成功占比、含重试占比、平均 attempts", () => {
-    const s = summarizeMimoUsage(
+    const s = summarizeAiUsage(
       lines(
         okEvent(),
         okEvent(),
@@ -170,8 +170,8 @@ describe("summarizeMimoUsage", () => {
   });
 
   it("畸形事件（缺 attempts/latencyMs/usage）：计入总数但跳过对应统计", () => {
-    const s = summarizeMimoUsage(
-      lines(JSON.stringify({ event: EVENT, model: "mimo-v2.6-pro" })),
+    const s = summarizeAiUsage(
+      lines(JSON.stringify({ event: EVENT, model: "deepseek-flash" })),
     );
     expect(s.total).toBe(1);
     expect(s.success).toBe(1);
@@ -181,10 +181,10 @@ describe("summarizeMimoUsage", () => {
   });
 });
 
-describe("formatMimoUsageReport", () => {
+describe("formatAiUsageReport", () => {
   it("输出核心栏目：调用量、失败分布、截空、重试、耗时、token、两行判断", () => {
-    const report = formatMimoUsageReport(
-      summarizeMimoUsage(lines(okEvent(), failEvent())),
+    const report = formatAiUsageReport(
+      summarizeAiUsage(lines(okEvent(), failEvent())),
     );
     expect(report).toContain("成功率 50.0%");
     expect(report).toContain("timeout 1");
@@ -196,8 +196,8 @@ describe("formatMimoUsageReport", () => {
   });
 
   it("completion 峰值余量 ≥2 倍：判定健康", () => {
-    const report = formatMimoUsageReport(
-      summarizeMimoUsage(okEvent({ completionTokens: 623 })),
+    const report = formatAiUsageReport(
+      summarizeAiUsage(okEvent({ completionTokens: 623 })),
     );
     // 4096 / 623 ≈ 6.6 倍
     expect(report).toContain("6.6 倍");
@@ -205,23 +205,23 @@ describe("formatMimoUsageReport", () => {
   });
 
   it("completion 峰值余量 <2 倍：给出告警提示", () => {
-    const report = formatMimoUsageReport(
-      summarizeMimoUsage(okEvent({ completionTokens: 3900 })),
+    const report = formatAiUsageReport(
+      summarizeAiUsage(okEvent({ completionTokens: 3900 })),
     );
     expect(report).toContain("低于 2 倍健康线");
   });
 
   it("无 completion 观测：提示无法校验预算余量", () => {
-    const report = formatMimoUsageReport(summarizeMimoUsage(failEvent()));
+    const report = formatAiUsageReport(summarizeAiUsage(failEvent()));
     expect(report).toContain("无法校验预算余量");
   });
 
   it("截空 0 次与非 0 次给出不同提示语", () => {
-    const clean = formatMimoUsageReport(summarizeMimoUsage(okEvent()));
+    const clean = formatAiUsageReport(summarizeAiUsage(okEvent()));
     expect(clean).toContain("未发现「200 空 content」");
 
-    const dirty = formatMimoUsageReport(
-      summarizeMimoUsage(
+    const dirty = formatAiUsageReport(
+      summarizeAiUsage(
         lines(
           failEvent({ error: "failed", status: 200 }),
           failEvent({ error: "failed", status: 200 }),
@@ -233,7 +233,7 @@ describe("formatMimoUsageReport", () => {
   });
 
   it("空输入：明确提示未找到事件", () => {
-    const report = formatMimoUsageReport(summarizeMimoUsage(""));
-    expect(report).toContain("未找到 ai.mimo.chat_completion 事件");
+    const report = formatAiUsageReport(summarizeAiUsage(""));
+    expect(report).toContain("未找到 ai.deepseek.chat_completion 事件");
   });
 });

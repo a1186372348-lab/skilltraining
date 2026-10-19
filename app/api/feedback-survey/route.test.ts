@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { POST } from "./route";
 
@@ -82,10 +82,11 @@ async function seedSession(
   return session.id;
 }
 
-function callSurvey(email: string, body: unknown) {
+async function callSurvey(email: string, body: unknown) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
   const request = new Request("http://localhost/api/feedback-survey", {
     method: "POST",
-    headers: { "content-type": "application/json", [DEV_USER_HEADER]: email },
+    headers: { "content-type": "application/json", cookie: sessionCookieHeader(user) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return POST(request);
@@ -149,9 +150,10 @@ describe("POST /api/feedback-survey（校验与落库）", () => {
 
   it("请求体非 JSON：400 INVALID_JSON", async () => {
     const { email } = await newUser();
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
     const request = new Request("http://localhost/api/feedback-survey", {
       method: "POST",
-      headers: { "content-type": "application/json", [DEV_USER_HEADER]: email },
+      headers: { "content-type": "application/json", cookie: sessionCookieHeader(user) },
       body: "not-json{",
     });
     const res = await POST(request);

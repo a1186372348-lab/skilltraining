@@ -5,7 +5,7 @@ import {
   jsonOk,
   unauthorized,
 } from "@/server/lib/api-response";
-import { ensureRequestUser } from "@/server/lib/dev-identity";
+import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import {
   getFeedbackView,
@@ -32,14 +32,14 @@ const SAFE_MESSAGES: Record<string, string> = {
  * 已评分返回 { status: "ready", scores 四元组, topIssueText, nextFocusText, survey }。
  * 评分属 AI 调用端点，按 Prd.md 3.5 启用限流。
  *
- * 工厂模式：测试注入 mock 评分实现（真实冒烟 0 次）；生产缺省走 MiMo 网关。
+ * 工厂模式：测试注入 mock 评分实现（真实冒烟 0 次）；生产缺省走 AI 网关（DeepSeek，D39）。
  */
 export function createFeedbackGetHandler(deps: FeedbackViewDeps = {}) {
   return async function GET(
     request: Request,
     context: { params: Promise<{ id: string }> },
   ) {
-    const user = await ensureRequestUser(prisma, request);
+    const user = await getRequestUser(prisma, request);
     if (!user) return unauthorized();
 
     const limit = aiEndpointRateLimiter.check(`feedback:${user.id}`);

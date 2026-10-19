@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 import { refreshAbilityProfile } from "@/server/modules/profile/ability";
 import { ABILITY_DIMENSIONS } from "@/server/modules/profile/schema";
 
@@ -11,7 +11,7 @@ import { GET } from "./route";
 
 // 集成测试：直接调用路由处理函数，打真实数据库（docker PostgreSQL:5433）。
 // 画像数据经 refreshAbilityProfile 真实管线生成（scores → ability_profiles），
-// 身份走开发态 header 透传（T03 登录就绪前的占位，见 server/lib/dev-identity.ts）。
+// 身份走真实会话 cookie（T34，见 server/lib/request-user.ts）。
 
 const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
@@ -105,10 +105,10 @@ async function seedScore(
   return session.id;
 }
 
-function buildRequest(email: string): Request {
+function buildRequest(user: { id: string; email: string }): Request {
   return new Request("http://localhost/api/profile/ability", {
     method: "GET",
-    headers: { [DEV_USER_HEADER]: email },
+    headers: { cookie: sessionCookieHeader(user) },
   });
 }
 
@@ -123,9 +123,9 @@ afterAll(async () => {
 
 describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", () => {
   it("从未训练的用户：8 维全部未知态 + 0/8 洞察 + 探索期方向 + 无整体依赖度", async () => {
-    const { email } = await newUser();
+    const user = await newUser();
 
-    const res = await GET(buildRequest(email));
+    const res = await GET(buildRequest(user));
     expect(res.status).toBe(200);
     const json = await res.json();
 
@@ -176,7 +176,7 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
     await seedScore(userId, "产品取舍", 65, 3, day(3));
     await refreshAbilityProfile(prisma, userId, ["产品取舍"]);
 
-    const res = await GET(buildRequest(email));
+    const res = await GET(buildRequest({ id: userId, email }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
@@ -250,7 +250,7 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
     }
     await refreshAbilityProfile(prisma, userId, ["方案设计"]);
 
-    const res = await GET(buildRequest(email));
+    const res = await GET(buildRequest({ id: userId, email }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
@@ -269,10 +269,11 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
     }
   });
 
-  it("生产环境（T03 未接入）无会话：401，不放行", async () => {
+  it("生产环境无会话 cookie：401，不放行（T34）", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const { email } = await newUser();
-    const res = await GET(buildRequest(email));
+    const res = await GET(
+      new Request("http://localhost/api/profile/ability", { method: "GET" }),
+    );
     expect(res.status).toBe(401);
     expect((await res.json()).success).toBe(false);
   });

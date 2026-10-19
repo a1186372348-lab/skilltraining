@@ -3,12 +3,13 @@ import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  MIMO_MODEL,
-  MimoApiError,
-  MimoConfigError,
-  createMimoClient,
-  getMimoConfig,
-} from "./mimo-client";
+  AI_AUDIT_EVENT,
+  AI_MODEL,
+  AiApiError,
+  AiConfigError,
+  createAiClient,
+  getAiConfig,
+} from "./client";
 
 // AI 网关契约测试：fetch 全程 mock，禁止真实出网。
 // 假 Key 每次运行随机生成：既通过 ECC 密钥扫描，又更强地断言"日志绝不含本次 Key 值"
@@ -23,14 +24,14 @@ function jsonResponse(status: number, body: unknown): Response {
 
 const completionBody = {
   id: "chatcmpl-test",
-  model: MIMO_MODEL,
+  model: AI_MODEL,
   choices: [{ index: 0, message: { role: "assistant", content: "你好" }, finish_reason: "stop" }],
   usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
 };
 
 function makeClient(fetchImpl: typeof fetch, extra?: { sleep?: (ms: number) => Promise<void>; maxRetries?: number }) {
-  return createMimoClient({
-    baseUrl: "https://mimo.example.test/v1",
+  return createAiClient({
+    baseUrl: "https://ai.example.test/v1",
     apiKey: FAKE_API_KEY,
     fetchImpl,
     timeoutMs: 50,
@@ -39,31 +40,31 @@ function makeClient(fetchImpl: typeof fetch, extra?: { sleep?: (ms: number) => P
   });
 }
 
-describe("getMimoConfig：环境变量读取（Prd.md 3.5 启动时校验）", () => {
+describe("getAiConfig：环境变量读取（Prd.md 3.5 启动时校验）", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("缺 MIMO_API_KEY 抛 MimoConfigError", () => {
-    vi.stubEnv("MIMO_API_KEY", "");
-    vi.stubEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com/v1");
-    expect(() => getMimoConfig()).toThrow(MimoConfigError);
+  it("缺 DEEPSEEK_API_KEY 抛 AiConfigError", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "");
+    vi.stubEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com");
+    expect(() => getAiConfig()).toThrow(AiConfigError);
   });
 
-  it("缺 MIMO_BASE_URL 抛 MimoConfigError", () => {
-    vi.stubEnv("MIMO_API_KEY", "sk-test");
-    vi.stubEnv("MIMO_BASE_URL", "");
-    expect(() => getMimoConfig()).toThrow(MimoConfigError);
+  it("缺 DEEPSEEK_BASE_URL 抛 AiConfigError", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("DEEPSEEK_BASE_URL", "");
+    expect(() => getAiConfig()).toThrow(AiConfigError);
   });
 
-  it("齐全时返回配置且使用默认模型 mimo-v2.6-pro", () => {
-    vi.stubEnv("MIMO_API_KEY", "sk-test");
-    vi.stubEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com/v1/");
-    const config = getMimoConfig();
-    expect(config.baseUrl).toBe("https://api.xiaomimimo.com/v1"); // 去掉尾斜杠
-    expect(config.model).toBe("mimo-v2.6-pro");
+  it("齐全时返回配置且使用默认模型 deepseek-flash", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
+    vi.stubEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/");
+    const config = getAiConfig();
+    expect(config.baseUrl).toBe("https://api.deepseek.com"); // 去掉尾斜杠
+    expect(config.model).toBe("deepseek-flash");
   });
 });
 
-describe("mimoClient.chatCompletion", () => {
+describe("aiClient.chatCompletion", () => {
   let infoSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -88,12 +89,12 @@ describe("mimoClient.chatCompletion", () => {
     expect(result.usage).toEqual({ promptTokens: 10, completionTokens: 2 });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe("https://mimo.example.test/v1/chat/completions");
+    expect(url).toBe("https://ai.example.test/v1/chat/completions");
     const headers = init?.headers as Record<string, string>;
     expect(headers.authorization).toBe(`Bearer ${FAKE_API_KEY}`);
     const body = JSON.parse(String(init?.body));
     expect(body).toMatchObject({
-      model: MIMO_MODEL,
+      model: AI_MODEL,
       temperature: 0.2,
       max_completion_tokens: 128,
       response_format: { type: "json_object" },
@@ -122,13 +123,13 @@ describe("mimoClient.chatCompletion", () => {
     expect(sleeps[1]).toBeGreaterThan(sleeps[0]); // 指数退避
   });
 
-  it("5xx：重试耗尽后抛 MimoApiError（retryable）", async () => {
+  it("5xx：重试耗尽后抛 AiApiError（retryable）", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(500, { error: { message: "boom" } }));
     const client = makeClient(fetchImpl, { maxRetries: 2 });
 
     await expect(
       client.chatCompletion({ messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toMatchObject({ name: "MimoApiError", status: 500, retryable: true });
+    ).rejects.toMatchObject({ name: "AiApiError", status: 500, retryable: true });
     expect(fetchImpl).toHaveBeenCalledTimes(3); // 1 + 2 次重试
   });
 
@@ -142,7 +143,7 @@ describe("mimoClient.chatCompletion", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it("超时：AbortSignal 触发后抛 MimoApiError（timeout）", async () => {
+  it("超时：AbortSignal 触发后抛 AiApiError（timeout）", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
       (_url, init) =>
         new Promise<Response>((_resolve, reject) => {
@@ -155,15 +156,15 @@ describe("mimoClient.chatCompletion", () => {
 
     await expect(
       client.chatCompletion({ messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toMatchObject({ name: "MimoApiError", timeout: true });
+    ).rejects.toMatchObject({ name: "AiApiError", timeout: true });
   });
 
-  it("200 但响应体结构异常：抛 MimoApiError", async () => {
+  it("200 但响应体结构异常：抛 AiApiError", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, { choices: [] }));
     const client = makeClient(fetchImpl);
     await expect(
       client.chatCompletion({ messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toBeInstanceOf(MimoApiError);
+    ).rejects.toBeInstanceOf(AiApiError);
   });
 
   // T22：推理模型高负载下正文被截空属瞬时退化，「200 空 content」纳入退避重试
@@ -180,7 +181,7 @@ describe("mimoClient.chatCompletion", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it("200 空 content 持续出现：重试耗尽后抛 MimoApiError（retryable）", async () => {
+  it("200 空 content 持续出现：重试耗尽后抛 AiApiError（retryable）", async () => {
     // 每次调用返回新 Response（body 只能消费一次）
     const fetchImpl = vi
       .fn<typeof fetch>()
@@ -191,11 +192,11 @@ describe("mimoClient.chatCompletion", () => {
 
     await expect(
       client.chatCompletion({ messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toMatchObject({ name: "MimoApiError", status: 200, retryable: true });
+    ).rejects.toMatchObject({ name: "AiApiError", status: 200, retryable: true });
     expect(fetchImpl).toHaveBeenCalledTimes(3); // 1 + 2 次重试
   });
 
-  it("审计日志：记录模型/状态/耗时/用量，绝不包含 API Key 与消息明文", async () => {
+  it("审计日志：事件名 + 模型/状态/耗时/用量，绝不包含 API Key 与消息明文", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, completionBody));
     const client = makeClient(fetchImpl);
 
@@ -203,7 +204,8 @@ describe("mimoClient.chatCompletion", () => {
 
     expect(infoSpy).toHaveBeenCalled();
     const allLogs = infoSpy.mock.calls.flat().map(String).join("\n");
-    expect(allLogs).toContain(MIMO_MODEL);
+    expect(allLogs).toContain(AI_AUDIT_EVENT);
+    expect(allLogs).toContain(AI_MODEL);
     expect(allLogs).not.toContain(FAKE_API_KEY);
     expect(allLogs).not.toContain("机密答案明文");
   });
@@ -214,7 +216,7 @@ describe("mimoClient.chatCompletion", () => {
 
     await expect(
       client.chatCompletion({ messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toBeInstanceOf(MimoApiError);
+    ).rejects.toBeInstanceOf(AiApiError);
     const allLogs = infoSpy.mock.calls.flat().map(String).join("\n");
     expect(allLogs).toContain("503");
   });

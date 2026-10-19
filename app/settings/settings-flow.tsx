@@ -73,7 +73,7 @@ export function SettingsFlow() {
     }
   };
 
-  // 会话缺失时按 dev-identity 约定回退为开发占位身份（含加载中/加载失败场景）
+  // 会话缺失时回退为 dev 占位身份展示（含加载中/加载失败场景，不代表已登录）
   const account = accountViewOf(session);
   const accountText =
     phase === "loading"

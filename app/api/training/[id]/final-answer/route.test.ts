@@ -1,13 +1,20 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { sessionCookieHeader } from "@/app/api/_test/session";
+import { triggerSessionScoring } from "@/server/modules/scoring/trigger";
 
 import { POST } from "./route";
 
-// POST /api/training/:id/final-answer 集成测试：真实数据库；T05 终答不触发 AI 调用。
+// POST /api/training/:id/final-answer 集成测试：真实数据库；评分触发以模块级 mock
+// 验证（真实冒烟 0 次）——T36 / D38：终答提交成功即后台触发评分（fire-and-forget）。
+
+vi.mock("@/server/modules/scoring/trigger", () => ({
+  triggerSessionScoring: vi.fn(),
+}));
+
+const mockedTrigger = vi.mocked(triggerSessionScoring);
 
 const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
@@ -72,13 +79,14 @@ async function newUserWithSession(overrides?: { firstSubmitted?: boolean }) {
       firstSubmittedAt: overrides?.firstSubmitted ? new Date() : null,
     },
   });
-  return { email, sessionId: session.id };
+  return { email, userId: user.id, sessionId: session.id };
 }
 
-function callFinalAnswer(email: string, sessionId: string, body: unknown) {
+async function callFinalAnswer(email: string, sessionId: string, body: unknown) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
   const request = new Request(`http://localhost/api/training/${sessionId}/final-answer`, {
     method: "POST",
-    headers: { "content-type": "application/json", [DEV_USER_HEADER]: email },
+    headers: { "content-type": "application/json", cookie: sessionCookieHeader(user) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return POST(request, { params: Promise.resolve({ id: sessionId }) });
@@ -147,5 +155,33 @@ describe("POST /api/training/:id/final-answer（幂等 / T06 接入点）", () =
     const json = await res.json();
     expect(json.error.code).toBe("RATE_LIMITED");
     expect(json.error.retryAfterSeconds).toBeGreaterThan(0);
+  });
+});
+
+describe("POST /api/training/:id/final-answer：终答提交即触发评分（T36 / D38）", () => {
+  it("提交成功 → 后台触发该会话评分（fire-and-forget，不影响响应）", async () => {
+    mockedTrigger.mockClear();
+    const { email, userId, sessionId } = await newUserWithSession({ firstSubmitted: true });
+    const res = await callFinalAnswer(email, sessionId, { answer: "触发评分的终答" });
+    expect(res.status).toBe(200);
+    expect(mockedTrigger).toHaveBeenCalledTimes(1);
+    expect(mockedTrigger.mock.calls[0]?.[1]).toBe(sessionId);
+    expect(mockedTrigger.mock.calls[0]?.[2]).toBe(userId);
+  });
+
+  it("答案为空（400）→ 不触发评分", async () => {
+    mockedTrigger.mockClear();
+    const { email, sessionId } = await newUserWithSession({ firstSubmitted: true });
+    const res = await callFinalAnswer(email, sessionId, { answer: "" });
+    expect(res.status).toBe(400);
+    expect(mockedTrigger).not.toHaveBeenCalled();
+  });
+
+  it("业务错误（409 未提交首答）→ 不触发评分", async () => {
+    mockedTrigger.mockClear();
+    const { email, sessionId } = await newUserWithSession();
+    const res = await callFinalAnswer(email, sessionId, { answer: "终答" });
+    expect(res.status).toBe(409);
+    expect(mockedTrigger).not.toHaveBeenCalled();
   });
 });

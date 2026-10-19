@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "source": "人审盲评（docs/v2/blind-review-samples.md → 人审留档 blind-review-scores.md，2026-10-13）",
+    "scope": "仅主测维度，等权分项合计 100；人审声明 ±3 分为质量接近（噪声带）",
+    "bandScale": "90~100 优秀 / 80~89 高质量 / 70~79 较好但有明显缺项 / 60~69 部分达标 / 40~59 较弱 / 0~39 低质量"
+  },
+  "questions": {
+    "B3": {
+      "mainDimension": "问题定义",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S3", "humanScore": 92 },
+        { "sampleIndex": 2, "blindId": "S2", "humanScore": 78 },
+        { "sampleIndex": 3, "blindId": "S4", "humanScore": 12 },
+        { "sampleIndex": 4, "blindId": "S1", "humanScore": 93 }
+      ]
+    },
+    "B5": {
+      "mainDimension": "用户理解",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S2", "humanScore": 76 },
+        { "sampleIndex": 2, "blindId": "S1", "humanScore": 70 },
+        { "sampleIndex": 3, "blindId": "S3", "humanScore": 26 }
+      ]
+    },
+    "B7": {
+      "mainDimension": "根因分析",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S2", "humanScore": 80 },
+        { "sampleIndex": 2, "blindId": "S4", "humanScore": 76 },
+        { "sampleIndex": 3, "blindId": "S3", "humanScore": 89 },
+        { "sampleIndex": 4, "blindId": "S1", "humanScore": 13 }
+      ]
+    },
+    "B10": {
+      "mainDimension": "产品价值判断",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S1", "humanScore": 82 },
+        { "sampleIndex": 2, "blindId": "S4", "humanScore": 65 },
+        { "sampleIndex": 3, "blindId": "S3", "humanScore": 72 },
+        { "sampleIndex": 4, "blindId": "S2", "humanScore": 15 }
+      ]
+    },
+    "B12": {
+      "mainDimension": "方案设计",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S1", "humanScore": 86 },
+        { "sampleIndex": 2, "blindId": "S2", "humanScore": 69 },
+        { "sampleIndex": 3, "blindId": "S4", "humanScore": 77 },
+        { "sampleIndex": 4, "blindId": "S3", "humanScore": 8 }
+      ]
+    },
+    "B14": {
+      "mainDimension": "产品取舍",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S2", "humanScore": 80 },
+        { "sampleIndex": 2, "blindId": "S3", "humanScore": 82 },
+        { "sampleIndex": 3, "blindId": "S4", "humanScore": 77 },
+        { "sampleIndex": 4, "blindId": "S1", "humanScore": 12 }
+      ]
+    },
+    "B16": {
+      "mainDimension": "指标与验证",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S1", "humanScore": 75 },
+        { "sampleIndex": 2, "blindId": "S4", "humanScore": 58 },
+        { "sampleIndex": 3, "blindId": "S2", "humanScore": 63 },
+        { "sampleIndex": 4, "blindId": "S3", "humanScore": 8 }
+      ]
+    },
+    "B17": {
+      "mainDimension": "产品表达",
+      "samples": [
+        { "sampleIndex": 1, "blindId": "S4", "humanScore": 80 },
+        { "sampleIndex": 2, "blindId": "S3", "humanScore": 78 },
+        { "sampleIndex": 3, "blindId": "S1", "humanScore": 79 },
+        { "sampleIndex": 4, "blindId": "S2", "humanScore": 39 }
+      ]
+    }
+  }
+}

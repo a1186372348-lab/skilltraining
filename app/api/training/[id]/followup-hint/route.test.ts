@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DEV_USER_HEADER } from "@/server/lib/dev-identity";
+import { sessionCookieHeader } from "@/app/api/_test/session";
 
 import { POST } from "./route";
 
@@ -79,9 +79,15 @@ async function newUserWithFollowupSession() {
 }
 
 async function callFollowupHint(email: string, sessionId: string, body: unknown = { round: 1 }) {
+  const user = await prisma.user.upsert({
+    where: { email },
+    create: { email },
+    update: {},
+  });
+  createdUserIds.push(user.id);
   const request = new Request("http://localhost/api/training/x/followup-hint", {
     method: "POST",
-    headers: { [DEV_USER_HEADER]: email, "content-type": "application/json" },
+    headers: { cookie: sessionCookieHeader(user), "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   return POST(request, { params: Promise.resolve({ id: sessionId }) });
@@ -144,8 +150,6 @@ describe("POST /api/training/:id/followup-hint（T19 / D22 / BR-2 修订）", ()
     const res = await callFollowupHint(stranger, sessionId);
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe("SESSION_NOT_FOUND");
-    const user = await prisma.user.findUnique({ where: { email: stranger } });
-    if (user) createdUserIds.push(user.id);
   });
 
   it("越状态：首答未提交（reading）409 拒绝", async () => {

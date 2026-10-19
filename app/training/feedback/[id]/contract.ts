@@ -36,6 +36,8 @@ export interface ScoringFeedbackView {
 export interface ReadyFeedbackView {
   status: "ready";
   sessionId: string;
+  /** 题目类型（T36 / D38：基线题反馈页主按钮为「回到基线测评」，不出「再练一题」） */
+  questionKind: "baseline" | "daily";
   scores: FeedbackDimensionScore[];
   /** 最需要优化的一个问题（BR-7） */
   topIssueText: string;

@@ -5,7 +5,7 @@ import type { PrismaClient } from "@prisma/client";
  *
  * 两类可通知项（仅当前用户、仅非基线会话——基线有自己的完成体验，D26⑦）：
  * - scored：终答已评分（state=scored）且 scoredAt 在近 7 天内，倒序至多 5 条；
- * - stuck：终答提交超 5 分钟仍未评分（state 停留 followup，MiMo 波动兜底，D26⑥），
+ * - stuck：终答提交超 5 分钟仍未评分（state 停留 followup，AI 网关波动兜底，D26⑥），
  *   倒序至多 3 条——用户点击进反馈页即懒重触发评分（T07 恢复通道）。
  *
  * 轻量 DB 查询（每 10 秒轮询一次），不接 AI 端点限流（参照 /api/training/today）。

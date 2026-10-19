@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SESSION_COOKIE_NAME } from "@/server/modules/auth/cookies";
 import { resetAuthRateLimitersForTests } from "@/server/modules/auth/guards";
@@ -19,6 +19,15 @@ import { POST as sendLinkPOST } from "@/app/api/auth/send-link/route";
 import { GET as verifyGET } from "@/app/api/auth/verify/route";
 import { GET as sessionGET } from "@/app/api/auth/session/route";
 import { POST as logoutPOST } from "@/app/api/auth/logout/route";
+
+// 登录落点分发（核销成功后跳 /onboarding | /baseline | /）不属于本文件的认证契约范围：
+// 三个落点分支由 app/api/auth/verify/route.test.ts（mock 分发）与
+// server/modules/auth/post-login.test.ts（分发逻辑）覆盖。本文件固定返回 "/"，
+// 聚焦 token 核销 / cookie / 失败口径；同时避免内存仓储的非 UUID 用户 id 触发真实库查询。
+
+vi.mock("@/server/modules/auth/post-login", () => ({
+  resolvePostLoginPath: vi.fn(async () => "/"),
+}));
 
 const TEST_SECRET = "routes-test-secret-0123456789abcdef";
 

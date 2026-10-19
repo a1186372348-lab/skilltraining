@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { TodayShell } from "../../session/shell";
-import { startExtraSession } from "../../session/api";
+import { ApiError, startExtraSession } from "../../session/api";
 
 import { fetchFeedback, submitSurvey } from "./api";
 import type {
@@ -107,6 +107,11 @@ export function FeedbackFlow({ sessionId }: { sessionId: string }) {
       const res = await startExtraSession();
       router.push(`/training/session/${res.sessionId}`);
     } catch (error) {
+      // T36 / D38：基线未完成 → 挡回基线测评（服务端 409 BASELINE_REQUIRED）
+      if (error instanceof ApiError && error.code === "BASELINE_REQUIRED") {
+        router.push("/baseline");
+        return;
+      }
       setExtraError(error instanceof Error ? error.message : "创建加练失败，请重试");
     } finally {
       setExtraPending(false);
@@ -154,14 +159,22 @@ export function FeedbackFlow({ sessionId }: { sessionId: string }) {
               <Link href="/profile" className={SECONDARY_BTN}>
                 查看能力画像
               </Link>
-              <button
-                type="button"
-                onClick={() => void onStartExtra()}
-                disabled={extraPending}
-                className={PRIMARY_BTN}
-              >
-                {extraPending ? "创建中…" : "再练一题"}
-              </button>
+              {view.questionKind === "baseline" ? (
+                // T36 / D38：基线题反馈页不出日常加练入口——主按钮回到基线流程
+                //（/baseline 自行路由：未完成继续下一题，全部作答待评分进收尾页）
+                <Link href="/baseline" className={PRIMARY_BTN}>
+                  回到基线测评
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void onStartExtra()}
+                  disabled={extraPending}
+                  className={PRIMARY_BTN}
+                >
+                  {extraPending ? "创建中…" : "再练一题"}
+                </button>
+              )}
               {extraError ? (
                 <span className="text-xs text-red-600">{extraError}</span>
               ) : null}
