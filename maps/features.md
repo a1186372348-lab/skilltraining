@@ -11,18 +11,19 @@
 
 - 概述：每日一题完整链路——大厅选题/回看 → 案例 → 作答 → 5 层渐进提示 → AI 总监追问 → 终答 → 评分 → 反馈页 → 再练一题（D27：训练链路合并为单一「产品训练」模块，不离开模块的连续闭环）。
 - 用户入口：`app/training/`（大厅，模块主页：当前训练卡三态 + 训练历史列表）；工作台 `app/training/session/[id]/`（P3，三栏布局，按会话寻址）；反馈页 `app/training/feedback/[id]/`（P4）；回放详情 `app/training/history/[id]/`（只读）。旧路由 `/today`、`/history` 307 重定向到新路由。
-- API：`app/api/training/`（hub、today、[id]、hint、first-answer、final-answer、extra、score-notifications）。
+- API：`app/api/training/`（hub、today、[id]、hint、first-answer、followup-retry、final-answer、extra、score-notifications）。
 - 支撑模块：`server/modules/training`（状态机、系数、大厅视图 hub-view、单会话视图）、`scoring`（Rubric 评分）、`selection`（选题）、`profile`（画像更新）、`server/ai/followup.ts`（追问）。
-- 关键规则：BR-1/BR-2（有效分与系数）、BR-3（提示）、BR-4（追问）、BR-7（反馈必须具体可行动）、D7/D22/D23/D27。
+- 关键规则：BR-1/BR-2（有效分与系数）、BR-3（提示）、BR-4（追问）、BR-7（反馈必须具体可行动）、D7/D22/D23/D27；追问生成失败态隐藏作答输入区，提供「重试本次对话」（followup-retry，幂等）与「跳过追问直接作答」逃生口（T37 / D39）。
 - 状态：已交付（T05/T06/T07）；追问提示（T19）、三栏工作台（T20）、加练（T21）、追问可靠性（T22）、评分通知（T24）陆续增强；IA 重构（T25）合并为「产品训练」模块。
 
 ## F2 基线测评
 
-- 概述：新用户完成初始画像后必做的 2 题综合测评，覆盖 8 维，结果作为画像初始值，完成后解锁日常训练。
-- 用户入口：`app/baseline/`（复用训练组件，BaselineFlow 轮询推进，不跳反馈页）。
-- API：`app/api/training/baseline/`。
-- 支撑模块：`server/modules/baseline`、复用 `training` / `scoring`。
-- 关键规则：BR-9、D19。
+- 概述：新用户完成初始画像后必做的综合测评，当前为 8 题试测名单（覆盖 8 维，按 id 升序固定顺序），结果作为画像初始值，完成后解锁日常训练；每次登录按状态分发落点——问卷未完成 → `/onboarding`，基线未完成 → `/baseline`（`server/modules/auth/post-login`）。
+- 用户入口：`app/baseline/`（复用训练组件，BaselineFlow 不跳反馈页；T36 / D38 题间并行评分——提交终答即后台触发评分、按已作答推进；题间过渡卡：提交后「已提交 ✓ + 分段进度 + 评审统一揭晓预告」，手动点「进入下一题」继续，最后一题为「完成测评，查看能力边界 →」进「能力边界生成中」收尾页，按评分完成进度逐项点亮 8 维，全部评完自动跳 /profile 揭晓）。
+- API：`app/api/training/baseline/`（状态查询 + 已作答未评分会话补触发自愈）；`app/api/training/today` 在全部已作答待评分期间返回 409 `BASELINE_SCORING_PENDING`，各入口挡回 `/baseline`；`app/api/training/extra` 对基线未完成用户返回 409 `BASELINE_REQUIRED`（T36 试测修补：加练接口原本无基线门禁）。
+- 基线题反馈页分流：反馈页按题目类型切换动作按钮——基线题不出「再练一题」，主按钮为「回到基线测评」（`feedback/view.ts` 下发 `questionKind`）；日常题不变。
+- 支撑模块：`server/modules/baseline`（双计数：answeredCount 推进、doneCount 完成判定）、复用 `training` / `scoring`（`trigger.ts` 后台评分触发共享入口）。
+- 关键规则：BR-9、D19、D38。
 - 状态：流程（T17a）与题目生产（T17b）进行中。
 
 ## F3 自适应出题 v0.1
@@ -60,10 +61,10 @@
 
 ## F7 认证与我的
 
-- 概述：邮箱魔法链接登录（无密码）；「我的」页承载初始画像查看/编辑、兴趣方向、基础设置。
-- 用户入口：`app/login/`、`app/onboarding/`（初始画像问卷）、`app/settings/`（P6）。
+- 概述：邮箱魔法链接登录（无密码）；每次登录（verify 核销成功）按状态分发落点——无画像行 → `/onboarding`，基线未完成 → `/baseline`，全部完成 → `/`；「我的」页承载初始画像查看/编辑、兴趣方向、基础设置。
+- 用户入口：`app/login/`、`app/onboarding/`（初始画像问卷，入口由登录分发提供）、`app/settings/`（P6）。
 - API：`app/api/auth/`、`app/api/profile/`（画像部分）。
-- 支撑模块：`server/modules/auth`（token/session/rate-limit/mailer）、`profile`。
+- 支撑模块：`server/modules/auth`（token/session/rate-limit/mailer；`post-login` 登录落点分发）、`profile`。
 - 关键规则：D17；登录与发信端点必须限流。
 - 状态：登录（T03）与初始画像（T04）已交付；我的页面（T15）进行中。
 
@@ -85,7 +86,7 @@
 
 ## F10 基础设施与运维
 
-- 概述：本地 PostgreSQL（docker-compose，5433）、测试库隔离、MiMo 用量监控、评分校准等脚本。
-- 入口：`docker-compose.yml`、`scripts/`（`prepare-test-db.ts`、`mimo-usage-report.ts`、`scoring-calibration.ts` 等）。
-- 关键规则：`MIMO_API_KEY` 仅存服务端；测试一律运行于 `skilltraining_test`。
+- 概述：本地 PostgreSQL（docker-compose，5433）、测试库隔离、AI 网关用量监控、评分校准等脚本。
+- 入口：`docker-compose.yml`、`scripts/`（`prepare-test-db.ts`、`ai-usage-report.ts`、`scoring-calibration.ts` 等）。
+- 关键规则：`DEEPSEEK_API_KEY` 仅存服务端；测试一律运行于 `skilltraining_test`。
 - 状态：测试隔离（T14）已交付；用量监控（T23）进行中。

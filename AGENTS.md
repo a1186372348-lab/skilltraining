@@ -15,13 +15,13 @@
 
 ## 2. 架构概览
 
-单仓 Next.js（App Router）+ TypeScript 应用：页面与 API Route Handlers 同仓，服务端领域逻辑集中在 `server/modules/`，PostgreSQL + Prisma 持久化，AI 能力经自建网关接入小米 MiMo（OpenAI 兼容 API）。
+单仓 Next.js（App Router）+ TypeScript 应用：页面与 API Route Handlers 同仓，服务端领域逻辑集中在 `server/modules/`，PostgreSQL + Prisma 持久化，AI 能力经自建网关接入 DeepSeek（OpenAI 兼容 API）。
 
 | 层 | 选型 |
 |---|---|
 | 框架 / UI | Next.js 16（App Router）+ React 19 + Tailwind CSS 4 |
 | 数据库 | PostgreSQL（本地 docker-compose，宿主机端口 5433）+ Prisma |
-| AI 接入 | `server/ai/` 自建网关，MiMo `mimo-v2.6-pro`，OpenAI 兼容 API |
+| AI 接入 | `server/ai/` 自建网关，DeepSeek `deepseek-flash`，OpenAI 兼容 API |
 | 输入验证 | zod（所有 API 边界必须 schema 验证，快速失败） |
 | 认证 | 邮箱魔法链接（users + auth_identities 可扩展身份模型） |
 | 题库内容 | YAML 文件（Git 管理）+ 脚本导入 DB，内容可评审、可 diff |
@@ -44,12 +44,12 @@ skilltraining/
 │  └─ api/                     # Route Handlers：auth / training / dashboard / profile / history / feedback-survey
 ├─ server/
 │  ├─ modules/                 # 领域模块：auth training scoring selection profile content dashboard baseline feedback history
-│  ├─ ai/                      # AI 网关：mimo-client.ts（MiMo 客户端）、followup.ts（追问生成）
+│  ├─ ai/                      # AI 网关：client.ts（DeepSeek 客户端）、followup.ts（追问生成）
 │  ├─ lib/                     # 跨模块服务端工具：api-response.ts（统一响应封装）、prisma.ts（客户端单例）
 │  └─ db.ts                    # PrismaClient 入口
 ├─ prisma/                     # schema.prisma 与 migrations
 ├─ content/questions/          # 题库 YAML（draft/ 为草稿区）
-├─ scripts/                    # 运维脚本：内容校验/导入、测试库准备、MiMo 用量报告、评分校准等
+├─ scripts/                    # 运维脚本：内容校验/导入、测试库准备、AI 用量报告、评分校准等
 ├─ prototypes/                 # 视觉基准 HTML（只读，禁止修改；原型 B 为前端样式参照）
 ├─ docs/                       # 计划方案、评审、决策前材料
 ├─ maps/                       # 长期文档：changelog.md（决策记录+变更时间线）、architecture.md（架构）、features.md（功能参考）
@@ -103,7 +103,7 @@ skilltraining/
 ## 7. 约束条件与策略（禁止事项）
 
 - **绝不直接提交或推送到 `main` 分支**；任何 `git commit / push / reset / rebase` 等变更操作必须取得用户当次明确授权。
-- **密钥一律走环境变量**（`.env`，不入库不入 Git）；`MIMO_API_KEY` 仅存服务端，禁止下发前端（Prd.md §3.5）；发现泄露立即轮换。
+- **密钥一律走环境变量**（`.env`，不入库不入 Git）；`DEEPSEEK_API_KEY` 仅存服务端，禁止下发前端（Prd.md §3.5）；发现泄露立即轮换。
 - **`prototypes/` 只读**，禁止修改；它是视觉基准而非代码来源。
 - 所有用户输入必须经 zod schema 验证；数据库访问一律走 Prisma 参数化查询，禁止拼接 SQL。
 - AI 调用、登录、发信等公网/高成本端点必须保留限流（参照 `server/modules/auth/rate-limiter.ts`、`server/modules/training/rate-limit.ts`）。

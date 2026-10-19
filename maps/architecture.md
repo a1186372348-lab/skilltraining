@@ -7,7 +7,7 @@
 
 ## 1. 技术架构总览
 
-单仓 Next.js 16（App Router）+ TypeScript 应用：页面与 API Route Handlers 同仓，领域逻辑集中于 `server/modules/`，PostgreSQL + Prisma 持久化，AI 能力经自建网关接入小米 MiMo（OpenAI 兼容 API，模型 `mimo-v2.6-pro`）。
+单仓 Next.js 16（App Router）+ TypeScript 应用：页面与 API Route Handlers 同仓，领域逻辑集中于 `server/modules/`，PostgreSQL + Prisma 持久化，AI 能力经自建网关接入 DeepSeek（OpenAI 兼容 API，模型 `deepseek-flash`；D39 起取代 MiMo）。
 
 | 层 | 选型 | 关键约束 |
 |---|---|---|
@@ -15,7 +15,7 @@
 | API 层 | `app/api/` Route Handlers | 入参必须 zod 验证；响应统一走 `server/lib/api-response.ts`（`jsonOk` / `jsonError`） |
 | 领域层 | `server/modules/` | 业务编排（service）与数据访问（repository）分离 |
 | 数据层 | PostgreSQL + Prisma | 本地 docker-compose，宿主机端口 5433；一律参数化查询 |
-| AI 层 | `server/ai/` 自建网关 | `MIMO_API_KEY` 仅存服务端，禁止下发前端；调用需限流与审计 |
+| AI 层 | `server/ai/` 自建网关 | `DEEPSEEK_API_KEY` 仅存服务端，禁止下发前端；调用需限流与审计 |
 | 内容层 | YAML 题库（`content/questions/`）+ 导入脚本 | 内容 Git 管理，可评审、可 diff、可回滚 |
 | 认证 | 邮箱魔法链接（users + auth_identities） | 无密码存储；身份模型可扩展 |
 | 测试 | Vitest（node 环境） | 独立测试库 `skilltraining_test`，与开发库隔离（T14） |
@@ -27,7 +27,7 @@
   → API 层（app/api/，zod 验证 + 统一响应封装）
     → 领域模块（server/modules/*，service → repository）
       → Prisma（server/db.ts / server/lib/prisma.ts）→ PostgreSQL
-      → AI 网关（server/ai/*）→ MiMo 开放平台
+      → AI 网关（server/ai/*）→ DeepSeek 开放平台
 ```
 
 - 依赖方向自上而下，领域模块不反向依赖页面或 Route Handler。
@@ -39,7 +39,7 @@
 |---|---|---|
 | `auth` | 魔法链接登录、会话签发与校验、登录限流、邮件投递 | `service.ts` `session.ts` `token.ts` `rate-limiter.ts` `mailer.ts` |
 | `training` | 训练会话状态机、渐进提示记录、独立完成系数、今日题视图、单会话工作台视图、产品训练大厅视图（T25）、加练、评分完成通知 | `state-machine.ts` `coefficient.ts` `today-view.ts` `hub-view.ts` `service.ts` |
-| `scoring` | 按 Rubric 调 AI 评分、有效分计算、评分校准 | `rubric-scorer.ts` `calibration.ts` `service.ts` |
+| `scoring` | 按 Rubric 调 AI 评分、有效分计算、评分校准、后台评分触发共享入口（`trigger.ts`：inflight 去重、失败不落库待重试，T36） | `rubric-scorer.ts` `calibration.ts` `service.ts` `trigger.ts` |
 | `selection` | 自适应出题 v0.1（探索期/强化期两阶段选题） | — |
 | `profile` | 能力画像读写（8 维度分数、观察次数、提示依赖特征） | — |
 | `content` | 题库 YAML 读取与契约校验 | — |
@@ -48,13 +48,13 @@
 | `feedback` | 训练后感知问卷 | — |
 | `history` | 训练回放详情查询（T25 起仅详情——历史列表已由 training 大厅视图承接） | — |
 
-AI 网关（`server/ai/`）：`mimo-client.ts`（MiMo OpenAI 兼容客户端）、`followup.ts`（AI 总监追问生成）。
+AI 网关（`server/ai/`）：`client.ts`（DeepSeek OpenAI 兼容客户端，provider 中立封装，D39）、`followup.ts`（AI 总监追问生成）。
 
 ## 4. 主要组件交互
 
 ### 4.1 今日训练主链路
 
-打开今日训练 → `selection` 按画像选题 → 渲染训练页（三栏工作台）→ 用户逐级请求提示（记录次数与时间，回传当前系数）→ 首次提交（提示按钮消失）→ AI 网关生成总监追问（1~2 轮）→ 最终提交 → `scoring` 按 Rubric 评分 → `有效分 = 原始分 × 独立完成系数` → `profile` 更新画像 → 跳转反馈页 → 存感知问卷。详见 `Prd.md` §3.2 图 1。
+打开今日训练 → `selection` 按画像选题 → 渲染训练页（三栏工作台）→ 用户逐级请求提示（记录次数与时间，回传当前系数）→ 首次提交（提示按钮消失）→ AI 网关生成总监追问（1~2 轮）→ 最终提交 → 提交成功即经 `scoring/trigger.ts` 后台触发评分（T36 / D38；fire-and-forget，不等结果）→ `scoring` 按 Rubric 评分 → `有效分 = 原始分 × 独立完成系数` → `profile` 更新画像 → 跳转反馈页 → 存感知问卷。反馈页打开时若仍未评分，经同一触发入口懒触发补评分（T07）；详见 `Prd.md` §3.2 图 1。
 
 ### 4.2 自适应出题 v0.1
 
@@ -62,7 +62,7 @@ AI 网关（`server/ai/`）：`mimo-client.ts`（MiMo OpenAI 兼容客户端）�
 
 ### 4.3 基线测评
 
-新用户完成初始画像问卷后强制进入（D19）：2 道综合题覆盖 8 维，复用训练闭环组件（`app/baseline/` + `BaselineFlow` 轮询推进，不跳反馈页），结果作为画像初始值，完成后解锁日常训练。
+新用户完成初始画像问卷后强制进入（D19）：2 道综合题覆盖 8 维，复用训练闭环组件（`app/baseline/` + `BaselineFlow`，不跳反馈页），结果作为画像初始值，完成后解锁日常训练。T36 / D38 起题间并行评分：提交终答即后台触发评分、按已作答推进下一题（`getBaselineStatus` 双计数：answeredCount 推进、doneCount 完成判定）；全部作答后进入收尾页等待全部评分完成，`GET /api/training/baseline` 对已作答未评分会话补触发自愈；中途任何 today 入口被 409 `BASELINE_SCORING_PENDING` 挡回 `/baseline`。
 
 ### 4.4 内容管线
 
