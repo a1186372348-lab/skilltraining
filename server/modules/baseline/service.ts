@@ -5,13 +5,18 @@ import { todayUtc } from "@/server/modules/training/service";
 import { BASELINE_ERROR_CODES as CODES, BaselineError } from "./errors";
 
 /**
- * 能力基线测评服务（T17a / D19 / BR-9）。
+ * 能力基线测评服务（T17a / D19 / BR-9；T36 / D38 双计数语义）。
  *
  * 规则：
  * - 基线题池：questions 中 kind=baseline 且 status=published 的题，按 id 升序固定顺序；
  *   预期 2 道综合题合计覆盖 8 维（内容由 T17b 生产），total 以库中实际上架数为准；
- * - 完成计数：用户已评分（scoredAt 非空）的基线题会话数——只认评分完成，
- *   已提交终答未评分不算（中断恢复后仍回到当前题）；
+ * - 双计数（T36 / D38 题间并行评分）：
+ *   answeredCount = 已提交终答（finalSubmittedAt 非空）的基线题去重数——流程推进口径，
+ *     提交终答即进入下一题，不等评分；
+ *   doneCount = 已评分（scoredAt 非空）的基线题去重数——完成判定口径，
+ *     只认评分完成才写完成标记、才解锁日常训练；
+ * - nextQuestion：按固定顺序第一道未提交终答的题；边界——全部已作答未全部评完时
+ *   required=true 且 nextQuestion=null（中途状态，由 today 路由挡回，不落日常训练）；
  * - 全部评完 → 写 user_profiles.baseline_completed_at（守卫条件 updateMany，幂等：
  *   并发/重复调用只有首次写入，时间戳不被覆盖）；无画像行的用户跳过写入，不影响判定；
  * - 题库无基线题（T17b 未导入或全部下架）→ required=false，日常训练不受影响；
@@ -27,12 +32,16 @@ export interface BaselineStatus {
   required: boolean;
   /** 上架基线题总数（预期 2） */
   total: number;
-  /** 已评分完成的基线题数 */
+  /** 已提交终答的基线题去重数（T36：流程推进口径） */
+  answeredCount: number;
+  /** 已评分完成的基线题去重数（完成判定口径） */
   doneCount: number;
-  /** 按固定顺序的下一道待完成基线题（全部完成或不需要基线时为 null） */
+  /** 按固定顺序的下一道待作答基线题（全部完成/全部已作答待评分/不需要基线时为 null） */
   nextQuestion: Question | null;
   /** 基线完成时间（user_profiles.baseline_completed_at；无画像行或未完成为 null） */
   completedAt: Date | null;
+  /** 已提交终答且未评分的基线会话 id（T36：路由层补触发评分用，属服务端内部信息，不下发前端） */
+  pendingScoringSessionIds: string[];
 }
 
 /** 读取基线状态；全部评完时幂等补写完成标记（以已评分会话为事实源，标记缺失可自愈） */
@@ -43,26 +52,44 @@ export async function getBaselineStatus(db: DbClient, userId: string): Promise<B
   });
   const total = questions.length;
   if (total === 0) {
-    return { required: false, total: 0, doneCount: 0, nextQuestion: null, completedAt: null };
+    return {
+      required: false,
+      total: 0,
+      answeredCount: 0,
+      doneCount: 0,
+      nextQuestion: null,
+      completedAt: null,
+      pendingScoringSessionIds: [],
+    };
   }
 
-  const [profile, scoredSessions] = await Promise.all([
+  const [profile, sessions] = await Promise.all([
     db.userProfile.findUnique({
       where: { userId },
       select: { baselineCompletedAt: true },
     }),
+    // T36：一次查询同时取两套计数的事实源（scoredAt / finalSubmittedAt），按 questionId 去重统计
     db.trainingSession.findMany({
       where: {
         userId,
         questionId: { in: questions.map((question) => question.id) },
-        scoredAt: { not: null },
+        OR: [{ scoredAt: { not: null } }, { finalSubmittedAt: { not: null } }],
       },
-      select: { questionId: true },
+      select: { id: true, questionId: true, scoredAt: true, finalSubmittedAt: true },
     }),
   ]);
 
-  const doneIds = new Set(scoredSessions.map((session) => session.questionId));
-  const doneCount = doneIds.size;
+  const answeredIds = new Set(
+    sessions.filter((session) => session.finalSubmittedAt !== null).map((s) => s.questionId),
+  );
+  const scoredIds = new Set(
+    sessions.filter((session) => session.scoredAt !== null).map((s) => s.questionId),
+  );
+  const answeredCount = answeredIds.size;
+  const doneCount = scoredIds.size;
+  const pendingScoringSessionIds = sessions
+    .filter((session) => session.finalSubmittedAt !== null && session.scoredAt === null)
+    .map((session) => session.id);
   const allScored = doneCount >= total;
 
   let completedAt = profile?.baselineCompletedAt ?? null;
@@ -86,8 +113,11 @@ export async function getBaselineStatus(db: DbClient, userId: string): Promise<B
   }
 
   const done = allScored || completedAt !== null;
-  const nextQuestion = done ? null : (questions.find((question) => !doneIds.has(question.id)) ?? null);
-  return { required: !done, total, doneCount, nextQuestion, completedAt };
+  // T36：按作答推进——下一题是第一道未提交终答的题；全部已作答未评完时为 null（门禁边界）
+  const nextQuestion = done
+    ? null
+    : (questions.find((question) => !answeredIds.has(question.id)) ?? null);
+  return { required: !done, total, answeredCount, doneCount, nextQuestion, completedAt, pendingScoringSessionIds };
 }
 
 export interface BaselineSessionResult {
@@ -98,7 +128,9 @@ export interface BaselineSessionResult {
 
 /**
  * 获取或创建当前基线题的会话（按 {userId, questionId} 幂等复用，中断后可恢复）。
- * 不需要基线时抛 BaselineError(BASELINE_NOT_REQUIRED)，由调用方回退日常训练。
+ * 目标题即 getBaselineStatus 的 nextQuestion（T36 起按「未提交终答」推进，不等评分）；
+ * 不需要基线或全部已作答待评分（nextQuestion=null）时抛 BaselineError(BASELINE_NOT_REQUIRED)，
+ * 由调用方回退日常训练（today 路由对该边界另行返回 409 BASELINE_SCORING_PENDING）。
  */
 export async function getOrCreateBaselineSession(
   db: DbClient,

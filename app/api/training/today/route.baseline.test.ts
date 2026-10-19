@@ -93,19 +93,21 @@ async function newEmail(): Promise<string> {
 }
 
 describe("GET /api/training/today：基线门禁分支（T17a / D19 / BR-9）", () => {
-  it("基线未完成 → 返回基线会话（kind=baseline + 进度），不调用每日一题服务", async () => {
+  it("基线未完成 → 返回基线会话（kind=baseline + 进度按已作答口径），不调用每日一题服务", async () => {
     const question = makeQuestion("bq-1", "基线题一");
     mockedGetBaselineStatus.mockResolvedValue({
       required: true,
       total: 2,
+      answeredCount: 1,
       doneCount: 0,
       nextQuestion: question,
       completedAt: null,
+      pendingScoringSessionIds: [],
     } as never);
     mockedGetOrCreateBaselineSession.mockResolvedValue({
       session: makeSession(question.id),
       question,
-      status: { required: true, total: 2, doneCount: 0 },
+      status: { required: true, total: 2, answeredCount: 1, doneCount: 0 },
     } as never);
 
     const email = await newEmail();
@@ -114,8 +116,32 @@ describe("GET /api/training/today：基线门禁分支（T17a / D19 / BR-9）", 
 
     expect(json.success).toBe(true);
     expect(json.data.kind).toBe("baseline");
-    expect(json.data.baselineProgress).toEqual({ done: 0, total: 2 });
+    // T36 / D38：进度口径统一为已作答（answeredCount），用户不再等评分
+    expect(json.data.baselineProgress).toEqual({ done: 1, total: 2 });
     expect(json.data.caseTitle).toBe("基线题一");
+    expect(mockedGetOrCreateTodaySession).not.toHaveBeenCalled();
+  });
+
+  it("全部已作答未全部评完（required 且 nextQuestion=null）→ 409 BASELINE_SCORING_PENDING，不落日常分支（T36 / D38）", async () => {
+    mockedGetBaselineStatus.mockResolvedValue({
+      required: true,
+      total: 8,
+      answeredCount: 8,
+      doneCount: 5,
+      nextQuestion: null,
+      completedAt: null,
+      pendingScoringSessionIds: ["s-1", "s-2", "s-3"],
+    } as never);
+
+    const email = await newEmail();
+    const res = await GET(await buildRequest(email));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe(BASELINE_ERROR_CODES.BASELINE_SCORING_PENDING);
+    // 画像未齐：不得创建/返回基线会话，也不得落入日常题
+    expect(mockedGetOrCreateBaselineSession).not.toHaveBeenCalled();
     expect(mockedGetOrCreateTodaySession).not.toHaveBeenCalled();
   });
 
