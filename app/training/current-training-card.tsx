@@ -6,7 +6,7 @@ import { useCallback, useState } from "react";
 
 import type { HubCurrentCard, HubInProgressCard } from "./contract";
 import { formatScore } from "./feedback/[id]/view-model";
-import { fetchTodaySession, startExtraSession } from "./session/api";
+import { fetchTodaySession, startExtraSession, ApiError } from "./session/api";
 import type { TodayView } from "./session/contract";
 import {
   actionNoteFor,
@@ -42,7 +42,8 @@ export function CurrentTrainingCard({ current }: { current: HubCurrentCard }) {
 
   /**
    * 开始今日训练（D27③ 每日首推仪式感）：GET /api/training/today（get-or-create）拿 sessionId 后直达工作台；
-   * T17a / D19 门禁：基线未完成时 today 返回基线会话（kind 窄化读取，同 BaselineFlow.viewKind），改跳 /baseline。
+   * T17a / D19 门禁：基线未完成时 today 返回基线会话（kind 窄化读取，同 BaselineFlow.viewKind），改跳 /baseline；
+   * T36 / D38 边界：基线全部已作答待评分时 today 返回 409 BASELINE_SCORING_PENDING，静默跳 /baseline 收尾页。
    */
   const onStartToday = useCallback(async () => {
     if (todayPending) return;
@@ -57,6 +58,11 @@ export function CurrentTrainingCard({ current }: { current: HubCurrentCard }) {
       }
       router.push(`/training/session/${today.sessionId}`);
     } catch (error) {
+      // 基线评分生成中：不显示错误，直接回基线页（收尾页轮询等待揭晓）
+      if (error instanceof ApiError && error.code === "BASELINE_SCORING_PENDING") {
+        router.push("/baseline");
+        return;
+      }
       setActionError(error instanceof Error ? error.message : "进入训练失败，请重试");
     } finally {
       setTodayPending(false);
@@ -72,6 +78,11 @@ export function CurrentTrainingCard({ current }: { current: HubCurrentCard }) {
       const res = await startExtraSession();
       router.push(`/training/session/${res.sessionId}`);
     } catch (error) {
+      // T36 / D38：基线未完成 → 挡回基线测评（服务端 409 BASELINE_REQUIRED）
+      if (error instanceof ApiError && error.code === "BASELINE_REQUIRED") {
+        router.push("/baseline");
+        return;
+      }
       setActionError(error instanceof Error ? error.message : "创建加练失败，请重试");
     } finally {
       setExtraPending(false);

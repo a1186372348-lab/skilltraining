@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { MimoClient } from "@/server/ai/mimo-client";
+import type { AiClient } from "@/server/ai/client";
 
 import { ScoringError, SCORING_ERROR_CODES as CODES } from "./errors";
 import {
@@ -34,9 +34,9 @@ const validOutput = JSON.stringify({
   next_focus: "下一步练「产品取舍」中识别代价并给出缓释设计的问题。",
 });
 
-function fakeClient(content: string): MimoClient {
+function fakeClient(content: string): AiClient {
   return {
-    chatCompletion: vi.fn().mockResolvedValue({ content, model: "mimo-v2.6-pro", usage: null }),
+    chatCompletion: vi.fn().mockResolvedValue({ content, model: "deepseek-flash", usage: null }),
   };
 }
 

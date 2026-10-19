@@ -128,6 +128,36 @@ export function followupEmptyState(
 }
 
 /**
+ * 追问失败态渲染模式（T37 / D39）：
+ * - none：正常（有总监追问消息，或追问为空但仍在生成中）——显示作答输入区；
+ * - failed：确定失败且用户未跳过——隐藏作答输入区（没有追问可回应），
+ *   渲染「重试本次对话」+「跳过追问，直接作答」出口；
+ * - skipped：失败后用户选择跳过——恢复作答输入区，引导直接作答终案。
+ */
+export type FollowupFailureMode = "none" | "failed" | "skipped";
+
+export function followupFailureMode(
+  hasDirectorMessage: boolean,
+  emptyState: "generating" | "failed" | null,
+  skipped: boolean,
+): FollowupFailureMode {
+  if (hasDirectorMessage || emptyState !== "failed") return "none";
+  return skipped ? "skipped" : "failed";
+}
+
+/** 追问阶段作答输入区显隐：仅失败未跳过态隐藏（没有追问可回应） */
+export function isFollowupInputVisible(mode: FollowupFailureMode): boolean {
+  return mode !== "failed";
+}
+
+/** 追问阶段输入框占位文案：跳过态引导直接作答终案 */
+export function followupInputPlaceholder(mode: FollowupFailureMode): string {
+  return mode === "skipped"
+    ? "已跳过追问——直接写下你的最终结论与论证……"
+    : "回应追问，修正或深化你的结论……";
+}
+
+/**
  * 组装追问区气泡序列：用户首答（右）→ 总监每轮追问（左，1~2 轮）。
  * 首答缺失或为空白时视为未提交，不产生气泡；
  * followups 为空（追问生成中或失败，T22 起由 followupEmptyState 区分）时只保留首答气泡。

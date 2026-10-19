@@ -4,7 +4,7 @@
 // 用法：
 //   node scripts/eval-baseline-samples.ts                # mock 模式（默认）：确定性桩评分，离线验证报告管线（只打印不落盘）
 //   node --env-file=.env scripts/eval-baseline-samples.ts --live
-//                                                        # 真实模式：经 MiMo 网关评分（密钥经环境变量读取，不打印不落盘），
+//                                                        # 真实模式：经 AI 网关（DeepSeek）评分（密钥经环境变量读取，不打印不落盘），
 //                                                        # 串行执行，单样本失败重试 2 次后记录跳过；报告写入 docs/v2/calibration-report-baseline-8.md
 //   可选：--out <路径> 覆盖报告输出位置（mock 模式下指定 --out 才会落盘）
 //   可选：--only B5#2,B7#1 只跑指定样本（定向补跑失败样本用；子集上的汇总分析不代表整批结论，输出仅作补丁合并）
@@ -14,7 +14,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { MIMO_MODEL } from "../server/ai/mimo-client.ts";
+import { AI_MODEL } from "../server/ai/client.ts";
 import { parseQuestionYaml } from "../server/modules/content/load-questions.ts";
 import type { QuestionContent } from "../server/modules/content/question-schema.ts";
 import { parseReferenceAnswerYaml } from "../server/modules/content/reference-answers.ts";
@@ -249,7 +249,7 @@ const verdict = buildVerdict(analysis, failures);
 const humanAlignment = humanReview ? analyzeHumanAlignment(scores, humanReview) : null;
 const reportParams = {
   mode,
-  model: MIMO_MODEL,
+  model: AI_MODEL,
   generatedAt: new Date(),
   scores,
   failures,

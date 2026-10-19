@@ -303,13 +303,13 @@ describe("报告格式化", () => {
     const data = fixture({
       scores: [makeScore(makeTask("B1", 1, "high", "立场A高质量"), 85), makeScore(makeTask("B1", 2, "low"), 40)],
     });
-    const md = formatMarkdownReport({ mode: "live", model: "mimo-v2.6-pro", generatedAt: new Date("2026-10-13"), ...data });
+    const md = formatMarkdownReport({ mode: "live", model: "deepseek-flash", generatedAt: new Date("2026-10-13"), ...data });
     expect(md).toContain("## 结论：");
     expect(md).toContain("### 1. 每题分离度");
     expect(md).toContain("### 3. 立场中立性");
     expect(md).toContain("## 逐样本明细");
     expect(md).toContain("样本文本同时作为「首答」与「终答」");
-    expect(md).toContain("mimo-v2.6-pro");
+    expect(md).toContain("deepseek-flash");
   });
 
   it("带人审对齐数据时：console 含逐题对齐行与全局块，markdown 小节插在逐样本明细之前", () => {

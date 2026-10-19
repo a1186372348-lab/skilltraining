@@ -3,8 +3,8 @@
 //   node --env-file=.env scripts/regen-followup.ts <sessionId> [起始预算]
 // 行为：
 //   - 守卫：会话不存在 / 未提交首答 / 追问非空（拒绝覆盖）→ 退出码 1；
-//   - 按预算序列（默认 2048 → 4096）逐级调用 MiMo 生成追问，首次成功即写库；
-//   - mimo-v2.6-pro 为推理模型：推理 token 计入 max_completion_tokens，
+//   - 按预算序列（默认 2048 → 4096）逐级调用 AI 网关生成追问，首次成功即写库；
+//   - 推理模型（D39 起 deepseek-flash）：推理 token 计入 max_completion_tokens，
 //     预算不足会返回空正文（server/ai/followup.ts 注释记载的已知截断模式），
 //     因此逐级上调预算既是诊断也是补救；
 //   - 不打印 API Key 与 Rubric 明文；只打印元数据与生成的追问/提示文本（用户本人数据）。
@@ -14,7 +14,7 @@ import {
   parseFollowups,
   type FollowupInput,
 } from "../server/ai/followup.ts";
-import { createMimoClientFromEnv } from "../server/ai/mimo-client.ts";
+import { createAiClientFromEnv } from "../server/ai/client.ts";
 
 const sessionId = process.argv[2]?.trim();
 if (!sessionId) {
@@ -53,7 +53,7 @@ const input: FollowupInput = {
   rubric: session.question.rubric as unknown as FollowupInput["rubric"],
 };
 const messages = buildFollowupMessages(input);
-const client = createMimoClientFromEnv();
+const client = createAiClientFromEnv();
 
 let drafts: ReturnType<typeof parseFollowups> | null = null;
 let usedBudget = 0;

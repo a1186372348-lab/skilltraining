@@ -1,7 +1,7 @@
 // 评分校准回归脚本（R1）：对内置固定样例跑评分，输出分数漂移报告
 // 用法：
 //   node scripts/scoring-calibration.ts          # mock 模式（默认）：确定性桩评分，离线验证报告管线
-//   node scripts/scoring-calibration.ts --live   # 真实模式：经 MiMo 网关评分（密钥经环境变量读取，人工触发）
+//   node scripts/scoring-calibration.ts --live   # 真实模式：经 AI 网关（DeepSeek）评分（密钥经环境变量读取，人工触发）
 // 退出码：任一维度分数漂出期望分数带 → 1（回归失败）；全部带内 → 0
 import {
   CALIBRATION_SAMPLES,
@@ -15,7 +15,7 @@ import { scoreWithRubric } from "../server/modules/scoring/rubric-scorer.ts";
 const live = process.argv.includes("--live");
 const mode = live ? "live" : "mock";
 
-// 真实模式：走 MiMo 网关（MIMO_BASE_URL / MIMO_API_KEY 经 process.env 读取，不打印）；
+// 真实模式：走 AI 网关（DEEPSEEK_BASE_URL / DEEPSEEK_API_KEY 经 process.env 读取，不打印）；
 // mock 模式：确定性桩评分，离线可跑
 const scorer: CalibrationScorer = live
   ? (input) => scoreWithRubric(input)

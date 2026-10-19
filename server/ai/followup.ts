@@ -1,5 +1,5 @@
-import type { ChatMessage, MimoClient } from "./mimo-client.ts";
-import { createMimoClientFromEnv } from "./mimo-client.ts";
+import type { ChatMessage, AiClient } from "./client.ts";
+import { createAiClientFromEnv } from "./client.ts";
 
 /**
  * AI 追问生成（US-005 / BR-4 / FR-4；T19 / D22 扩展预生成提示）。
@@ -115,22 +115,20 @@ export function parseFollowups(content: string): FollowupDraft[] {
 }
 
 export interface GenerateFollowupsDeps {
-  client?: MimoClient;
+  client?: AiClient;
 }
 
 export async function generateFollowups(
   input: FollowupInput,
   deps: GenerateFollowupsDeps = {},
 ): Promise<FollowupDraft[]> {
-  const client = deps.client ?? createMimoClientFromEnv();
+  const client = deps.client ?? createAiClientFromEnv();
   const result = await client.chatCompletion({
     messages: buildFollowupMessages(input),
     temperature: 0.3, // 低 temperature（R1/R2：减少自由发挥）
-    // mimo-v2.6-pro 为推理模型：推理 token 计入 max_completion_tokens，
-    // 预算过小会导致正文被截空（实测 800 下返回空 content）。
-    // T19 起每条追问附带一条提示，产出略增；T22 起「200 空 content」已纳入重试。
-    // 2026-10-07 实测：2048 在 MiMo 高负载推理下再次出现空 content 截断，
-    // 同输入复测 623 tokens 即可成功——4096 是余量而非必需。
+    // deepseek-flash 为推理模型（D39）：推理 token 计入 max_completion_tokens，
+    // 预算过小会导致正文被截空（T22 起「200 空 content」已纳入网关重试）。
+    // T19 起每条追问附带一条提示，产出略增；4096 是余量而非必需。
     maxCompletionTokens: 4096,
     responseFormat: { type: "json_object" },
   });

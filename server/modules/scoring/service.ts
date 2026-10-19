@@ -47,7 +47,7 @@ export interface ScoreSessionResult {
 }
 
 export interface ScoreSessionDeps {
-  /** AI 评分实现（测试注入 mock；缺省走 MiMo 网关真实调用） */
+  /** AI 评分实现（测试注入 mock；缺省走 AI 网关真实调用，DeepSeek，D39） */
   scoreWithRubric?: (input: RubricScoringInput) => Promise<RubricScoringOutput>;
 }
 

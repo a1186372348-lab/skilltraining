@@ -3,6 +3,7 @@ import type {
   FinalAnswerResponse,
   FirstAnswerResponse,
   FollowupHintResponse,
+  FollowupRetryResponse,
   FollowupRound,
   HintResponse,
   ReleasedHint,
@@ -180,6 +181,17 @@ export async function requestFollowupHint(
     method: "POST",
     body: JSON.stringify({ round }),
   });
+}
+
+/**
+ * POST /api/training/:id/followup-retry（T37 / D39）：追问生成失败后的用户侧重试。
+ * 幂等：已有追问直接返回既有，不重复调 AI；再次失败返回空 followups，调用方按失败态处理。
+ */
+export async function retryFollowups(sessionId: string): Promise<FollowupRetryResponse> {
+  const data = await callApi<FollowupRetryResponse>(`/api/training/${sessionId}/followup-retry`, {
+    method: "POST",
+  });
+  return { ...data, followups: normalizeFollowups(data.followups) };
 }
 
 /** POST /api/training/extra：创建/复用加练会话（T21 / D3），返回 { sessionId }（T25：调用方拿 sessionId 直达新工作台） */

@@ -1,5 +1,5 @@
-import type { ChatMessage, MimoClient } from "../../ai/mimo-client.ts";
-import { createMimoClientFromEnv } from "../../ai/mimo-client.ts";
+import type { ChatMessage, AiClient } from "../../ai/client.ts";
+import { createAiClientFromEnv } from "../../ai/client.ts";
 
 import { SCORING_ERROR_CODES as CODES, ScoringError } from "./errors.ts";
 
@@ -169,18 +169,18 @@ export function parseScoringOutput(
 }
 
 export interface ScoreWithRubricDeps {
-  client?: MimoClient;
+  client?: AiClient;
 }
 
 export async function scoreWithRubric(
   input: RubricScoringInput,
   deps: ScoreWithRubricDeps = {},
 ): Promise<RubricScoringOutput> {
-  const client = deps.client ?? createMimoClientFromEnv();
+  const client = deps.client ?? createAiClientFromEnv();
   const result = await client.chatCompletion({
     messages: buildScoringMessages(input),
     temperature: 0.2, // 低 temperature（R1：评分一致性对策）
-    // mimo-v2.6-pro 为推理模型：推理 token 计入 max_completion_tokens，
+    // deepseek-flash 为推理模型（D39）：推理 token 计入 max_completion_tokens，
     // 多维度诊断的结构化输出预算给足，避免正文被截空
     maxCompletionTokens: 4096,
     responseFormat: { type: "json_object" },
