@@ -38,7 +38,7 @@
 | 模块 | 职责 | 关键文件 |
 |---|---|---|
 | `auth` | 魔法链接登录、会话签发与校验、登录限流、邮件投递 | `service.ts` `session.ts` `token.ts` `rate-limiter.ts` `mailer.ts` |
-| `training` | 训练会话状态机、渐进提示记录、独立完成系数、今日题视图、单会话工作台视图、产品训练大厅视图（T25）、加练、评分完成通知 | `state-machine.ts` `coefficient.ts` `today-view.ts` `hub-view.ts` `service.ts` |
+| `training` | 训练会话状态机（reading/answering/followup/scored + abandoned 终止态，T38 / D40）、渐进提示记录、独立完成系数、今日题视图、单会话工作台视图、产品训练大厅视图（T25）、加练、训练终止（abandon，T38）、评分完成通知 | `state-machine.ts` `coefficient.ts` `today-view.ts` `hub-view.ts` `service.ts` |
 | `scoring` | 按 Rubric 调 AI 评分、有效分计算、评分校准、后台评分触发共享入口（`trigger.ts`：inflight 去重、失败不落库待重试，T36） | `rubric-scorer.ts` `calibration.ts` `service.ts` `trigger.ts` |
 | `selection` | 自适应出题 v0.1（探索期/强化期两阶段选题） | — |
 | `profile` | 能力画像读写（8 维度分数、观察次数、提示依赖特征） | — |
@@ -48,13 +48,13 @@
 | `feedback` | 训练后感知问卷 | — |
 | `history` | 训练回放详情查询（T25 起仅详情——历史列表已由 training 大厅视图承接） | — |
 
-AI 网关（`server/ai/`）：`client.ts`（DeepSeek OpenAI 兼容客户端，provider 中立封装，D39）、`followup.ts`（AI 总监追问生成）。
+AI 网关（`server/ai/`）：`client.ts`（DeepSeek OpenAI 兼容客户端，provider 中立封装，D39）、`followup.ts`（AI 总监追问生成；T35 / D37 追问闸门——同一次调用先判定必要性，输出 `{ should_followup, reason, followups }`，判定锚定主测维度 abilityTags[0] 的 Rubric 要点、标准从紧）。
 
 ## 4. 主要组件交互
 
 ### 4.1 今日训练主链路
 
-打开今日训练 → `selection` 按画像选题 → 渲染训练页（三栏工作台）→ 用户逐级请求提示（记录次数与时间，回传当前系数）→ 首次提交（提示按钮消失）→ AI 网关生成总监追问（1~2 轮）→ 最终提交 → 提交成功即经 `scoring/trigger.ts` 后台触发评分（T36 / D38；fire-and-forget，不等结果）→ `scoring` 按 Rubric 评分 → `有效分 = 原始分 × 独立完成系数` → `profile` 更新画像 → 跳转反馈页 → 存感知问卷。反馈页打开时若仍未评分，经同一触发入口懒触发补评分（T07）；详见 `Prd.md` §3.2 图 1。
+打开今日训练 → `selection` 按画像选题 → 渲染训练页（三栏工作台）→ 用户逐级请求提示（记录次数与时间，回传当前系数）→ 首次提交（提示按钮消失）→ AI 网关同一次调用先经追问闸门判定（T35 / D37）：判定记录两分支落库（followups jsonb 首元素恒为 gate_decision 标记，含 shouldFollowup 与判定理由，仅审计不下发）——判定无需追问（主测维度无重大缺项、证据链完整）→ 无追问轮次，前端正向零追问卡直进终答；判定需要追问 → 生成总监追问 1~2 轮（各附预生成提示，轮次跟随判定记录）→ 最终提交 → 提交成功即经 `scoring/trigger.ts` 后台触发评分（T36 / D38；fire-and-forget，不等结果）→ `scoring` 按 Rubric 评分 → `有效分 = 原始分 × 独立完成系数` → `profile` 更新画像 → 跳转反馈页 → 存感知问卷。反馈页打开时若仍未评分，经同一触发入口懒触发补评分（T07）；详见 `Prd.md` §3.2 图 1。
 
 ### 4.2 自适应出题 v0.1
 
@@ -67,6 +67,11 @@ AI 网关（`server/ai/`）：`client.ts`（DeepSeek OpenAI 兼容客户端，pr
 ### 4.4 内容管线
 
 YAML 题库（`content/questions/`，案例五要素每字段带 `{text, citations[]}` 来源引用，BR-8）→ `npm run content:validate` 契约校验 → `npm run content:import` 同步入库。
+
+### 4.5 训练终止与重启（T38 / D40）
+
+「当前训练」卡进行中态（首页/大厅同源，D28）→「重启训练」两步内联确认 → `POST /api/training/[id]/abandon`（统一限流，无 AI 调用）→ 状态机 ABANDON 事件：`reading / answering / followup` → `abandoned` 终态；写入为带守卫条件的 `updateMany`（进行中三态 + 未交终答），并发双击/「终止-交卷」竞态只有首次生效，重复终止幂等返回成功。守卫（D40④）：基线会话 409 `BASELINE_SESSION`、已提交终答 409 `FINAL_ANSWER_ALREADY_SUBMITTED`、已评分 409 `SESSION_ALREADY_SCORED`。
+已终止会话：不删除、不评分、不计入画像——当前训练卡进行中查询、`getLatestDailySession` / `getOrCreateTodaySession` / `getOrCreateExtraSession` 的复用查询全部排除之（卡片回未开始态，重启走 get-or-create 出新题）；选题的已练排除语义覆盖任何状态会话，被终止题不再被选到；历史列表以「已终止」徽章展示，跳转只读回放详情；工作台直达（`GET /api/training/[id]`）对其返回 409 `SESSION_ABANDONED`，前端重定向训练大厅。
 
 ## 5. 基础设施
 

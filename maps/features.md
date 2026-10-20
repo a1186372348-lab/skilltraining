@@ -11,10 +11,10 @@
 
 - 概述：每日一题完整链路——大厅选题/回看 → 案例 → 作答 → 5 层渐进提示 → AI 总监追问 → 终答 → 评分 → 反馈页 → 再练一题（D27：训练链路合并为单一「产品训练」模块，不离开模块的连续闭环）。
 - 用户入口：`app/training/`（大厅，模块主页：当前训练卡三态 + 训练历史列表）；工作台 `app/training/session/[id]/`（P3，三栏布局，按会话寻址）；反馈页 `app/training/feedback/[id]/`（P4）；回放详情 `app/training/history/[id]/`（只读）。旧路由 `/today`、`/history` 307 重定向到新路由。
-- API：`app/api/training/`（hub、today、[id]、hint、first-answer、followup-retry、final-answer、extra、score-notifications）。
+- API：`app/api/training/`（hub、today、[id]、[id]/abandon（T38 终止）、hint、first-answer、followup-retry、final-answer、extra、score-notifications）。
 - 支撑模块：`server/modules/training`（状态机、系数、大厅视图 hub-view、单会话视图）、`scoring`（Rubric 评分）、`selection`（选题）、`profile`（画像更新）、`server/ai/followup.ts`（追问）。
-- 关键规则：BR-1/BR-2（有效分与系数）、BR-3（提示）、BR-4（追问）、BR-7（反馈必须具体可行动）、D7/D22/D23/D27；追问生成失败态隐藏作答输入区，提供「重试本次对话」（followup-retry，幂等）与「跳过追问直接作答」逃生口（T37 / D39）。
-- 状态：已交付（T05/T06/T07）；追问提示（T19）、三栏工作台（T20）、加练（T21）、追问可靠性（T22）、评分通知（T24）陆续增强；IA 重构（T25）合并为「产品训练」模块。
+- 关键规则：BR-1/BR-2（有效分与系数）、BR-3（提示）、BR-4（追问）、BR-7（反馈必须具体可行动）、D7/D22/D23/D27；追问闸门（T35 / D37）：首答后同一次 AI 调用先判定必要性——主测维度（abilityTags[0]）无重大缺项、证据链完整则不追问，前端渲染正向零追问卡直进终答；判定该追问则给 1~2 问；闸门判定记录两分支落库（followups jsonb 首元素恒为 gate_decision 标记：shouldFollowup + 中文判定理由，仅审计不下发；存量 gate_skip 标记读取侧兼容），并配 gate-probe 探针（`scripts/gate-probe.ts`：--recent 判定分布监测，全部为同一判定时警示形同虚设；--live 真实调 DeepSeek 核查思考链）；追问生成失败态（空数组，与闸门跳过可区分）隐藏作答输入区，提供「重试本次对话」（followup-retry，幂等；闸门跳过会话 409 FOLLOWUP_GATE_SKIPPED 守卫）与「跳过追问直接作答」逃生口（T37 / D39）；训练终止与重启（T38 / D40）：进行中态当前训练卡提供「重启训练」（两步内联确认），终止为状态推进（`abandoned` 终态）而非删除——不评分不计入画像，历史以「已终止」徽章只读展示；仅未提交终答的日常会话（含加练）可终止（基线/已交终答/已评分一律 409）；被终止题进入选题排除集，重启走 get-or-create 出新题；终止会话的工作台直达 409 `SESSION_ABANDONED`，前端挡回大厅。
+- 状态：已交付（T05/T06/T07）；追问提示（T19）、三栏工作台（T20）、加练（T21）、追问可靠性（T22）、评分通知（T24）陆续增强；IA 重构（T25）合并为「产品训练」模块；追问闸门（T35，判定质量人审校准进行中）；训练终止与重启（T38，实测中）。
 
 ## F2 基线测评
 
@@ -53,7 +53,7 @@
 
 ## F6 训练历史与回放
 
-- 概述：训练历史列表并入产品训练大厅（D27④：加练并入，以「加练」徽章区分；基线会话不进列表）；回放详情只读（案例、两版答案、提示使用、追问记录、最终反馈、能力变化）。
+- 概述：训练历史列表并入产品训练大厅（D27④：加练并入，以「加练」徽章区分；基线会话不进列表；T38 / D40②：已终止会话以「已终止」徽章保留在列表中，不评分不计入画像）；回放详情只读（案例、两版答案、提示使用、追问记录、最终反馈、能力变化）。
 - 用户入口：大厅历史列表 `app/training/`；回放详情 `app/training/history/[id]/`（P5，自 `app/history/` 迁移，旧列表页已被大厅取代不共存）。
 - API：`app/api/training/hub/`（大厅历史列表）、`app/api/history/[id]/`（回放详情）；`GET /api/history`（旧列表）已随大厅落地删除。
 - 支撑模块：`server/modules/training/hub-view.ts`（大厅列表）、`server/modules/history`（回放详情）。
