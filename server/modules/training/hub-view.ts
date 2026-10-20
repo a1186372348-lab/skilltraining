@@ -157,6 +157,7 @@ const HUB_SESSION_SELECT = {
  * 当前训练卡数据源（T26 / D28②：首页与大厅共用同一查询 + 判定，单一事实源）：
  * 最新未完成非基线会话 + 今日已评分 daily 会话两查询 → resolveCurrentCard 三态判定。
  * 全部查询经 question.kind="daily" 排除基线会话（D19/D26⑦ 同口径：基线有独立入口）。
+ * T38 / D40：进行中查询同时排除 abandoned——已终止会话不再占用当前卡（回到未开始态）。
  */
 export async function getCurrentTrainingCard(
   db: DbClient,
@@ -164,7 +165,7 @@ export async function getCurrentTrainingCard(
 ): Promise<HubCurrentCard> {
   const [inProgress, todayDailyCompleted] = await Promise.all([
     db.trainingSession.findFirst({
-      where: { userId, state: { not: "scored" }, question: { kind: "daily" } },
+      where: { userId, state: { notIn: ["scored", "abandoned"] }, question: { kind: "daily" } },
       orderBy: [{ startedAt: "desc" }, { id: "desc" }],
       select: HUB_SESSION_SELECT,
     }),

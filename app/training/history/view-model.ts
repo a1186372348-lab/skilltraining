@@ -25,5 +25,8 @@ export function sessionStateText(state: HistorySessionState): string {
       return "追问中";
     case "scored":
       return "已完成";
+    case "abandoned":
+      // T38 / D40：已终止会话只读回放（不评分不计入画像）
+      return "已终止";
   }
 }

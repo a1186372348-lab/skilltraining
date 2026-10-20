@@ -7,8 +7,8 @@
  *（列表契约已随旧 /history 列表页删除——大厅历史列表契约见 app/training/contract.ts）
  */
 
-/** 会话状态（与 prisma TrainingSessionState 枚举一致） */
-export type HistorySessionState = "reading" | "answering" | "followup" | "scored";
+/** 会话状态（与 prisma TrainingSessionState 枚举一致；abandoned=T38 / D40 已终止） */
+export type HistorySessionState = "reading" | "answering" | "followup" | "scored" | "abandoned";
 
 /** 提示使用回放：层数 + 请求时间（ISO） */
 export interface HistoryHintEventView {

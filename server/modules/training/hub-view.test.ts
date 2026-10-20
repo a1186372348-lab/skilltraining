@@ -205,4 +205,18 @@ describe("getCurrentTrainingCard：查询层与三态装配（T26）", () => {
       expect(card.dateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
   });
+
+  it("进行中查询同时排除 scored 与 abandoned（T38 / D40：已终止会话不再出现在当前卡）", async () => {
+    const { db, whereClauses } = stubCurrentCardDb({
+      inProgress: null,
+      todayDailyCompleted: null,
+    });
+    await getCurrentTrainingCard(db, "user-1");
+    // 第一个查询为最新未完成会话：state notIn [scored, abandoned]（已终止回未开始态，由第二查询/兜底承接）
+    expect(whereClauses[0]).toMatchObject({
+      userId: "user-1",
+      state: { notIn: ["scored", "abandoned"] },
+      question: { kind: "daily" },
+    });
+  });
 });

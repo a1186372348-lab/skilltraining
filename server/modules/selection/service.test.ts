@@ -169,6 +169,36 @@ describe("selectTodayQuestion：真实 DB 选题", () => {
     expect(result.question.id).toBe(q2);
   });
 
+  it("已终止（abandoned）会话的题同样视为已练被过滤（T38 / D40③：重启后不再选到被终止题）", async () => {
+    const userId = await newUser();
+    const q2 = await seedQuestion({
+      caseTitle: "重启后的新题",
+      product: "丙产品——背景。",
+      abilityTags: ["根因分析"],
+    });
+    // 除 q2 外的全部上架题都以 abandoned 会话关联（唯一会话即终止态）：
+    // 已练排除语义为「存在任何状态的会话」，终止题不会再被选到
+    const others = await prisma.question.findMany({
+      where: { status: "published", id: { not: q2 } },
+      select: { id: true },
+    });
+    for (const [index, other] of others.entries()) {
+      await prisma.trainingSession.create({
+        data: {
+          userId,
+          questionId: other.id,
+          date: new Date(Date.UTC(2026, 8, 1 + index)),
+          state: "abandoned",
+        },
+      });
+    }
+
+    await ensurePublished(q2);
+
+    const result = await selectTodayQuestion(prisma, userId);
+    expect(result.question.id).toBe(q2);
+  });
+
   it("部分观测画像：未知维度取自 ability_profiles 之外", async () => {
     const userId = await newUser();
     // 共享库已有覆盖「产品表达」的真实上架题：先归档，只留本用例题目参与选题

@@ -77,3 +77,21 @@ describe("训练会话状态机：MARK_SCORED（T06 接入点）", () => {
     }
   });
 });
+
+describe("训练会话状态机：ABANDON（T38 / D40 训练终止）", () => {
+  it("reading / answering / followup → abandoned（未提交终答的日常会话可终止）", () => {
+    for (const state of ["reading", "answering", "followup"] as const) {
+      expect(nextState(state, "ABANDON")).toBe("abandoned");
+    }
+  });
+
+  it("scored 拒绝（已评分终态不可终止）", () => {
+    expect(() => nextState("scored", "ABANDON")).toThrowError(
+      expect.objectContaining({ code: "SESSION_ALREADY_SCORED" }),
+    );
+  });
+
+  it("abandoned 拒绝（终止态为终态，不可重复进入状态机）", () => {
+    expect(() => nextState("abandoned", "ABANDON")).toThrow(TrainingError);
+  });
+});

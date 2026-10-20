@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { HubInProgressCard, HubHistoryItem, HubSessionStage } from "./contract";
 import {
   actionNoteFor,
+  canRestartFor,
   continueActionFor,
   currentBadgeText,
   formatHubDateKey,
@@ -81,6 +82,17 @@ describe("进行中卡继续按钮模型", () => {
   });
 });
 
+describe("进行中卡「重启训练」可见性（T38 / D40）", () => {
+  it("作答中 / 追问中可重启（未提交终答可终止）", () => {
+    expect(canRestartFor("answering")).toBe(true);
+    expect(canRestartFor("followup")).toBe(true);
+  });
+
+  it("评分中不可重启（已提交终答，服务端一律 409，入口不展示）", () => {
+    expect(canRestartFor("scoring")).toBe(false);
+  });
+});
+
 describe("日期与时间格式化", () => {
   it("formatHubDateKey：YYYY-MM-DD → 中文日期 + 星期（UTC 口径，防时区漂移）", () => {
     expect(formatHubDateKey("2026-10-07")).toBe("2026年10月7日 星期三");
@@ -130,6 +142,12 @@ describe("历史行状态徽章与跳转", () => {
     const scoring = item({ state: "followup", hasFinalAnswer: true });
     expect(historyStatusFor(scoring)).toEqual({ text: "评分中", tone: "scoring" });
     expect(historyHrefFor(scoring)).toBe("/training/session/s-1");
+  });
+
+  it("已终止（T38 / D40）→「已终止」徽章，跳只读详情（不可回工作台）", () => {
+    const abandoned = item({ state: "abandoned", hasFinalAnswer: false });
+    expect(historyStatusFor(abandoned)).toEqual({ text: "已终止", tone: "abandoned" });
+    expect(historyHrefFor(abandoned)).toBe("/training/history/s-1");
   });
 });
 

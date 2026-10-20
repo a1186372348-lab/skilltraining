@@ -11,14 +11,17 @@ import { TRAINING_ERROR_CODES as CODES, TrainingError } from "./errors";
  * - followup：首答已提交，AI 追问阶段（提示永久禁用，D7）
  * - scored：终答已评分（【T06 接入点】由评分任务经 MARK_SCORED 写入；
  *   T05 终答落库后会话停留在 followup）
+ * - abandoned：已终止（T38 / D40：reading/answering/followup 经 ABANDON 进入；
+ *   终态，不评分不计入画像，历史以「已终止」保留）
  *
- * 幂等由服务层负责：重复提交首答/终答不进入状态机，直接返回既有状态。
+ * 幂等由服务层负责：重复提交首答/终答、重复终止不进入状态机，直接返回既有状态。
  */
 export type TrainingEvent =
   | "REQUEST_HINT"
   | "SUBMIT_FIRST_ANSWER"
   | "SUBMIT_FINAL_ANSWER"
-  | "MARK_SCORED"; // T06 评分完成后使用
+  | "MARK_SCORED" // T06 评分完成后使用
+  | "ABANDON"; // T38 / D40 训练终止
 
 export function nextState(
   state: TrainingSessionState,
@@ -66,6 +69,24 @@ export function nextState(
         CODES.INVALID_STATE,
         409,
         `状态 ${state} 下不可标记评分`,
+      );
+
+    case "ABANDON":
+      // T38 / D40④：仅未提交终答的进行中会话可终止；scored 与 abandoned 为终态
+      if (state === "reading" || state === "answering" || state === "followup") {
+        return "abandoned";
+      }
+      if (state === "scored") {
+        throw new TrainingError(
+          CODES.SESSION_ALREADY_SCORED,
+          409,
+          "会话已评分，不可终止",
+        );
+      }
+      throw new TrainingError(
+        CODES.INVALID_STATE,
+        409,
+        `状态 ${state} 下不可终止训练`,
       );
   }
 }

@@ -64,6 +64,14 @@ export function continueActionFor(current: HubInProgressCard): ContinueAction {
   return { label: "继续训练", href: `/training/session/${current.sessionId}` };
 }
 
+/**
+ * 进行中卡「重启训练」入口可见性（T38 / D40④）：
+ * 仅未提交终答的阶段（作答中/追问中）可终止；评分中已交终答（服务端一律 409），入口不展示。
+ */
+export function canRestartFor(stage: HubSessionStage): boolean {
+  return stage !== "scoring";
+}
+
 /** 侧栏底部「今日状态」：进行中取阶段文案；未开始 / 已完成对应待开始 / 已完成 */
 export function sidebarStageText(current: HubCurrentCard): string {
   switch (current.kind) {
@@ -105,14 +113,16 @@ export function formatHubTime(iso: string, now: Date): string {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
-export type HistoryStatusTone = "doing" | "scoring" | "done";
+export type HistoryStatusTone = "doing" | "scoring" | "done" | "abandoned";
 
 /**
  * 历史行状态徽章（原型：已完成绿 / 评分中蓝 / 作答中·追问中灰）：
- * scored → 已完成；followup 已交终答 → 评分中；followup 未交终答 → 追问中；其余 → 作答中。
+ * scored → 已完成；abandoned → 已终止（T38 / D40②）；
+ * followup 已交终答 → 评分中；followup 未交终答 → 追问中；其余 → 作答中。
  */
 export function historyStatusFor(item: HubHistoryItem): { text: string; tone: HistoryStatusTone } {
   if (item.state === "scored") return { text: "已完成", tone: "done" };
+  if (item.state === "abandoned") return { text: "已终止", tone: "abandoned" };
   if (item.state === "followup") {
     return item.hasFinalAnswer
       ? { text: "评分中", tone: "scoring" }
@@ -124,10 +134,11 @@ export function historyStatusFor(item: HubHistoryItem): { text: string; tone: Hi
 /**
  * 历史行跳转（D27②⑤）：
  * 未完成 → 工作台 /training/session/[id]（「作答中」的旧会话点回继续）；
- * 已完成 → 只读详情 /training/history/[id]（历史回看沿用只读详情页）。
+ * 已完成 / 已终止 → 只读详情 /training/history/[id]（历史回看沿用只读详情页；
+ * 已终止会话不可回工作台——工作台直达对其返回 409 SESSION_ABANDONED，T38）。
  */
 export function historyHrefFor(item: HubHistoryItem): string {
-  return item.state === "scored"
+  return item.state === "scored" || item.state === "abandoned"
     ? `/training/history/${item.sessionId}`
     : `/training/session/${item.sessionId}`;
 }

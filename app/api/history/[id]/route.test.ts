@@ -15,7 +15,9 @@ const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
 
 // 独立种子题 id（与 T05 及其他测试文件的种子题隔离，避免并发 upsert 互相覆盖）
-const SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000b2";
+// 注：b2 是四个基线门禁测试文件共用的基线题 id（kind=baseline 互相 upsert），
+// 本文件断言 caseTitle，必须用不共享的 id（T38 排查：b2 撞 id 导致全套件并行时偶发失败）
+const SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000f1";
 
 async function ensureSeedQuestion(): Promise<void> {
   const data = {

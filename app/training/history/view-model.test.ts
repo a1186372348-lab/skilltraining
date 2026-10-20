@@ -24,5 +24,7 @@ describe("日期与状态文案", () => {
     expect(sessionStateText("answering")).toBe("作答中");
     expect(sessionStateText("followup")).toBe("追问中");
     expect(sessionStateText("scored")).toBe("已完成");
+    // T38 / D40：已终止会话只读回放
+    expect(sessionStateText("abandoned")).toBe("已终止");
   });
 });

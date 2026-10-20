@@ -6,8 +6,8 @@
  * 若联调时服务端字段有出入，只需修改本文件与 app/training/api.ts 的解析，页面组件不感知。
  */
 
-/** 会话状态（与 prisma TrainingSessionState 枚举一致） */
-export type HubSessionState = "reading" | "answering" | "followup" | "scored";
+/** 会话状态（与 prisma TrainingSessionState 枚举一致；abandoned=T38 / D40 已终止） */
+export type HubSessionState = "reading" | "answering" | "followup" | "scored" | "abandoned";
 
 /** 进行中会话的阶段（D27 状态机：reading/answering→作答中；followup 未交终答→追问中；已交终答未评分→评分中） */
 export type HubSessionStage = "answering" | "followup" | "scoring";

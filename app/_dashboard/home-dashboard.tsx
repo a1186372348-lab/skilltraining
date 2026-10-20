@@ -134,7 +134,7 @@ export function HomeDashboard() {
 
             <div className="grid items-stretch gap-6 xl:grid-cols-[1.55fr_1fr]">
               <div className="flex min-w-0 flex-col gap-6">
-                <CurrentTrainingSlot view={view} onRetry={() => void load()} />
+                <CurrentTrainingSlot view={view} onRetry={() => void load()} onChanged={() => void load()} />
                 <DiagnosisCard view={view} />
               </div>
               <AbilityCard view={view} />
@@ -162,8 +162,18 @@ function LoadingView() {
 /**
  * 「当前训练」卡位（T26 / D28①）：与产品训练大厅同一张共享三态卡，
  * 内容与动作逐字一致；currentTraining 为 null（加载失败降级）时按 T08 约定渲染空态虚线卡。
+ * onChanged（T38 / D40①）：「重启训练」终止成功后重取仪表盘载荷，卡片回未开始态
+ *（复用 load：已有 view 时重取不闪骨架屏）。
  */
-function CurrentTrainingSlot({ view, onRetry }: { view: DashboardView; onRetry: () => void }) {
+function CurrentTrainingSlot({
+  view,
+  onRetry,
+  onChanged,
+}: {
+  view: DashboardView;
+  onRetry: () => void;
+  onChanged: () => void;
+}) {
   if (!view.currentTraining) {
     return (
       <section className={`${EMPTY_CARD} flex-1`}>
@@ -179,7 +189,7 @@ function CurrentTrainingSlot({ view, onRetry }: { view: DashboardView; onRetry: 
       </section>
     );
   }
-  return <CurrentTrainingCard current={view.currentTraining} />;
+  return <CurrentTrainingCard current={view.currentTraining} onChanged={onChanged} />;
 }
 
 /** 最近一条诊断引用卡（session_feedback.top_issue_text，截断展示） */

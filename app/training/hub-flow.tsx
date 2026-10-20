@@ -76,6 +76,22 @@ export function TrainingHubFlow() {
     setRetryToken((prev) => prev + 1);
   }, []);
 
+  /**
+   * T38 / D40①：「重启训练」终止成功后静默重取大厅载荷（不闪骨架屏）——
+   * 当前卡回未开始态、历史列表出现「已终止」行；刷新失败保持现状（下次进入/手动重试再加载）。
+   */
+  const onCurrentChanged = useCallback(() => {
+    void (async () => {
+      try {
+        const result = await fetchTrainingHub();
+        setView(result);
+        setLoadedAt(new Date());
+      } catch {
+        // 静默：终止已成功，仅本次刷新失败
+      }
+    })();
+  }, []);
+
   return (
     <TrainingShell
       stageText={view ? sidebarStageText(view.current) : "加载中"}
@@ -107,7 +123,7 @@ export function TrainingHubFlow() {
           <>
             {/* 卡片自身不带外边距（T26 共享组件）：大厅这里保持原 mb-6 间距，渲染结果不变 */}
             <div className="mb-6">
-              <CurrentTrainingCard current={view.current} />
+              <CurrentTrainingCard current={view.current} onChanged={onCurrentChanged} />
             </div>
             <HistorySection history={view.history} now={loadedAt ?? new Date()} />
           </>
@@ -144,11 +160,12 @@ function HistorySection({ history, now }: { history: HubHistoryItem[]; now: Date
   );
 }
 
-/** 历史行状态徽章（原型：已完成绿 / 评分中蓝 / 作答中·追问中灰） */
+/** 历史行状态徽章（原型：已完成绿 / 评分中蓝 / 作答中·追问中灰 / 已终止石灰，T38） */
 const STATUS_TONE_CLASS: Record<HistoryStatusTone, string> = {
   done: "border-[#D1FAE5] bg-[#ECFDF5] text-[#047857]",
   scoring: "border-[#D9E7FD] bg-[#EFF5FF] text-[#1D4ED8]",
   doing: "border-[#E6EAF1] bg-[#F1F5F9] text-[#64748B]",
+  abandoned: "border-[#E7E5E4] bg-[#FAFAF9] text-[#78716C]",
 };
 
 /** 单条训练记录行：类型徽章 + 状态徽章 / 案例名 / 能力标签 / 得分摘要与时间；整行可点（进行中回工作台、已完成看回放） */

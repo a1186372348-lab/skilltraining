@@ -6,10 +6,11 @@ import { useCallback, useState } from "react";
 
 import type { HubCurrentCard, HubInProgressCard } from "./contract";
 import { formatScore } from "./feedback/[id]/view-model";
-import { fetchTodaySession, startExtraSession, ApiError } from "./session/api";
+import { abandonSession, fetchTodaySession, startExtraSession, ApiError } from "./session/api";
 import type { TodayView } from "./session/contract";
 import {
   actionNoteFor,
+  canRestartFor,
   continueActionFor,
   currentBadgeText,
   formatHubDateKey,
@@ -22,6 +23,9 @@ import {
  * 三态：进行中→继续训练 / 未开始→开始今日训练 / 已完成→查看结果+再练一题（D27②）。
  * 组件自持全部动作逻辑：开始今日训练 / 再练一题的 pending、行内错误与跳转
  * （两动作不同时可见，共用一条行内错误）；「查看结果 / 继续训练」为纯 Link。
+ * T38 / D40①：进行中态「继续训练」右侧加「重启训练」（次级样式，评分中不展示）——
+ * 两步内联确认（点击 →「丢弃当前作答并重启？」确认/取消）→ POST abandon →
+ * 经 onChanged 回调让父级重取数据，卡片回到未开始态；父级未接回调时仅复位本地态。
  * 卡片自身不带外边距——间距由所在页面布局（大厅 mb-6 / 首页左列 gap）决定。
  */
 
@@ -31,9 +35,19 @@ const PRIMARY_BTN =
   "inline-flex items-center gap-2 rounded-xl bg-[#2563EB] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(37,99,235,0.65)] transition-all hover:-translate-y-px hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:bg-[#94A3B8] disabled:shadow-none disabled:hover:translate-y-0";
 const GHOST_BTN =
   "inline-flex items-center gap-2 rounded-xl border border-[#D8DFEA] bg-white px-6 py-3 text-sm font-semibold text-[#334155] transition-colors hover:border-[#3B82F6] hover:bg-[#FAFCFF] hover:text-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-60";
+/** 「确认重启」小按钮（破坏性感知但克制：红色实心小尺寸，嵌在确认条内） */
+const DANGER_BTN =
+  "rounded-lg bg-[#DC2626] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:bg-[#FCA5A5]";
 
-/** 「当前训练」卡三态分派 + 动作持有（D27② / D28①） */
-export function CurrentTrainingCard({ current }: { current: HubCurrentCard }) {
+/** 「当前训练」卡三态分派 + 动作持有（D27② / D28①）；onChanged：动作改变会话后请父级重取（T38） */
+export function CurrentTrainingCard({
+  current,
+  onChanged,
+}: {
+  current: HubCurrentCard;
+  /** T38 / D40①：终止成功后回调（父级为客户端取数，重取后卡片回到未开始态） */
+  onChanged?: () => void;
+}) {
   const router = useRouter();
   /** 开始今日训练 / 再练一题的进行中标记与行内错误（两动作不同时可见，共用一条错误） */
   const [todayPending, setTodayPending] = useState(false);
@@ -90,7 +104,7 @@ export function CurrentTrainingCard({ current }: { current: HubCurrentCard }) {
   }, [extraPending, router]);
 
   if (current.kind === "in_progress") {
-    return <InProgressCard current={current} />;
+    return <InProgressCard current={current} onChanged={onChanged} />;
   }
   if (current.kind === "not_started") {
     return (
@@ -130,9 +144,41 @@ function Badge({ tone, children }: { tone: keyof typeof BADGE_TONE_CLASS; childr
   );
 }
 
-/** 状态①：有进行中的训练——标题 + 进度提示条 +「继续训练」（评分中改跳反馈页） */
-function InProgressCard({ current }: { current: HubInProgressCard }) {
+/** 状态①：有进行中的训练——标题 + 进度提示条 +「继续训练」（评分中改跳反馈页）+「重启训练」（T38 / D40①） */
+function InProgressCard({
+  current,
+  onChanged,
+}: {
+  current: HubInProgressCard;
+  onChanged?: () => void;
+}) {
   const action = continueActionFor(current);
+  /** T38：重启训练两步内联确认（确认中标记 + 终止请求 pending + 行内错误） */
+  const [confirming, setConfirming] = useState(false);
+  const [abandonPending, setAbandonPending] = useState(false);
+  const [abandonError, setAbandonError] = useState<string | null>(null);
+  // D40④：评分中已交终答（服务端一律 409），重启入口不展示
+  const canRestart = canRestartFor(current.stage);
+
+  /** 确认重启：调终止接口 → 父级重取回未开始态；失败就地报错可重试 */
+  const onConfirmRestart = useCallback(async () => {
+    if (abandonPending) return;
+    setAbandonPending(true);
+    setAbandonError(null);
+    try {
+      await abandonSession(current.sessionId);
+      if (onChanged) {
+        onChanged(); // 终止成功：卡片随父级重取回到未开始态（本地态随重渲染重置）
+      } else {
+        setConfirming(false);
+        setAbandonPending(false);
+      }
+    } catch (error) {
+      setAbandonError(error instanceof Error ? error.message : "终止失败，请重试");
+      setAbandonPending(false);
+    }
+  }, [abandonPending, current.sessionId, onChanged]);
+
   return (
     <section className={`${CARD} p-8`}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -149,7 +195,46 @@ function InProgressCard({ current }: { current: HubInProgressCard }) {
           {action.label}
           <span className="text-xs">▸</span>
         </Link>
-        <span className="text-xs text-[#94A3B8]">{actionNoteFor(current.stage)}</span>
+        {canRestart && !confirming ? (
+          <button
+            type="button"
+            onClick={() => {
+              setConfirming(true);
+              setAbandonError(null);
+            }}
+            className={GHOST_BTN}
+          >
+            重启训练
+          </button>
+        ) : null}
+        {canRestart && confirming ? (
+          <span className="inline-flex flex-wrap items-center gap-3 rounded-xl border border-[#FDE2E2] bg-[#FFF8F8] px-4 py-2.5">
+            <span className="text-[13px] font-medium text-[#B91C1C]">丢弃当前作答并重启？</span>
+            <button
+              type="button"
+              onClick={() => void onConfirmRestart()}
+              disabled={abandonPending}
+              className={DANGER_BTN}
+            >
+              {abandonPending ? "终止中…" : "确认重启"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirming(false);
+                setAbandonError(null);
+              }}
+              disabled={abandonPending}
+              className="text-xs font-semibold text-[#64748B] transition-colors hover:text-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              取消
+            </button>
+          </span>
+        ) : null}
+        {!confirming ? (
+          <span className="text-xs text-[#94A3B8]">{actionNoteFor(current.stage)}</span>
+        ) : null}
+        {abandonError ? <span className="text-xs text-red-600">{abandonError}</span> : null}
       </div>
     </section>
   );
