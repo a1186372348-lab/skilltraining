@@ -14,7 +14,7 @@
 - API：`app/api/training/`（hub、today、[id]、[id]/abandon（T38 终止）、hint、first-answer、followup-retry、final-answer、extra、score-notifications）。
 - 支撑模块：`server/modules/training`（状态机、系数、大厅视图 hub-view、单会话视图）、`scoring`（Rubric 评分）、`selection`（选题）、`profile`（画像更新）、`server/ai/followup.ts`（追问）。
 - 关键规则：BR-1/BR-2（有效分与系数）、BR-3（提示）、BR-4（追问）、BR-7（反馈必须具体可行动）、D7/D22/D23/D27；追问闸门（T35 / D37）：首答后同一次 AI 调用先判定必要性——主测维度（abilityTags[0]）无重大缺项、证据链完整则不追问，前端渲染正向零追问卡直进终答；判定该追问则给 1~2 问；闸门判定记录两分支落库（followups jsonb 首元素恒为 gate_decision 标记：shouldFollowup + 中文判定理由，仅审计不下发；存量 gate_skip 标记读取侧兼容），并配 gate-probe 探针（`scripts/gate-probe.ts`：--recent 判定分布监测，全部为同一判定时警示形同虚设；--live 真实调 DeepSeek 核查思考链）；追问生成失败态（空数组，与闸门跳过可区分）隐藏作答输入区，提供「重试本次对话」（followup-retry，幂等；闸门跳过会话 409 FOLLOWUP_GATE_SKIPPED 守卫）与「跳过追问直接作答」逃生口（T37 / D39）；训练终止与重启（T38 / D40）：进行中态当前训练卡提供「重启训练」（两步内联确认），终止为状态推进（`abandoned` 终态）而非删除——不评分不计入画像，历史以「已终止」徽章只读展示；仅未提交终答的日常会话（含加练）可终止（基线/已交终答/已评分一律 409）；被终止题进入选题排除集，重启走 get-or-create 出新题；终止会话的工作台直达 409 `SESSION_ABANDONED`，前端挡回大厅。
-- 状态：已交付（T05/T06/T07）；追问提示（T19）、三栏工作台（T20）、加练（T21）、追问可靠性（T22）、评分通知（T24）陆续增强；IA 重构（T25）合并为「产品训练」模块；追问闸门（T35，判定质量人审校准进行中）；训练终止与重启（T38，实测中）。
+- 状态：已交付（T05/T06/T07）；追问提示（T19）、三栏工作台（T20）、加练（T21）、追问可靠性（T22）、评分通知（T24）陆续增强；IA 重构（T25）合并为「产品训练」模块；追问闸门（T35 DONE，2026-10-20 人审校准 R2：放水 0、误伤率 20% 裁定达标——判定标准为结构性缺陷三类 + 证据-结论错配 + 达标即放行 + 承认未知保护，报告 `docs/v2/gate-calibration-report.md`）；训练终止与重启（T38 DONE，实测确认）。
 
 ## F2 基线测评
 
