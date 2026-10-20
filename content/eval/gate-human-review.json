@@ -1,0 +1,49 @@
+{
+  "B3": {
+    "S3": "skip",
+    "S2": "followup",
+    "S4": "followup",
+    "S1": "skip"
+  },
+  "B5": {
+    "S2": "followup",
+    "S1": "followup",
+    "S3": "followup"
+  },
+  "B7": {
+    "S2": "followup",
+    "S4": "gray",
+    "S3": "skip",
+    "S1": "followup"
+  },
+  "B10": {
+    "S1": "gray",
+    "S4": "followup",
+    "S3": "followup",
+    "S2": "followup"
+  },
+  "B12": {
+    "S1": "skip",
+    "S2": "followup",
+    "S4": "gray",
+    "S3": "followup"
+  },
+  "B14": {
+    "S2": "gray",
+    "S3": "followup",
+    "S4": "skip",
+    "S1": "followup"
+  },
+  "B16": {
+    "S1": "followup",
+    "S4": "followup",
+    "S2": "followup",
+    "S3": "followup"
+  },
+  "B17": {
+    "S4": "gray",
+    "S3": "followup",
+    "S1": "followup",
+    "S2": "followup"
+  }
+}
