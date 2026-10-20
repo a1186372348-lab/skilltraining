@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FollowupRound } from "./contract";
 import {
+  FOLLOWUP_GATE_SKIP_MESSAGE,
   FOLLOWUP_GENERATING_WINDOW_MS,
   MAX_HINT_LAYERS,
   THINKING_DIRECTIONS,
@@ -11,6 +12,7 @@ import {
   followupEmptyState,
   followupFailureMode,
   followupInputPlaceholder,
+  followupPanelMode,
   formatCoefficient,
   hintMicrocopy,
   isFollowupInputVisible,
@@ -386,5 +388,36 @@ describe("追问失败态渲染判定（T37 / D39：隐藏输入区 + 重试/跳
     expect(followupInputPlaceholder("skipped")).toContain("最终");
     expect(followupInputPlaceholder("none")).toBe("回应追问，修正或深化你的结论……");
     expect(followupInputPlaceholder("failed")).toBe("回应追问，修正或深化你的结论……");
+  });
+});
+
+describe("追问闸门三态判定（T35 / D37）", () => {
+  it("followupPanelMode：有追问轮次 → rounds（现状气泡），轮次优先于闸门标记", () => {
+    expect(followupPanelMode(1, false)).toBe("rounds");
+    expect(followupPanelMode(2, false)).toBe("rounds");
+    expect(followupPanelMode(1, true)).toBe("rounds"); // 防御：脏数据下轮次优先
+  });
+
+  it("followupPanelMode：无轮次且闸门判定无需追问 → gate-skip（正向零追问卡）", () => {
+    expect(followupPanelMode(0, true)).toBe("gate-skip");
+  });
+
+  it("followupPanelMode：无轮次且无闸门标记 → empty（生成中/失败通道，T22/T37）", () => {
+    expect(followupPanelMode(0, false)).toBe("empty");
+  });
+
+  it("闸门跳过文案：正向零追问卡引导直接提交最终答案", () => {
+    expect(FOLLOWUP_GATE_SKIP_MESSAGE).toContain("无需追问");
+    expect(FOLLOWUP_GATE_SKIP_MESSAGE).toContain("最终答案");
+  });
+
+  it("输入框占位文案：gate-skip 引导直接作答终案（非「回应追问」语境）", () => {
+    expect(followupInputPlaceholder("none", "gate-skip")).toBe(
+      "无需回应追问——直接写下你的最终结论与论证……",
+    );
+    // 其余形态不受第二参缺省影响（回归）
+    expect(followupInputPlaceholder("none", "rounds")).toBe("回应追问，修正或深化你的结论……");
+    expect(followupInputPlaceholder("none", "empty")).toBe("回应追问，修正或深化你的结论……");
+    expect(followupInputPlaceholder("skipped", "empty")).toContain("最终");
   });
 });

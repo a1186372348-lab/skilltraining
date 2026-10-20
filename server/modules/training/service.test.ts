@@ -4,12 +4,14 @@ import { PrismaClient, type Question } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { TRAINING_ERROR_CODES as CODES, TrainingError } from "./errors";
+import { parseFollowupGateSkip } from "./today-view";
 import {
   getLatestDailySession,
   getOrCreateExtraSession,
   getOrCreateTodaySession,
   requestFollowupHint,
   requestHint,
+  retryFollowups,
   submitFinalAnswer,
   submitFirstAnswer,
   todayUtc,
@@ -295,16 +297,21 @@ describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4/D22）", () =
   it("首答落库、状态推进 followup、追问（1~2 轮，含预生成提示）存入 followups jsonb；提示随之禁用", async () => {
     const userId = await newUser();
     const { session } = await getOrCreateTodaySession(prisma, userId);
-    const generateFollowups = async () => [
-      { question: "你的证据是什么？", hint: "想想可衡量的指标" },
-      { question: "反方如何反驳？", hint: "站在反方立场找论据" },
-    ];
+    const generateFollowups = async () => ({
+      shouldFollowup: true,
+      reason: "核心主张缺少证据支撑",
+      followups: [
+        { question: "你的证据是什么？", hint: "想想可衡量的指标" },
+        { question: "反方如何反驳？", hint: "站在反方立场找论据" },
+      ],
+    });
 
     const result = await submitFirstAnswer(prisma, session.id, userId, "我的首次答案", {
       generateFollowups,
     });
 
     expect(result.state).toBe("followup");
+    expect(result.followupGateSkipped).toBe(false);
     expect(result.followups).toEqual([
       { round: 1, question: "你的证据是什么？", hasHint: true, hintReleased: false, hint: null },
       { round: 2, question: "反方如何反驳？", hasHint: true, hintReleased: false, hint: null },
@@ -315,8 +322,15 @@ describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4/D22）", () =
     expect(row.firstAnswer).toBe("我的首次答案");
     expect(row.firstSubmittedAt).not.toBeNull();
     expect(row.state).toBe("followup");
+    // 闸门判定记录恒为首元素（T35：两分支落库，含判定理由，仅审计不下发），追问轮次跟在其后；
     // 预生成提示随追问落库（D22：点击时读库零等待），初始未释放
     expect(row.followups).toEqual([
+      {
+        type: "gate_decision",
+        shouldFollowup: true,
+        reason: "核心主张缺少证据支撑",
+        decidedAt: expect.any(String),
+      },
       { round: 1, question: "你的证据是什么？", hint: "想想可衡量的指标", hintReleased: false },
       { round: 2, question: "反方如何反驳？", hint: "站在反方立场找论据", hintReleased: false },
     ]);
@@ -330,14 +344,21 @@ describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4/D22）", () =
   it("AI 未给出提示（hint 空串）：追问保留、按无提示落库", async () => {
     const userId = await newUser();
     const session = await seedSession(userId);
-    const generateFollowups = async () => [{ question: "追问一", hint: "" }];
+    const generateFollowups = async () => ({
+      shouldFollowup: true,
+      reason: "r",
+      followups: [{ question: "追问一", hint: "" }],
+    });
 
     const result = await submitFirstAnswer(prisma, session.id, userId, "首答", { generateFollowups });
     expect(result.followups).toEqual([
       { round: 1, question: "追问一", hasHint: false, hintReleased: false, hint: null },
     ]);
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
-    expect(row.followups).toEqual([{ round: 1, question: "追问一", hint: "", hintReleased: false }]);
+    expect(row.followups).toEqual([
+      { type: "gate_decision", shouldFollowup: true, reason: "r", decidedAt: expect.any(String) },
+      { round: 1, question: "追问一", hint: "", hintReleased: false },
+    ]);
   });
 
   it("幂等：重复提交不覆盖首答、不重复生成追问", async () => {
@@ -346,7 +367,7 @@ describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4/D22）", () =
     let calls = 0;
     const generateFollowups = async () => {
       calls += 1;
-      return [{ question: "追问一", hint: "提示一" }];
+      return { shouldFollowup: true, reason: "r", followups: [{ question: "追问一", hint: "提示一" }] };
     };
 
     const first = await submitFirstAnswer(prisma, session.id, userId, "原始首答", { generateFollowups });
@@ -363,17 +384,187 @@ describe("submitFirstAnswer：状态推进 + AI 追问（BR-4/FR-4/D22）", () =
   it("AI 追问失败：不阻塞训练，状态照推进、followups 为空（失败计入日志）", async () => {
     const userId = await newUser();
     const session = await seedSession(userId);
-    const generateFollowups = async (): Promise<{ question: string; hint: string }[]> => {
+    const generateFollowups = async (): Promise<never> => {
       throw new Error("网关不可用");
     };
 
     const result = await submitFirstAnswer(prisma, session.id, userId, "首答", { generateFollowups });
     expect(result.state).toBe("followup");
     expect(result.followups).toEqual([]);
+    expect(result.followupGateSkipped).toBe(false); // 失败空数组 ≠ 闸门跳过（T35：两态可区分）
 
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
     expect(row.state).toBe("followup");
     expect(row.followups).toEqual([]);
+  });
+
+  it("追问闸门跳过（T35 / D37）：followups 落审计标记（含 reason），响应空追问 + followupGateSkipped=true", async () => {
+    const userId = await newUser();
+    const session = await seedSession(userId);
+    const generateFollowups = async () => ({
+      shouldFollowup: false,
+      reason: "主测维度要点覆盖完整，证据链闭环",
+      followups: [],
+    });
+
+    const result = await submitFirstAnswer(prisma, session.id, userId, "足够扎实的首答", {
+      generateFollowups,
+    });
+    expect(result.state).toBe("followup");
+    expect(result.followups).toEqual([]);
+    expect(result.followupGateSkipped).toBe(true);
+
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.state).toBe("followup");
+    // 判定记录落库（shouldFollowup=false，含判定理由），与「生成失败的空数组」可区分
+    expect(row.followups).toEqual([
+      {
+        type: "gate_decision",
+        shouldFollowup: false,
+        reason: "主测维度要点覆盖完整，证据链闭环",
+        decidedAt: expect.any(String),
+      },
+    ]);
+
+    // 幂等重提交：同样返回 followupGateSkipped=true（从存量标记解析），不重复调 AI
+    const again = await submitFirstAnswer(prisma, session.id, userId, "篡改首答", { generateFollowups });
+    expect(again.followupGateSkipped).toBe(true);
+    expect(again.followups).toEqual([]);
+  });
+});
+
+describe("retryFollowups：追问失败重试与闸门守卫（T37 / T35 / D37）", () => {
+  /** 造一个存量闸门跳过的会话（上线首日结构：followups 含 gate_skip 审计标记） */
+  async function seedLegacyGateSkippedSession(userId: string) {
+    return prisma.trainingSession.create({
+      data: {
+        userId,
+        questionId: SEED_QUESTION_ID,
+        date: new Date(Date.UTC(2026, 9, 19)),
+        state: "followup",
+        firstAnswer: "足够扎实的首答",
+        firstSubmittedAt: new Date(),
+        followups: [
+          {
+            type: "gate_skip",
+            reason: "主测维度要点覆盖完整，证据链闭环",
+            decidedAt: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+  }
+
+  /** 造一个闸门跳过的会话（现行结构：followups 首元素为 gate_decision 判定记录） */
+  async function seedGateSkippedSession(userId: string) {
+    return prisma.trainingSession.create({
+      data: {
+        userId,
+        questionId: SEED_QUESTION_ID,
+        date: new Date(Date.UTC(2026, 9, 19)),
+        state: "followup",
+        firstAnswer: "足够扎实的首答",
+        firstSubmittedAt: new Date(),
+        followups: [
+          {
+            type: "gate_decision",
+            shouldFollowup: false,
+            reason: "主测维度要点覆盖完整，证据链闭环",
+            decidedAt: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+  }
+
+  it("闸门跳过会话不可按失败重试：409 FOLLOWUP_GATE_SKIPPED，不调 AI", async () => {
+    const userId = await newUser();
+    const session = await seedGateSkippedSession(userId);
+    let calls = 0;
+    const generateFollowups = async () => {
+      calls += 1;
+      return { shouldFollowup: true, reason: "r", followups: [{ question: "追问一", hint: "提示一" }] };
+    };
+
+    await expect(
+      retryFollowups(prisma, session.id, userId, { generateFollowups }),
+    ).rejects.toMatchObject({ code: CODES.FOLLOWUP_GATE_SKIPPED, httpStatus: 409 });
+    expect(calls).toBe(0);
+
+    // 落库标记未被破坏
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(parseFollowupGateSkip(row.followups)).not.toBeNull();
+  });
+
+  it("存量 gate_skip 标记的会话同样被守卫拒绝（兼容解析）", async () => {
+    const userId = await newUser();
+    const session = await seedLegacyGateSkippedSession(userId);
+    let calls = 0;
+    const generateFollowups = async () => {
+      calls += 1;
+      return { shouldFollowup: true, reason: "r", followups: [{ question: "追问一", hint: "提示一" }] };
+    };
+
+    await expect(
+      retryFollowups(prisma, session.id, userId, { generateFollowups }),
+    ).rejects.toMatchObject({ code: CODES.FOLLOWUP_GATE_SKIPPED, httpStatus: 409 });
+    expect(calls).toBe(0);
+  });
+
+  it("失败空数组会话可重试：重新走带闸门生成，判定该追问则正常出追问", async () => {
+    const userId = await newUser();
+    const session = await seedSession(userId, {
+      state: "followup",
+      firstAnswer: "首答",
+      firstSubmittedAt: new Date(),
+      followups: [],
+    });
+    const generateFollowups = async () => ({
+      shouldFollowup: true,
+      reason: "核心主张缺少证据支撑",
+      followups: [{ question: "证据是什么？", hint: "想想可衡量的指标" }],
+    });
+
+    const result = await retryFollowups(prisma, session.id, userId, { generateFollowups });
+    expect(result.followupGateSkipped).toBe(false);
+    expect(result.followups).toEqual([
+      { round: 1, question: "证据是什么？", hasHint: true, hintReleased: false, hint: null },
+    ]);
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.followups).toEqual([
+      {
+        type: "gate_decision",
+        shouldFollowup: true,
+        reason: "核心主张缺少证据支撑",
+        decidedAt: expect.any(String),
+      },
+      { round: 1, question: "证据是什么？", hint: "想想可衡量的指标", hintReleased: false },
+    ]);
+  });
+
+  it("重试后闸门判定无需追问：落判定记录，返回空追问 + followupGateSkipped=true", async () => {
+    const userId = await newUser();
+    const session = await seedSession(userId, {
+      state: "followup",
+      firstAnswer: "首答",
+      firstSubmittedAt: new Date(),
+      followups: [],
+    });
+    const generateFollowups = async () => ({
+      shouldFollowup: false,
+      reason: "主测维度无重大缺项",
+      followups: [],
+    });
+
+    const result = await retryFollowups(prisma, session.id, userId, { generateFollowups });
+    expect(result.followups).toEqual([]);
+    expect(result.followupGateSkipped).toBe(true);
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(parseFollowupGateSkip(row.followups)).toMatchObject({
+      type: "gate_decision",
+      shouldFollowup: false,
+      reason: "主测维度无重大缺项",
+    });
   });
 });
 
@@ -453,6 +644,42 @@ describe("requestFollowupHint：追问阶段提示释放（T19 / D22 / BR-2 修�
       ...overrides,
     });
   }
+
+  it("闸门判定记录会话：释放追问提示后 gate_decision 标记保留不被冲掉（T35）", async () => {
+    const userId = await newUser();
+    const decision = {
+      type: "gate_decision",
+      shouldFollowup: true,
+      reason: "核心主张缺少证据支撑",
+      decidedAt: new Date().toISOString(),
+    };
+    const session = await prisma.trainingSession.create({
+      data: {
+        userId,
+        questionId: SEED_QUESTION_ID,
+        date: new Date(Date.UTC(2026, 9, 19)),
+        state: "followup",
+        firstAnswer: "首答",
+        firstSubmittedAt: new Date(),
+        followups: [
+          decision,
+          { round: 1, question: "追问一", hint: "追问提示一", hintReleased: false },
+          { round: 2, question: "追问二", hint: "追问提示二", hintReleased: false },
+        ],
+      },
+    });
+
+    const result = await requestFollowupHint(prisma, session.id, userId, 1);
+    expect(result.hint).toBe("追问提示一");
+
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    // 标记原样保留在首元素，轮次记录正常更新释放标记
+    expect(row.followups).toEqual([
+      decision,
+      { round: 1, question: "追问一", hint: "追问提示一", hintReleased: true },
+      { round: 2, question: "追问二", hint: "追问提示二", hintReleased: false },
+    ]);
+  });
 
   it("成功释放：返回该轮 hint，followupHintCount 自增，系数按组合公式重算", async () => {
     const userId = await newUser();

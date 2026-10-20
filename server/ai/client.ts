@@ -76,6 +76,12 @@ export interface ChatCompletionResult {
   content: string;
   model: string;
   usage: { promptTokens: number; completionTokens: number } | null;
+  /**
+   * 推理模型的思考链（DeepSeek 响应 choices[0].message.reasoning_content，D39）；
+   * 供应商未返回或非推理模型时为 null。仅诊断/探针用途（scripts/gate-probe.ts），
+   * 不落库、不下发前端；现有调用方行为不变。
+   */
+  reasoningContent?: string | null;
 }
 
 export interface AiClientOptions {
@@ -157,10 +163,11 @@ export function createAiClient(options: AiClientOptions): AiClient {
 
         const body = (await response.json()) as {
           model?: string;
-          choices?: { message?: { content?: string } }[];
+          choices?: { message?: { content?: string; reasoning_content?: unknown } }[];
           usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
-        const content = body.choices?.[0]?.message?.content;
+        const message = body.choices?.[0]?.message;
+        const content = message?.content;
         if (typeof content !== "string" || content.length === 0) {
           // T22：推理模型高负载推理 token 暴涨截空正文，属瞬时退化，标为可重试
           throw new AiApiError("AI API 响应缺少 choices[0].message.content", {
@@ -168,6 +175,11 @@ export function createAiClient(options: AiClientOptions): AiClient {
             retryable: true,
           });
         }
+        // 思考链（reasoning_content）：仅诊断用途透传，缺省 null；不进审计日志（元数据纪律不变）
+        const reasoningContent =
+          typeof message?.reasoning_content === "string" && message.reasoning_content.length > 0
+            ? message.reasoning_content
+            : null;
 
         // 审计：仅元数据，不含 Key 与消息明文
         audit({
@@ -189,6 +201,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
                   completionTokens: body.usage.completion_tokens ?? 0,
                 }
               : null,
+          reasoningContent,
         };
       } catch (error) {
         if (error instanceof AiApiError) {

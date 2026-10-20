@@ -109,6 +109,8 @@ export interface TodayView {
   firstSubmittedAt: string | null;
   /** AI 追问记录（首答后生成 1~2 轮；追问生成失败时为空，可直达终答） */
   followups: FollowupRound[];
+  /** 追问闸门跳过标记（T35 / D37）：闸门判定首答无需追问为 true——渲染正向零追问卡，直进终答；联调期缺失按 false 处理 */
+  followupGateSkipped?: boolean;
   caseTitle: string;
   caseBackground: CaseBackground;
   /** 案例来源列表（T13 / BR-8：服务端从 case_background jsonb 拆出；旧版会话为空） */
@@ -151,8 +153,10 @@ export interface FirstAnswerResponse {
   /** 固定推进到 followup */
   state: TrainingSessionState;
   firstAnswer: string;
-  /** AI 追问 1~2 轮；AI 失败时为空数组（回滚策略：可跳过追问直达终答） */
+  /** AI 追问 1~2 轮；AI 失败或闸门判定无需追问（T35）时为空数组 */
   followups: FollowupRound[];
+  /** 追问闸门跳过标记（T35 / D37）：true 时走正向零追问卡（非失败态） */
+  followupGateSkipped?: boolean;
   coefficient: number;
 }
 
@@ -169,6 +173,8 @@ export interface FollowupRetryResponse {
   state: TrainingSessionState;
   /** 重新生成的追问 1~2 轮；再次失败为空数组（前端按失败态处理）；已有追问时幂等返回既有 */
   followups: FollowupRound[];
+  /** 追问闸门跳过标记（T35 / D37）：重试后闸门判定无需追问为 true（前端切正向零追问卡，非失败态） */
+  followupGateSkipped?: boolean;
   coefficient: number;
   /** 首答提交时间（ISO） */
   firstSubmittedAt: string;
@@ -177,4 +183,10 @@ export interface FollowupRetryResponse {
 /** POST /api/training/extra 的 data 负载（T21 / D3：创建或复用加练会话，进行中复用同 id） */
 export interface ExtraSessionResponse {
   sessionId: string;
+}
+
+/** POST /api/training/:id/abandon 的 data 负载（T38 / D40：终止会话，幂等；state 恒为 abandoned） */
+export interface AbandonSessionResponse {
+  sessionId: string;
+  state: string;
 }

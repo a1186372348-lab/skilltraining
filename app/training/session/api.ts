@@ -1,4 +1,5 @@
 import type {
+  AbandonSessionResponse,
   ExtraSessionResponse,
   FinalAnswerResponse,
   FirstAnswerResponse,
@@ -108,6 +109,8 @@ function normalizeTodayView(raw: TodayView): TodayView {
     hintCount,
     releasedHints,
     followups: normalizeFollowups(raw.followups),
+    // T35：追问闸门跳过标记；联调期服务端未下发时兜底 false（按生成中/失败通道处理）
+    followupGateSkipped: raw.followupGateSkipped === true,
     // T22：追问生成中/失败判定依据；联调期服务端未下发时兜底 null（按失败处理）
     firstSubmittedAt: typeof raw.firstSubmittedAt === "string" ? raw.firstSubmittedAt : null,
     // T13：案例来源为新增字段，联调期服务端未下发时兜底为空列表（案例卡退化为无引用态）
@@ -155,6 +158,8 @@ export async function submitFirstAnswer(
     ...data,
     firstAnswer: data.firstAnswer ?? answer,
     followups: normalizeFollowups(data.followups),
+    // T35：闸门跳过标记兜底 false（空追问按失败态处理的旧行为仅保留给真失败）
+    followupGateSkipped: data.followupGateSkipped === true,
   };
 }
 
@@ -191,12 +196,27 @@ export async function retryFollowups(sessionId: string): Promise<FollowupRetryRe
   const data = await callApi<FollowupRetryResponse>(`/api/training/${sessionId}/followup-retry`, {
     method: "POST",
   });
-  return { ...data, followups: normalizeFollowups(data.followups) };
+  return {
+    ...data,
+    followups: normalizeFollowups(data.followups),
+    followupGateSkipped: data.followupGateSkipped === true,
+  };
 }
 
 /** POST /api/training/extra：创建/复用加练会话（T21 / D3），返回 { sessionId }（T25：调用方拿 sessionId 直达新工作台） */
 export async function startExtraSession(): Promise<ExtraSessionResponse> {
   return callApi<ExtraSessionResponse>("/api/training/extra", { method: "POST" });
+}
+
+/**
+ * POST /api/training/:id/abandon（T38 / D40）：终止当前会话（两步确认后调用，幂等）。
+ * 409 分支由调用方按 code 处理：BASELINE_SESSION / FINAL_ANSWER_ALREADY_SUBMITTED /
+ * SESSION_ALREADY_SCORED；429 RATE_LIMITED。
+ */
+export async function abandonSession(sessionId: string): Promise<AbandonSessionResponse> {
+  return callApi<AbandonSessionResponse>(`/api/training/${sessionId}/abandon`, {
+    method: "POST",
+  });
 }
 
 /* ======================================================================

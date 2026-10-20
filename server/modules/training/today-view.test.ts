@@ -1,7 +1,7 @@
 import type { Question, TrainingSession } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
-import { toTodayView } from "./today-view";
+import { parseFollowupGateDecision, parseFollowupGateSkip, parseFollowupRecords, toTodayView } from "./today-view";
 
 // FR-10 出口防线：today 视图绝不携带 Rubric、未释放提示层与评分 prompt。
 // 纯函数单测，不依赖数据库。
@@ -259,5 +259,150 @@ describe("案例事实引用序列化（T13 / BR-8：case_background 五字段 +
     const view = toTodayView(makeSession(), question);
     expect(view.caseBackground).toBeNull();
     expect(view.caseSources).toEqual([]);
+  });
+});
+
+describe("追问闸门判定标记（T35 / D37：gate_decision 两分支落库 + 存量 gate_skip 兼容）", () => {
+  const gateDecisionSkip = {
+    type: "gate_decision",
+    shouldFollowup: false,
+    reason: "主测维度要点覆盖完整，证据链闭环",
+    decidedAt: "2026-10-19T08:00:00.000Z",
+  };
+  const gateDecisionAsk = {
+    type: "gate_decision",
+    shouldFollowup: true,
+    reason: "核心主张缺少证据支撑",
+    decidedAt: "2026-10-19T08:00:00.000Z",
+  };
+  // 存量标记（上线首日结构）：仅跳过分支落库，无 shouldFollowup 字段
+  const legacyGateSkip = {
+    type: "gate_skip",
+    reason: "主测维度要点覆盖完整，证据链闭环",
+    decidedAt: "2026-10-19T08:00:00.000Z",
+  };
+
+  it("parseFollowupRecords：标记不是追问轮次，不解析为气泡记录；与轮次混合时只回轮次", () => {
+    expect(parseFollowupRecords([gateDecisionSkip])).toEqual([]);
+    expect(
+      parseFollowupRecords([
+        gateDecisionAsk,
+        { round: 1, question: "追问一", hint: "h", hintReleased: false },
+      ]),
+    ).toEqual([{ round: 1, question: "追问一", hint: "h", hintReleased: false }]);
+    // 存量形态不受影响：纯数组 / null / 非数组
+    expect(parseFollowupRecords([{ round: 1, question: "旧追问" }])).toEqual([
+      { round: 1, question: "旧追问", hint: "", hintReleased: false },
+    ]);
+    expect(parseFollowupRecords(null)).toEqual([]);
+    expect(parseFollowupRecords("不是数组")).toEqual([]);
+  });
+
+  it("parseFollowupGateDecision：识别两分支判定记录；无标记/脏数据返回 null", () => {
+    expect(parseFollowupGateDecision([gateDecisionSkip])).toEqual(gateDecisionSkip);
+    expect(parseFollowupGateDecision([gateDecisionAsk])).toEqual(gateDecisionAsk);
+    // 与追问轮次混合时同样能定位标记
+    expect(
+      parseFollowupGateDecision([gateDecisionAsk, { round: 1, question: "追问一" }]),
+    ).toEqual(gateDecisionAsk);
+    expect(parseFollowupGateDecision([{ round: 1, question: "追问一" }])).toBeNull();
+    expect(parseFollowupGateDecision([])).toBeNull();
+    expect(parseFollowupGateDecision(null)).toBeNull();
+    expect(parseFollowupGateDecision("不是数组")).toBeNull();
+    // 防御：shouldFollowup 非布尔 / reason 缺失的标记不可审计，按无标记处理
+    expect(
+      parseFollowupGateDecision([{ type: "gate_decision", shouldFollowup: "false", reason: "r" }]),
+    ).toBeNull();
+    expect(
+      parseFollowupGateDecision([{ type: "gate_decision", shouldFollowup: true, reason: 42 }]),
+    ).toBeNull();
+    // 存量 gate_skip 不是 gate_decision（由 parseFollowupGateSkip 兼容口径覆盖）
+    expect(parseFollowupGateDecision([legacyGateSkip])).toBeNull();
+  });
+
+  it("parseFollowupGateSkip：gate_decision shouldFollowup=false 判定跳过；存量 gate_skip 兼容", () => {
+    expect(parseFollowupGateSkip([gateDecisionSkip])).toEqual(gateDecisionSkip);
+    expect(parseFollowupGateSkip([legacyGateSkip])).toEqual(legacyGateSkip);
+    // 判定追问的标记不是跳过
+    expect(parseFollowupGateSkip([gateDecisionAsk])).toBeNull();
+    expect(
+      parseFollowupGateSkip([gateDecisionAsk, { round: 1, question: "追问一" }]),
+    ).toBeNull();
+    expect(parseFollowupGateSkip([{ round: 1, question: "追问一" }])).toBeNull();
+    expect(parseFollowupGateSkip([])).toBeNull();
+    expect(parseFollowupGateSkip(null)).toBeNull();
+  });
+
+  it("toTodayView：闸门跳过（gate_decision false）下发空追问 + followupGateSkipped=true，reason 绝不下发前端", () => {
+    const view = toTodayView(
+      makeSession({
+        state: "followup",
+        firstAnswer: "首答",
+        firstSubmittedAt: new Date(),
+        followups: [gateDecisionSkip] as unknown as TrainingSession["followups"],
+      }),
+      makeQuestion(),
+    );
+    expect(view.followups).toEqual([]); // 标记不渲染为气泡
+    expect(view.followupGateSkipped).toBe(true);
+    const raw = JSON.stringify(view);
+    expect(raw).not.toContain("主测维度要点覆盖完整"); // reason 仅落库审计（FR-10 出口防线）
+    expect(raw).not.toContain("gate_decision"); // 标记结构本身不下发
+  });
+
+  it("toTodayView：判定追问（gate_decision true + 轮次）追问正常下发、skipped=false，reason 同样不下发", () => {
+    const view = toTodayView(
+      makeSession({
+        state: "followup",
+        firstAnswer: "首答",
+        firstSubmittedAt: new Date(),
+        followups: [
+          gateDecisionAsk,
+          { round: 1, question: "证据呢？", hint: "想想可衡量的指标", hintReleased: false },
+        ] as unknown as TrainingSession["followups"],
+      }),
+      makeQuestion(),
+    );
+    expect(view.followupGateSkipped).toBe(false);
+    expect(view.followups).toEqual([
+      { round: 1, question: "证据呢？", hasHint: true, hintReleased: false, hint: null },
+    ]);
+    const raw = JSON.stringify(view);
+    expect(raw).not.toContain("核心主张缺少证据支撑"); // 判定追问的 reason 同样仅落库审计
+    expect(raw).not.toContain("gate_decision");
+  });
+
+  it("toTodayView：存量 gate_skip 标记兼容解析为跳过", () => {
+    const view = toTodayView(
+      makeSession({
+        state: "followup",
+        firstAnswer: "首答",
+        firstSubmittedAt: new Date(),
+        followups: [legacyGateSkip] as unknown as TrainingSession["followups"],
+      }),
+      makeQuestion(),
+    );
+    expect(view.followups).toEqual([]);
+    expect(view.followupGateSkipped).toBe(true);
+  });
+
+  it("toTodayView：有追问轮次（无标记）或空数组时 followupGateSkipped=false", () => {
+    const withRounds = toTodayView(
+      makeSession({
+        state: "followup",
+        firstAnswer: "首答",
+        firstSubmittedAt: new Date(),
+        followups: [{ round: 1, question: "追问一" }],
+      }),
+      makeQuestion(),
+    );
+    expect(withRounds.followupGateSkipped).toBe(false);
+    // 生成失败的空数组（T37 失败态）：不是闸门跳过
+    const failed = toTodayView(
+      makeSession({ state: "followup", firstAnswer: "首答", firstSubmittedAt: new Date(), followups: [] }),
+      makeQuestion(),
+    );
+    expect(failed.followupGateSkipped).toBe(false);
+    expect(toTodayView(makeSession(), makeQuestion()).followupGateSkipped).toBe(false);
   });
 });

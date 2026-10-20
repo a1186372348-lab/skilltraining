@@ -25,6 +25,98 @@ export interface FollowupRecord {
   hintReleased: boolean;
 }
 
+/**
+ * 追问闸门判定记录（T35 / D37，2026-10-19 起两分支落库）：followups jsonb 数组首元素
+ * 恒为此标记（不是追问轮次），追问轮次跟在其后。无论判定追问还是跳过都落库——
+ * 让「AI 是否真正逐条判定」可审计、可监测（scripts/gate-probe.ts 分布监测）；
+ * reason 仅供服务端审计，绝不下发前端。
+ */
+export interface FollowupGateDecisionRecord {
+  type: "gate_decision";
+  /** 判定结论：true = 需要追问（轮次跟随其后）；false = 闸门跳过（直进终答） */
+  shouldFollowup: boolean;
+  /** 判定理由（中文一句话；AI 产出，仅落库审计） */
+  reason: string;
+  /** 判定时间（ISO 字符串） */
+  decidedAt: string;
+}
+
+/** 构造闸门判定记录（落库首元素用） */
+export function buildFollowupGateDecisionRecord(
+  shouldFollowup: boolean,
+  reason: string,
+  decidedAt: Date = new Date(),
+): FollowupGateDecisionRecord {
+  return { type: "gate_decision", shouldFollowup, reason, decidedAt: decidedAt.toISOString() };
+}
+
+/**
+ * 存量闸门跳过标记（T35 上线首日结构，2026-10-19 由 gate_decision 取代，仅读取侧兼容）：
+ * 仅跳过分支落库，无 shouldFollowup 字段。
+ */
+export interface FollowupGateSkipRecord {
+  type: "gate_skip";
+  /** 判定理由（中文一句话；AI 产出，仅落库审计） */
+  reason: string;
+  /** 判定时间（ISO 字符串） */
+  decidedAt: string;
+}
+
+function validReason(raw: unknown): raw is string {
+  return typeof raw === "string" && raw.trim().length > 0;
+}
+
+/**
+ * 从 followups jsonb 中定位闸门判定记录（防御性读取）：
+ * 无标记 / 非数组 / shouldFollowup 非布尔 / reason 缺失（不可审计）一律返回 null；
+ * 存量 gate_skip 不属于本类型（由 parseFollowupGateSkip 兼容口径覆盖）。
+ */
+export function parseFollowupGateDecision(raw: unknown): FollowupGateDecisionRecord | null {
+  if (!Array.isArray(raw)) return null;
+  for (const item of raw) {
+    if (typeof item !== "object" || item === null) continue;
+    const record = item as {
+      type?: unknown;
+      shouldFollowup?: unknown;
+      reason?: unknown;
+      decidedAt?: unknown;
+    };
+    if (record.type !== "gate_decision") continue;
+    if (typeof record.shouldFollowup !== "boolean" || !validReason(record.reason)) return null;
+    return {
+      type: "gate_decision",
+      shouldFollowup: record.shouldFollowup,
+      reason: record.reason,
+      decidedAt: typeof record.decidedAt === "string" ? record.decidedAt : "",
+    };
+  }
+  return null;
+}
+
+/**
+ * 闸门跳过判定（视图/守卫统一口径）：gate_decision 且 shouldFollowup=false，
+ * 或存量 gate_skip 标记（读取侧兼容）。命中即返回该标记记录，否则 null。
+ */
+export function parseFollowupGateSkip(
+  raw: unknown,
+): FollowupGateDecisionRecord | FollowupGateSkipRecord | null {
+  const decision = parseFollowupGateDecision(raw);
+  if (decision !== null) return decision.shouldFollowup ? null : decision;
+  if (!Array.isArray(raw)) return null;
+  for (const item of raw) {
+    if (typeof item !== "object" || item === null) continue;
+    const record = item as { type?: unknown; reason?: unknown; decidedAt?: unknown };
+    if (record.type !== "gate_skip") continue;
+    if (!validReason(record.reason)) return null;
+    return {
+      type: "gate_skip",
+      reason: record.reason,
+      decidedAt: typeof record.decidedAt === "string" ? record.decidedAt : "",
+    };
+  }
+  return null;
+}
+
 /** 下发前端的单轮追问视图：未释放的提示绝不下发明文（hint 恒为 null） */
 export interface FollowupView {
   round: number;
@@ -62,6 +154,8 @@ export interface TodayView {
   firstAnswer: string | null;
   finalAnswer: string | null;
   followups: FollowupView[]; // 追问对话记录（BR-4；未释放提示不下发明文，D22/FR-10）
+  /** 追问闸门跳过标记（T35 / D37）：闸门判定「无需追问」为 true（直进终答）；reason 仅落库审计不下发 */
+  followupGateSkipped: boolean;
   firstSubmittedAt: string | null;
   finalSubmittedAt: string | null;
 }
@@ -123,7 +217,8 @@ function parseHintTree(raw: unknown): ReleasedHint[] {
 
 /**
  * 解析 followups jsonb 为落库记录数组（防御性读取）：
- * 存量无 hint / hintReleased 字段的老记录按「无提示、未释放」容错（不回填数据）。
+ * 存量无 hint / hintReleased 字段的老记录按「无提示、未释放」容错（不回填数据）；
+ * T35 闸门跳过标记（gate_skip）不是追问轮次，结构性过滤（无 round/question 字段）。
  */
 export function parseFollowupRecords(raw: unknown): FollowupRecord[] {
   if (!Array.isArray(raw)) return [];
@@ -191,6 +286,8 @@ export function toTodayView(
     firstAnswer: session.firstAnswer,
     finalAnswer: session.finalAnswer,
     followups: toFollowupViews(parseFollowupRecords(session.followups)),
+    // T35 / D37：闸门跳过标记存在即 true（标记非追问轮次，parseFollowupRecords 已过滤）
+    followupGateSkipped: parseFollowupGateSkip(session.followups) !== null,
     firstSubmittedAt: session.firstSubmittedAt?.toISOString() ?? null,
     finalSubmittedAt: session.finalSubmittedAt?.toISOString() ?? null,
   };

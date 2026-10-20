@@ -17,8 +17,9 @@ import {
 } from "./api";
 import type { FollowupRound, TodayView } from "./contract";
 import { TodayShell } from "./shell";
-import type { ChatMessage, FollowupFailureMode, MaterialView } from "./view-model";
+import type { ChatMessage, FollowupFailureMode, FollowupPanelMode, MaterialView } from "./view-model";
 import {
+  FOLLOWUP_GATE_SKIP_MESSAGE,
   MAX_HINT_LAYERS,
   THINKING_DIRECTIONS,
   buildFollowupMessages,
@@ -26,6 +27,7 @@ import {
   followupEmptyState,
   followupFailureMode,
   followupInputPlaceholder,
+  followupPanelMode,
   formatCoefficient,
   hintMicrocopy,
   isFollowupInputVisible,
@@ -116,6 +118,11 @@ export function TrainingFlow({
         router.replace("/baseline");
         return;
       }
+      // T38 / D40：会话已终止（他端重启或历史旧链接）→ 回训练大厅重新开始
+      if (error instanceof ApiError && error.code === "SESSION_ABANDONED") {
+        router.replace("/training");
+        return;
+      }
       setLoadError(error instanceof Error ? error.message : "加载失败，请稍后重试");
     } finally {
       setLoading(false);
@@ -161,8 +168,9 @@ export function TrainingFlow({
     setActionError(null);
     try {
       const res = await submitFirstAnswer(payload.sessionId, draft.trim());
-      // T22：响应追问为空 = 服务端重试已耗尽的确定失败，直接按失败渲染（不走 120 秒窗口）
-      setFollowupFailed(res.followups.length === 0);
+      // T22：响应追问为空 = 服务端重试已耗尽的确定失败，直接按失败渲染（不走 120 秒窗口）；
+      // T35：闸门判定无需追问（followupGateSkipped）不是失败——切正向零追问卡
+      setFollowupFailed(res.followups.length === 0 && res.followupGateSkipped !== true);
       setPayload((prev) =>
         prev
           ? {
@@ -170,6 +178,7 @@ export function TrainingFlow({
               state: res.state,
               firstAnswer: res.firstAnswer,
               followups: res.followups,
+              followupGateSkipped: res.followupGateSkipped === true,
               coefficient: res.coefficient,
               canRequestHint: false,
             }
@@ -245,6 +254,23 @@ export function TrainingFlow({
     setRetryFailed(false);
     try {
       const res = await retryFollowups(payload.sessionId);
+      if (res.followupGateSkipped === true) {
+        // T35：重试后闸门判定无需追问——切正向零追问卡（非失败态）
+        setFollowupFailed(false);
+        setFollowupSkipped(false);
+        setPayload((prev) =>
+          prev
+            ? {
+                ...prev,
+                state: res.state,
+                followups: res.followups,
+                followupGateSkipped: true,
+                coefficient: res.coefficient,
+              }
+            : prev,
+        );
+        return;
+      }
       if (res.followups.length === 0) {
         // 重试仍未成功（语义与首答一致：空追问 = 失败）
         setRetryFailed(true);
@@ -254,16 +280,27 @@ export function TrainingFlow({
       setFollowupSkipped(false);
       setPayload((prev) =>
         prev
-          ? { ...prev, state: res.state, followups: res.followups, coefficient: res.coefficient }
+          ? {
+              ...prev,
+              state: res.state,
+              followups: res.followups,
+              followupGateSkipped: false,
+              coefficient: res.coefficient,
+            }
           : prev,
       );
-    } catch {
+    } catch (error) {
+      // T35：闸门跳过会话被守卫拒绝（409 FOLLOWUP_GATE_SKIPPED）——重新拉取会话切正向零追问卡
+      if (error instanceof ApiError && error.code === "FOLLOWUP_GATE_SKIPPED") {
+        void load();
+        return;
+      }
       // 请求级失败同样回失败态并就地提示（保留重试/跳过出口）
       setRetryFailed(true);
     } finally {
       setPendingAction(null);
     }
-  }, [payload, pendingAction]);
+  }, [payload, pendingAction, load]);
 
   /** 跳过追问直接作答（T37 / D39 逃生口）：展开输入区，placeholder 引导直接终答 */
   const onSkipFollowup = useCallback(() => {
@@ -303,10 +340,17 @@ export function TrainingFlow({
   // 中栏作答/完成阶段栏级滚动，仅追问阶段改为整体对话卡（栏锁定，滚动在消息区内部，输入条钉在卡底）
   const isFollowup = stage === "followup";
 
+  // T35 / D37：追问区三态——rounds 现状气泡 / gate-skip 正向零追问卡 / empty 生成中与失败通道
+  const panelMode: FollowupPanelMode =
+    payload && isFollowup
+      ? followupPanelMode(payload.followups.length, payload.followupGateSkipped === true)
+      : "rounds";
+
   // T22：追问为空时区分生成中/失败——提交响应即空直接失败；否则按首答提交后 120 秒窗口判定
-  // （当前时间取最近一次 load 完成时间：渲染期保持纯净，每次轮询重拉后窗口自动重估）
+  // （当前时间取最近一次 load 完成时间：渲染期保持纯净，每次轮询重拉后窗口自动重估）；
+  // T35：闸门跳过（gate-skip）不进本通道——无生成中等待、无轮询、无失败兜底
   const followupEmpty =
-    payload && isFollowup && payload.followups.length === 0
+    payload && isFollowup && panelMode === "empty"
       ? followupFailed
         ? "failed"
         : followupEmptyState(payload.firstSubmittedAt, payloadLoadedAt)
@@ -396,6 +440,7 @@ export function TrainingFlow({
                 {stage === "followup" ? (
                   <FollowupSection
                     payload={payload}
+                    panelMode={panelMode}
                     emptyState={followupEmpty}
                     failureMode={failureMode}
                     retryFailed={retryFailed}
@@ -643,9 +688,10 @@ function AnsweringSection({
   );
 }
 
-/** 追问阶段：单一对话卡（T20 追加改版）——标题行 + 消息历史区（xl 起内部滚动、自动滚底）+ 底部紧凑输入条（shrink-0，始终完整可见）；每轮追问提示入口保留在对应消息旁（T19/D22）；追问为空时按 emptyState 区分生成中等待卡/失败兜底（T22）；失败态隐藏输入区并提供「重试本次对话」+「跳过追问，直接作答」出口（T37 / D39） */
+/** 追问阶段：单一对话卡（T20 追加改版）——标题行 + 消息历史区（xl 起内部滚动、自动滚底）+ 底部紧凑输入条（shrink-0，始终完整可见）；每轮追问提示入口保留在对应消息旁（T19/D22）；追问为空时按 emptyState 区分生成中等待卡/失败兜底（T22）；失败态隐藏输入区并提供「重试本次对话」+「跳过追问，直接作答」出口（T37 / D39）；闸门判定无需追问时渲染正向零追问卡、输入区即终答输入框（T35 / D37） */
 function FollowupSection({
   payload,
+  panelMode,
   emptyState,
   failureMode,
   retryFailed,
@@ -658,6 +704,8 @@ function FollowupSection({
   onSkipFollowup,
 }: {
   payload: TodayView;
+  /** 追问区三态（T35 / D37）：rounds 现状气泡 / gate-skip 正向零追问卡 / empty 生成中与失败通道 */
+  panelMode: FollowupPanelMode;
   /** 追问为空时的状态（T22：generating 显示等待卡并轮询，failed 显示兜底）；null 表示追问非空或不适用 */
   emptyState: "generating" | "failed" | null;
   /** 失败态渲染模式（T37 / D39）：failed 隐藏输入区 + 重试/跳过出口；skipped 恢复输入区直接终答 */
@@ -674,11 +722,11 @@ function FollowupSection({
 }) {
   const messages = buildFollowupMessages(payload.firstAnswer, payload.followups);
   const userBubble = messages.find((message) => message.role === "user");
-  const hasDirectorMessage = payload.followups.length > 0;
   // T37：重试期间复用「生成中」等待卡样式（总监思考中…）
   const retrying = pendingAction === "followup-retry";
-  const showGenerating = !hasDirectorMessage && (emptyState === "generating" || retrying);
-  const showFailure = !hasDirectorMessage && failureMode === "failed" && !retrying;
+  const showGenerating = panelMode === "empty" && (emptyState === "generating" || retrying);
+  const showFailure = panelMode === "empty" && failureMode === "failed" && !retrying;
+  const showGateSkip = panelMode === "gate-skip";
   const inputVisible = isFollowupInputVisible(failureMode);
   // T20 交付项 7：进入追问阶段或新追问到达时消息区滚到底部；仅消息数变化触发，用户手动上翻不回弹
   const messageListRef = useRef<HTMLDivElement>(null);
@@ -711,6 +759,13 @@ function FollowupSection({
             />
           </Fragment>
         ))}
+        {showGateSkip ? (
+          // T35 / D37：正向零追问卡（闸门判定首答足够扎实）——好答案不再被强制追问打扰
+          <div className="rounded-xl border border-dashed border-[#86EFAC] bg-[#F0FDF4] px-4 py-3 text-xs leading-5 text-[#166534]">
+            <p className="font-semibold text-[#14532D]">首答足够扎实 ✓</p>
+            <p className="mt-1">{FOLLOWUP_GATE_SKIP_MESSAGE}</p>
+          </div>
+        ) : null}
         {showGenerating ? (
           <div className="rounded-xl border border-dashed border-[#C6D3E6] bg-[#F8FAFD] px-4 py-3 text-xs leading-5 text-[#475569]">
             <p className="font-semibold text-[#12233F]">总监思考中…</p>
@@ -751,7 +806,7 @@ function FollowupSection({
         <div className="mt-5 border-t border-[#E9EDF4] pt-5 xl:shrink-0">
           <textarea
             className={`${TEXTAREA} min-h-20`}
-            placeholder={followupInputPlaceholder(failureMode)}
+            placeholder={followupInputPlaceholder(failureMode, panelMode)}
             value={finalDraft}
             onChange={(event) => onFinalDraftChange(event.target.value)}
           />

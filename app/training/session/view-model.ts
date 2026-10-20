@@ -145,13 +145,37 @@ export function followupFailureMode(
   return skipped ? "skipped" : "failed";
 }
 
+/**
+ * 追问区三态判定（T35 / D37 追问闸门）：
+ * - rounds：有追问轮次——现状（总监气泡 + 输入区）；
+ * - gate-skip：闸门判定首答已足够扎实、无需追问——正向零追问卡 + 终答输入区；
+ * - empty：无轮次且无闸门标记——生成中/失败通道（T22 120 秒窗口 / T37 失败态）。
+ * 轮次优先于闸门标记（防御脏数据）。
+ */
+export type FollowupPanelMode = "rounds" | "gate-skip" | "empty";
+
+export function followupPanelMode(roundCount: number, gateSkipped: boolean): FollowupPanelMode {
+  if (roundCount > 0) return "rounds";
+  return gateSkipped ? "gate-skip" : "empty";
+}
+
+/** 正向零追问卡文案（T35 / D37：闸门判定无需追问——好答案不再被强制追问打扰） */
+export const FOLLOWUP_GATE_SKIP_MESSAGE =
+  "你的首答已足够扎实，总监认为无需追问——可直接提交最终答案";
+
 /** 追问阶段作答输入区显隐：仅失败未跳过态隐藏（没有追问可回应） */
 export function isFollowupInputVisible(mode: FollowupFailureMode): boolean {
   return mode !== "failed";
 }
 
-/** 追问阶段输入框占位文案：跳过态引导直接作答终案 */
-export function followupInputPlaceholder(mode: FollowupFailureMode): string {
+/** 追问阶段输入框占位文案：跳过态/闸门跳过引导直接作答终案 */
+export function followupInputPlaceholder(
+  mode: FollowupFailureMode,
+  panelMode: FollowupPanelMode = "rounds",
+): string {
+  if (panelMode === "gate-skip") {
+    return "无需回应追问——直接写下你的最终结论与论证……";
+  }
   return mode === "skipped"
     ? "已跳过追问——直接写下你的最终结论与论证……"
     : "回应追问，修正或深化你的结论……";

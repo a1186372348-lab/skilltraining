@@ -17,6 +17,7 @@ enum TrainingSessionState {
   answering // 自由作答（可请求提示）
   followup  // 首答已提交，AI 追问中
   scored    // 终答已评分
+  abandoned // 已终止（T38 / D40：用户主动放弃，不评分不计入画像，历史保留）
 }
 
 // 题目上架状态（R3：每题试运行后方可上架，仅上架题参与出题）

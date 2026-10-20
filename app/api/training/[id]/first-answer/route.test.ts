@@ -10,10 +10,14 @@ import { POST } from "./route";
 // POST /api/training/:id/first-answer 集成测试：真实数据库；
 // AI 追问经 vi.mock 拦截（测试一律 mock AI，不出网）。
 
-const generateFollowupsMock = vi.fn(async () => [
-  { question: "证据是什么？", hint: "想想可衡量的指标" },
-  { question: "反方如何反驳？", hint: "站在反方立场找论据" },
-]);
+const generateFollowupsMock = vi.fn(async () => ({
+  shouldFollowup: true,
+  reason: "核心主张缺少证据支撑",
+  followups: [
+    { question: "证据是什么？", hint: "想想可衡量的指标" },
+    { question: "反方如何反驳？", hint: "站在反方立场找论据" },
+  ],
+}));
 vi.mock("@/server/ai/followup", () => ({
   generateFollowups: (...args: unknown[]) => generateFollowupsMock(...(args as [])),
 }));
@@ -110,6 +114,7 @@ describe("POST /api/training/:id/first-answer（FR-4 / BR-4）", () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.state).toBe("followup");
+    expect(json.data.followupGateSkipped).toBe(false); // T35：正常追问非闸门跳过
     // 响应为视图形态：未释放的提示不下发明文（FR-10 / D22）
     expect(json.data.followups).toEqual([
       { round: 1, question: "证据是什么？", hasHint: true, hintReleased: false, hint: null },
@@ -118,8 +123,14 @@ describe("POST /api/training/:id/first-answer（FR-4 / BR-4）", () => {
 
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
     expect(row.state).toBe("followup");
-    // 预生成提示随追问落库（D22：点击读库零等待）
+    // 闸门判定记录恒为首元素（T35：两分支落库），预生成提示随追问落库（D22：点击读库零等待）
     expect(row.followups).toEqual([
+      {
+        type: "gate_decision",
+        shouldFollowup: true,
+        reason: "核心主张缺少证据支撑",
+        decidedAt: expect.any(String),
+      },
       { round: 1, question: "证据是什么？", hint: "想想可衡量的指标", hintReleased: false },
       { round: 2, question: "反方如何反驳？", hint: "站在反方立场找论据", hintReleased: false },
     ]);
@@ -157,6 +168,33 @@ describe("POST /api/training/:id/first-answer（FR-4 / BR-4）", () => {
     const res = await POST(request, { params: Promise.resolve({ id: sessionId }) });
     expect(res.status).toBe(400);
     expect((await res.json()).error.code).toBe("INVALID_JSON");
+  });
+
+  it("追问闸门跳过（T35 / D37）：200 + 空追问 + followupGateSkipped=true，审计标记落库、reason 不下发", async () => {
+    const { email, sessionId } = await newUserWithSession();
+    generateFollowupsMock.mockResolvedValueOnce({
+      shouldFollowup: false,
+      reason: "主测维度要点覆盖完整，证据链闭环",
+      followups: [],
+    });
+    const res = await callFirstAnswer(email, sessionId, { answer: "足够扎实的首答" });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.state).toBe("followup");
+    expect(json.data.followups).toEqual([]);
+    expect(json.data.followupGateSkipped).toBe(true);
+    // reason 仅落库审计，绝不下发前端（FR-10）
+    expect(JSON.stringify(json.data)).not.toContain("主测维度要点覆盖完整");
+
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
+    expect(row.followups).toEqual([
+      {
+        type: "gate_decision",
+        shouldFollowup: false,
+        reason: "主测维度要点覆盖完整，证据链闭环",
+        decidedAt: expect.any(String),
+      },
+    ]);
   });
 
   it("幂等：重复提交返回既有追问，不覆盖首答", async () => {

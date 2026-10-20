@@ -101,6 +101,35 @@ describe("aiClient.chatCompletion", () => {
     });
   });
 
+  it("思考链提取：响应含 reasoning_content 时随结果返回，缺省为 null（T35 闸门探针）", async () => {
+    const withReasoning = {
+      ...completionBody,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: '{"should_followup": true, "reason": "r", "followups": []}',
+            reasoning_content: "学员首答只给了结论，没有证据……应当追问。",
+          },
+          finish_reason: "stop",
+        },
+      ],
+    };
+    const fetchReasoning = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, withReasoning));
+    const reasoningResult = await makeClient(fetchReasoning).chatCompletion({
+      messages: [{ role: "user", content: "hi" }],
+    });
+    expect(reasoningResult.reasoningContent).toBe("学员首答只给了结论，没有证据……应当追问。");
+
+    // 缺省（非推理模型 / 供应商未返回该字段）：null，现有调用方行为不变
+    const fetchPlain = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(200, completionBody));
+    const plainResult = await makeClient(fetchPlain).chatCompletion({
+      messages: [{ role: "user", content: "hi" }],
+    });
+    expect(plainResult.reasoningContent).toBeNull();
+  });
+
   it("429：指数退避重试后成功，sleep 按 2 的幂增长", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

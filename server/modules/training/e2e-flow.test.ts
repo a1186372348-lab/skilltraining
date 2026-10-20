@@ -98,10 +98,14 @@ describe("T05 端到端会话链路（mock AI）", () => {
 
     // 3. 提交首答（mock 追问 2 轮，各带预生成提示，D22）：状态 followup，追问落库，提示永久禁用
     const first = await submitFirstAnswer(prisma, session.id, userId, "端到端首答：Agent 是质变，因为接管了任务闭环。", {
-      generateFollowups: async () => [
-        { question: "「接管任务闭环」的衡量证据是什么？", hint: "想想可量化的指标口径" },
-        { question: "如果反方认为这只是功能叠加，最有力的反驳是什么？", hint: "回到用户任务的完成方式变化" },
-      ],
+      generateFollowups: async () => ({
+        shouldFollowup: true,
+        reason: "核心主张缺少证据支撑",
+        followups: [
+          { question: "「接管任务闭环」的衡量证据是什么？", hint: "想想可量化的指标口径" },
+          { question: "如果反方认为这只是功能叠加，最有力的反驳是什么？", hint: "回到用户任务的完成方式变化" },
+        ],
+      }),
     });
     expect(first.state).toBe("followup");
     expect(first.followups).toHaveLength(2);

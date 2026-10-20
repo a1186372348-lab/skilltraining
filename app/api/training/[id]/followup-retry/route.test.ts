@@ -10,10 +10,14 @@ import { POST } from "./route";
 // POST /api/training/:id/followup-retry（T37 / D39）集成测试：真实数据库；
 // AI 追问经 vi.mock 拦截（测试一律 mock AI，不出网）。
 
-const generateFollowupsMock = vi.fn(async () => [
-  { question: "证据是什么？", hint: "想想可衡量的指标" },
-  { question: "反方如何反驳？", hint: "站在反方立场找论据" },
-]);
+const generateFollowupsMock = vi.fn(async () => ({
+  shouldFollowup: true,
+  reason: "核心主张缺少证据支撑",
+  followups: [
+    { question: "证据是什么？", hint: "想想可衡量的指标" },
+    { question: "反方如何反驳？", hint: "站在反方立场找论据" },
+  ],
+}));
 vi.mock("@/server/ai/followup", () => ({
   generateFollowups: (...args: unknown[]) => generateFollowupsMock(...(args as [])),
 }));
@@ -203,6 +207,7 @@ describe("POST /api/training/:id/followup-retry（T37 / D39）", () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.state).toBe("followup");
+    expect(json.data.followupGateSkipped).toBe(false); // T35：判定该追问，非闸门跳过
     // 响应与首答接口的追问视图同构：未释放的提示不下发明文（FR-10 / D22）
     expect(json.data.followups).toEqual([
       { round: 1, question: "证据是什么？", hasHint: true, hintReleased: false, hint: null },
@@ -214,6 +219,12 @@ describe("POST /api/training/:id/followup-retry（T37 / D39）", () => {
 
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
     expect(row.followups).toEqual([
+      {
+        type: "gate_decision",
+        shouldFollowup: true,
+        reason: "核心主张缺少证据支撑",
+        decidedAt: expect.any(String),
+      },
       { round: 1, question: "证据是什么？", hint: "想想可衡量的指标", hintReleased: false },
       { round: 2, question: "反方如何反驳？", hint: "站在反方立场找论据", hintReleased: false },
     ]);
@@ -228,6 +239,71 @@ describe("POST /api/training/:id/followup-retry（T37 / D39）", () => {
     expect(json.data.followups).toEqual([]);
     const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
     expect(row.followups).toEqual([]);
+  });
+
+  it("闸门跳过会话不可按失败重试（T35 / D37）：409 FOLLOWUP_GATE_SKIPPED，不调 AI", async () => {
+    const email = `t35-gate-${randomUUID()}@example.com`;
+    const user = await prisma.user.create({ data: { email } });
+    createdUserIds.push(user.id);
+    const session = await prisma.trainingSession.create({
+      data: {
+        userId: user.id,
+        questionId: SEED_QUESTION_ID,
+        date: new Date(Date.UTC(2026, 9, 19)),
+        state: "followup",
+        firstAnswer: "足够扎实的首答",
+        firstSubmittedAt: new Date(),
+        // 闸门审计标记（含判定理由）：与「生成失败的空数组」可区分
+        followups: [
+          {
+            type: "gate_skip",
+            reason: "主测维度要点覆盖完整，证据链闭环",
+            decidedAt: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+    generateFollowupsMock.mockClear();
+    const res = await callRetry(email, session.id);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.code).toBe("FOLLOWUP_GATE_SKIPPED");
+    expect(generateFollowupsMock).not.toHaveBeenCalled();
+
+    // 落库标记未被破坏
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.followups).toEqual([
+      {
+        type: "gate_skip",
+        reason: "主测维度要点覆盖完整，证据链闭环",
+        decidedAt: expect.any(String),
+      },
+    ]);
+  });
+
+  it("重试重新走带闸门的生成：本次判定无需追问 → 200 + 空追问 + followupGateSkipped=true（T35）", async () => {
+    const { email, sessionId } = await newUserWithFailedSession();
+    generateFollowupsMock.mockResolvedValueOnce({
+      shouldFollowup: false,
+      reason: "主测维度无重大缺项",
+      followups: [],
+    });
+    const res = await callRetry(email, sessionId);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.followups).toEqual([]);
+    expect(json.data.followupGateSkipped).toBe(true);
+    // reason 仅落库审计，绝不下发前端（FR-10）
+    expect(JSON.stringify(json.data)).not.toContain("主测维度无重大缺项");
+
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
+    expect(row.followups).toEqual([
+      {
+        type: "gate_decision",
+        shouldFollowup: false,
+        reason: "主测维度无重大缺项",
+        decidedAt: expect.any(String),
+      },
+    ]);
   });
 
   it("限流：同一用户 1 分钟内第 31 次请求返回 429 RATE_LIMITED", async () => {
