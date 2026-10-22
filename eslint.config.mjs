@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 项目暂存目录（gitignored）：评测缓存、浏览器 profile 等运行产物不参与 lint
+    ".cache/**",
   ]),
 ]);
 

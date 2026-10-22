@@ -46,4 +46,5 @@
 - [`changelog.md`](changelog.md)：决策记录（D1~D27 全文唯一事实源）+ 变更时间线二合一治理文档；每次合并/发布/决策锁定必须追加（2026-10-07 建立，同日吸收原 `decisions.md`）。
 - [`architecture.md`](architecture.md)：架构与组件交互地图（2026-10-07 建立）。
 - [`features.md`](features.md)：关键功能高层概览与定位路由（2026-10-07 建立）。
+- [`project-tour.html`](project-tour.html)：离线交互式项目讲解地图（2026-10-22 建立）——10 个真实页面复刻、关键状态切换、逐控件悬浮实现说明、30 分钟讲解路径；静态演示数据，不连接真实 API 或数据库。
 - 实现事实类地图（`modules.md`、`data.md` 等）尚未建立，随模块落地补齐；产品方案基线见根目录 [`../Prd.md`](../Prd.md)。

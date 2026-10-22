@@ -1,4 +1,5 @@
 // 评分校准回归脚本（R1）：对内置固定样例跑评分，输出分数漂移报告
+// ※ 已被 scripts/prompt-regression.ts 统一回归门槛取代（T28 / D31 切片 2）；本脚本 3 例内置骨架保留为离线冒烟。
 // 用法：
 //   node scripts/scoring-calibration.ts          # mock 模式（默认）：确定性桩评分，离线验证报告管线
 //   node scripts/scoring-calibration.ts --live   # 真实模式：经 AI 网关（DeepSeek）评分（密钥经环境变量读取，人工触发）

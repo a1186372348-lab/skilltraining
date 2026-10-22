@@ -1,5 +1,7 @@
 import type { PrismaClient, Question } from "@prisma/client";
 
+import { SCORING_PROMPT_V1 } from "@/server/ai/prompts/scoring.v1";
+import { resolvePromptTemplates } from "@/server/ai/prompts/resolver";
 import { refreshAbilityProfile } from "@/server/modules/profile/ability";
 import { independenceCoefficient } from "@/server/modules/training/coefficient";
 import { nextState } from "@/server/modules/training/state-machine";
@@ -169,8 +171,10 @@ export async function scoreSession(
 
   // AI 评分（事务外）：解析失败/网关失败直接抛出，不落任何数据，可安全重试
   // 主测维度约定：extractRubricDimensions 按 abilityTags 顺序插入，首标签即本题主测维度
+  // prompt 模板（T28 / D31）：DB active 版本优先，无 active 回退文件版本（resolver 进程内缓存）
   const mainDimension = Object.keys(rubricDimensions)[0];
-  const score = deps.scoreWithRubric ?? scoreWithRubric;
+  const templates = await resolvePromptTemplates(db, SCORING_PROMPT_V1);
+  const score = deps.scoreWithRubric ?? ((input: RubricScoringInput) => scoreWithRubric(input, { templates }));
   const output = await score({
     mainDimension,
     mainQuestion: session.question.mainQuestion,

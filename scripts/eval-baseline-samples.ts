@@ -11,13 +11,10 @@
 //   可选：--cache <路径> 逐份落盘 + 断点续跑：每份样本评分成功即追加一行 JSONL；
 //         中断或部分失败后同一命令重跑，已缓存样本直接命中跳过，只补缺失的（接口不稳定时避免整批重来）
 // 退出码：题目/样本文件加载或校验失败 → 1；整批跑完（含跳过失败样本）→ 0，结论以报告为准
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { AI_MODEL } from "../server/ai/client.ts";
-import { parseQuestionYaml } from "../server/modules/content/load-questions.ts";
-import type { QuestionContent } from "../server/modules/content/question-schema.ts";
-import { parseReferenceAnswerYaml } from "../server/modules/content/reference-answers.ts";
 import {
   scoreWithRubric,
   type RubricScoringOutput,
@@ -25,7 +22,6 @@ import {
 import {
   analyzeHumanAlignment,
   analyzeScores,
-  buildSampleTasks,
   buildVerdict,
   createMockEvalScorer,
   fmt,
@@ -39,13 +35,10 @@ import {
   type SampleFailure,
   type SampleScore,
 } from "./lib/eval-calibration.ts";
+import { loadBaselineSampleSet, loadHumanReviewMapIfExists } from "./lib/eval-sample-loaders.ts";
 
 const BASELINE_QUESTION_IDS = ["B3", "B5", "B7", "B10", "B12", "B14", "B16", "B17"] as const;
-const QUESTIONS_DIR = path.resolve("content/questions/draft");
-const EVAL_DIR = path.resolve("content/eval");
 const DEFAULT_REPORT_PATH = path.resolve("docs/v2/calibration-report-baseline-8.md");
-/** 人审盲评对齐数据（T33 校准 R2）；文件不存在时跳过对齐分析，不影响校准主流程 */
-const HUMAN_REVIEW_PATH = path.resolve("content/eval/baseline-8-human-review.json");
 /** 单样本失败后的额外重试次数（共最多 1 + 2 = 3 次调用） */
 const MAX_SAMPLE_RETRIES = 2;
 
@@ -110,55 +103,18 @@ function loadCache(file: string): ScoreCache {
   return { path: file, entries };
 }
 
-/** 加载 8 题的题库 YAML（draft 目录按 id 前缀定位文件）与对应 eval 样本 */
+/** 加载 8 题的题库 YAML 与对应 eval 样本（共享加载器，T28 切片 2；寻址与校验语义不变） */
 function loadTasks(): EvalSampleTask[] {
-  const draftFiles = readdirSync(QUESTIONS_DIR).filter((f) => /\.ya?ml$/i.test(f));
-  const tasks: EvalSampleTask[] = [];
-  for (const id of BASELINE_QUESTION_IDS) {
-    const questionFile = draftFiles.find((f) => f.startsWith(`${id}-`));
-    if (!questionFile) {
-      throw new Error(`未找到题目文件：${QUESTIONS_DIR}/${id}-*.yaml`);
-    }
-    const questionPath = path.join(QUESTIONS_DIR, questionFile);
-    const questionResult = parseQuestionYaml(questionPath, readFileSync(questionPath, "utf8"));
-    if (!questionResult.ok || !questionResult.content) {
-      throw new Error(`题目校验失败：\n${questionResult.issues.join("\n")}`);
-    }
-    const question: QuestionContent = questionResult.content;
-
-    const evalPath = path.join(EVAL_DIR, `${id}.yaml`);
-    if (!existsSync(evalPath)) {
-      throw new Error(`未找到评分样本文件：${evalPath}`);
-    }
-    const evalResult = parseReferenceAnswerYaml(
-      evalPath,
-      readFileSync(evalPath, "utf8"),
-      new Set([question.id]),
-    );
-    if (!evalResult.ok || !evalResult.answer) {
-      throw new Error(`评分样本校验失败：\n${evalResult.issues.join("\n")}`);
-    }
-    tasks.push(...buildSampleTasks(question, evalResult.answer.answers));
-  }
-  return tasks;
+  return loadBaselineSampleSet().tasks;
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 读取人审盲评对齐数据；文件不存在返回 null（跳过对齐分析），存在但非法则报错中断 */
+/** 读取人审盲评对齐数据（共享加载器；文件不存在返回 null 跳过对齐分析，非法则报错中断） */
 function loadHumanReview(): HumanReviewData | null {
-  if (!existsSync(HUMAN_REVIEW_PATH)) {
-    return null;
-  }
-  try {
-    return JSON.parse(readFileSync(HUMAN_REVIEW_PATH, "utf8")) as HumanReviewData;
-  } catch (error) {
-    throw new Error(
-      `人审对齐数据解析失败：${HUMAN_REVIEW_PATH}：${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  return loadHumanReviewMapIfExists();
 }
 
 /** 串行跑全部样本：缓存命中直接跳过；单样本失败重试 2 次，仍失败则记录后跳过，不中断整批；成功即写缓存 */

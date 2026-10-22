@@ -16,7 +16,7 @@
 //   可选：--cache <路径> 逐份落盘 + 断点续跑：每份样本判定成功即追加一行 JSONL；
 //         中断或部分失败后同一命令重跑，已缓存样本直接命中跳过，只补缺失的（接口不稳定时避免整批重来）
 // 退出码：题目/样本/人审文件加载或校验失败 → 1；整批跑完（含跳过失败样本）→ 0，结论以报告为准
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { AI_MODEL, createAiClientFromEnv } from "../server/ai/client.ts";
@@ -25,19 +25,13 @@ import {
   parseFollowupGateOutput,
   type FollowupGateResult,
 } from "../server/ai/followup.ts";
-import { parseQuestionYaml } from "../server/modules/content/load-questions.ts";
-import type { QuestionContent } from "../server/modules/content/question-schema.ts";
-import { parseReferenceAnswerYaml } from "../server/modules/content/reference-answers.ts";
-import type { HumanReviewData } from "./lib/eval-calibration.ts";
 import {
   analyzeGateComparison,
   buildBlindReviewMarkdown,
-  buildGateSampleTasks,
   createMockGateRunner,
   formatGateConsoleSummary,
   formatGateMarkdownReport,
   gateSampleLabel,
-  parseGateHumanReview,
   type BlindReviewQuestionGroup,
   type GateHumanReview,
   type GateMachineResult,
@@ -45,15 +39,13 @@ import {
   type GateSampleFailure,
   type GateSampleTask,
 } from "./lib/gate-calibration.ts";
+import {
+  loadGateHumanReviewFile,
+  loadGateSampleSet,
+} from "./lib/eval-sample-loaders.ts";
 
-const QUESTIONS_DIR = path.resolve("content/questions/draft");
-const EVAL_DIR = path.resolve("content/eval");
 const DEFAULT_REPORT_PATH = path.resolve("docs/v2/gate-calibration-report.md");
 const BLIND_REVIEW_PATH = path.resolve("docs/v2/gate-blind-review-samples.md");
-/** 人审盲评映射（sampleIndex ↔ blindId ↔ humanScore；与评分校准同口径，T33 R2/R3） */
-const HUMAN_REVIEW_MAP_PATH = path.join(EVAL_DIR, "baseline-8-human-review.json");
-/** 闸门人审判定数据（产品负责人盲评回填；对照模式必读） */
-const GATE_HUMAN_REVIEW_PATH = path.join(EVAL_DIR, "gate-human-review.json");
 /** 单样本失败后的额外重试次数（共最多 1 + 2 = 3 次调用） */
 const MAX_SAMPLE_RETRIES = 2;
 
@@ -132,58 +124,9 @@ function loadCache(file: string): GateCache {
   return { path: file, entries };
 }
 
-/** 加载人审盲评映射（题集合 + sampleIndex ↔ blindId ↔ humanScore 的唯一事实源） */
-function loadHumanReviewMap(): HumanReviewData {
-  if (!existsSync(HUMAN_REVIEW_MAP_PATH)) {
-    throw new Error(`未找到人审映射文件：${HUMAN_REVIEW_MAP_PATH}`);
-  }
-  try {
-    return JSON.parse(readFileSync(HUMAN_REVIEW_MAP_PATH, "utf8")) as HumanReviewData;
-  } catch (error) {
-    throw new Error(
-      `人审映射文件解析失败：${HUMAN_REVIEW_MAP_PATH}：${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-}
-
-/** 加载校准题集（按 human-review.json 的 questions 集合从 content/questions/draft 寻址）与对应 eval 样本 */
-function loadTasks(reviewMap: HumanReviewData): GateSampleTask[] {
-  const draftFiles = readdirSyncSafe(QUESTIONS_DIR).filter((f) => /\.ya?ml$/i.test(f));
-  const tasks: GateSampleTask[] = [];
-  for (const [questionId, review] of Object.entries(reviewMap.questions)) {
-    const questionFile = draftFiles.find((f) => f.startsWith(`${questionId}-`));
-    if (!questionFile) {
-      throw new Error(`未找到题目文件：${QUESTIONS_DIR}/${questionId}-*.yaml`);
-    }
-    const questionPath = path.join(QUESTIONS_DIR, questionFile);
-    const questionResult = parseQuestionYaml(questionPath, readFileSync(questionPath, "utf8"));
-    if (!questionResult.ok || !questionResult.content) {
-      throw new Error(`题目校验失败：${questionId}：\n${questionResult.issues.join("\n")}`);
-    }
-    const question: QuestionContent = questionResult.content;
-
-    const evalPath = path.join(EVAL_DIR, `${questionId}.yaml`);
-    if (!existsSync(evalPath)) {
-      throw new Error(`未找到评分样本文件：${evalPath}`);
-    }
-    const evalResult = parseReferenceAnswerYaml(
-      evalPath,
-      readFileSync(evalPath, "utf8"),
-      new Set([question.id]),
-    );
-    if (!evalResult.ok || !evalResult.answer) {
-      throw new Error(`评分样本校验失败：${questionId}：\n${evalResult.issues.join("\n")}`);
-    }
-    tasks.push(...buildGateSampleTasks(question, evalResult.answer.answers, review));
-  }
-  return tasks;
-}
-
-function readdirSyncSafe(dir: string): string[] {
-  if (!existsSync(dir)) {
-    throw new Error(`目录不存在：${dir}`);
-  }
-  return readdirSync(dir);
+/** 加载校准题集与样本（共享加载器，T28 切片 2；寻址与校验语义不变） */
+function loadTasks(): GateSampleTask[] {
+  return loadGateSampleSet().tasks;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -285,7 +228,7 @@ async function runAll(
 
 let tasks: GateSampleTask[];
 try {
-  tasks = loadTasks(loadHumanReviewMap());
+  tasks = loadTasks();
   if (onlyFilter) {
     const all = tasks.map(gateSampleLabel);
     const unknown = onlyFilter.filter((label) => !all.includes(label));
@@ -343,10 +286,7 @@ if (compareMode) {
   }
   let human: GateHumanReview;
   try {
-    if (!existsSync(GATE_HUMAN_REVIEW_PATH)) {
-      throw new Error(`未找到闸门人审判定文件：${GATE_HUMAN_REVIEW_PATH}（请先按盲评材料回填）`);
-    }
-    human = parseGateHumanReview(readFileSync(GATE_HUMAN_REVIEW_PATH, "utf8"), tasks);
+    human = loadGateHumanReviewFile(tasks);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);

@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="训练台项目交互式事实地图：十个页面、完整训练闭环与实现逻辑，30 分钟讲完。">
+  <title>训练台 · 30 分钟项目讲解地图</title>
+  <style>
+    :root {
+      --ink: #12233f;
+      --muted: #64748b;
+      --faint: #94a3b8;
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-soft: #eff5ff;
+      --paper: #f5f6f8;
+      --line: #e9edf4;
+      --night: #101a29;
+      --night-2: #182638;
+      --orange: #e8792e;
+      --green: #047857;
+      --red: #dc2626;
+      --card-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 12px 32px -20px rgba(16, 24, 40, .16);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #e9edf2;
+      font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    button, input, textarea, select { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; }
+    a { color: inherit; }
+    :focus-visible { outline: 3px solid rgba(232, 121, 46, .48); outline-offset: 3px; }
+    .tour-app { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
+    .tour-sidebar {
+      position: sticky; top: 0; height: 100vh; z-index: 30;
+      display: flex; flex-direction: column; overflow: hidden;
+      color: #dce6f2; background:
+        radial-gradient(circle at 20% 0%, rgba(37, 99, 235, .24), transparent 36%),
+        linear-gradient(180deg, #111e30, #0d1622);
+      border-right: 1px solid rgba(255,255,255,.07);
+    }
+    .tour-brand { padding: 28px 24px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .brand-lockup { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto;
+      border-radius: 13px; background: var(--blue); color: #fff; font-size: 20px; font-weight: 800;
+      box-shadow: 0 10px 26px -10px rgba(37,99,235,.8);
+    }
+    .brand-name { color: #fff; font-size: 18px; font-weight: 750; letter-spacing: .06em; }
+    .brand-sub { margin-top: 2px; color: #8294aa; font-size: 11px; letter-spacing: .08em; }
+    .tour-promise { margin: 16px 0 0; color: #a9b8c9; font-size: 12px; line-height: 1.75; }
+    .tour-nav { flex: 1; overflow-y: auto; padding: 16px 12px; scrollbar-width: thin; scrollbar-color: #334155 transparent; }
+    .nav-section { margin: 14px 10px 7px; color: #62768d; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+    .tour-nav-button {
+      position: relative; width: 100%; display: grid; grid-template-columns: 27px 1fr auto; align-items: center; gap: 8px;
+      padding: 9px 10px; border: 0; border-radius: 10px; color: #9fb0c3; background: transparent; text-align: left;
+      transition: color .18s, background .18s, transform .18s;
+    }
+    .tour-nav-button:hover { color: #fff; background: rgba(255,255,255,.055); transform: translateX(2px); }
+    .tour-nav-button.active { color: #fff; background: rgba(37,99,235,.22); }
+    .tour-nav-button.active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: #69a0ff; }
+    .nav-index { color: #5f748b; font-family: Georgia, serif; font-size: 12px; }
+    .active .nav-index { color: #8eb7ff; }
+    .nav-label { font-size: 12.5px; font-weight: 600; }
+    .nav-time { color: #62768d; font-size: 10px; }
+    .tour-side-footer { padding: 16px 20px 20px; border-top: 1px solid rgba(255,255,255,.08); }
+    .side-progress-meta { display: flex; justify-content: space-between; color: #8194aa; font-size: 11px; }
+    .side-progress { height: 4px; margin-top: 9px; overflow: hidden; border-radius: 4px; background: #263548; }
+    .side-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3b82f6, #77a8ff); transition: width .3s; }
+    .side-note { margin: 11px 0 0; color: #61758c; font-size: 10px; line-height: 1.6; }
+    .tour-workspace { min-width: 0; }
+    .tour-topbar {
+      position: sticky; top: 0; z-index: 25; min-height: 66px; display: flex; align-items: center; gap: 16px;
+      padding: 12px 28px; border-bottom: 1px solid rgba(203,213,225,.72); background: rgba(248,250,252,.92); backdrop-filter: blur(16px);
+    }
+    .topbar-title { min-width: 0; }
+    .topbar-kicker { color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: .15em; }
+    .topbar-heading { margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 750; }
+    .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .tour-button {
+      min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 8px 13px; border: 1px solid #d8dfea; border-radius: 10px; color: #334155; background: #fff;
+      font-size: 12px; font-weight: 650; transition: .18s;
+    }
+    .tour-button:hover { border-color: #93b4f8; color: var(--blue-dark); transform: translateY(-1px); }
+    .tour-button.primary { border-color: var(--blue); color: #fff; background: var(--blue); }
+    .tour-button.icon { width: 36px; padding: 0; }
+    .tour-button:disabled { opacity: .38; transform: none; }
+    .mobile-page-select { display: none; }
+    .tour-main { padding: 28px; }
+    .page-intro { max-width: 1480px; margin: 0 auto 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; }
+    .eyebrow { color: var(--blue); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .page-intro h1 { margin: 7px 0 0; font-size: clamp(23px, 2.2vw, 34px); line-height: 1.25; letter-spacing: -.025em; }
+    .page-intro p { max-width: 780px; margin: 9px 0 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
+    .time-stamp { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border: 1px solid #dbe3ee; border-radius: 12px; color: #52647c; background: rgba(255,255,255,.7); font-size: 11px; white-space: nowrap; }
+    .time-stamp b { color: var(--blue); font-family: Georgia, serif; font-size: 20px; }
+    .guide-strip {
+      max-width: 1480px; margin: 0 auto 16px; display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border: 1px solid #f2d6bd; border-radius: 12px; color: #81512e; background: #fff9f3; font-size: 11px;
+    }
+    .guide-strip .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 4px rgba(232,121,46,.12); }
+    .demo-label { margin-left: auto; color: #a37858; font-size: 10px; }
+    .state-switcher { max-width: 1480px; margin: 0 auto 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .state-switcher > span { margin-right: 3px; color: #718096; font-size: 11px; font-weight: 700; }
+    .state-chip { padding: 6px 10px; border: 1px solid #dce3ec; border-radius: 999px; color: #64748b; background: #fff; font-size: 11px; }
+    .state-chip:hover { border-color: #9db9ef; }
+    .state-chip.active { border-color: var(--blue); color: #fff; background: var(--blue); }
+    .replica-wrap { max-width: 1480px; margin: 0 auto; }
+    .replica-browser { overflow: hidden; border: 1px solid #d7dfe9; border-radius: 18px; background: var(--paper); box-shadow: 0 24px 70px -38px rgba(15,23,42,.42); }
+    .browser-bar { height: 35px; display: flex; align-items: center; gap: 6px; padding: 0 13px; border-bottom: 1px solid #dfe5ed; background: #f8fafc; }
+    .browser-dot { width: 7px; height: 7px; border-radius: 50%; background: #cbd5e1; }
+    .browser-url { margin-left: 8px; padding: 3px 12px; border-radius: 6px; color: #8291a5; background: #edf1f6; font-family: ui-monospace, monospace; font-size: 9px; }
+    .browser-demo { margin-left: auto; color: #9aa7b8; font-size: 9px; letter-spacing: .08em; }
+    .product-app { min-height: 680px; display: grid; grid-template-columns: 178px minmax(0, 1fr); background: var(--paper); }
+    .product-sidebar { display: flex; flex-direction: column; padding: 22px 14px 16px; color: #d9e3ef; background: #152235; }
+    .product-brand { display: flex; align-items: center; gap: 9px; padding: 0 7px 24px; }
+    .product-brand .brand-mark { width: 31px; height: 31px; border-radius: 10px; font-size: 15px; }
+    .product-brand-name { color: #fff; font-size: 14px; font-weight: 750; }
+    .product-brand-sub { color: #71869e; font-size: 8px; }
+    .product-nav { display: flex; flex-direction: column; gap: 5px; }
+    .product-nav-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 11px; border: 0; border-radius: 9px; color: #8fa2b8; background: transparent; text-align: left; font-size: 11px; }
+    .product-nav-item:hover { color: #fff; background: rgba(255,255,255,.05); }
+    .product-nav-item.active { color: #fff; background: #2563eb; }
+    .nav-symbol { width: 15px; color: currentColor; text-align: center; font-size: 12px; }
+    .product-side-bottom { margin-top: auto; padding: 13px 10px 3px; border-top: 1px solid rgba(255,255,255,.08); }
+    .side-caption { color: #647b94; font-size: 8px; letter-spacing: .12em; }
+    .side-value { margin-top: 4px; color: #d9e3ef; font-size: 11px; font-weight: 650; }
+    .product-content { min-width: 0; padding: 26px; }
+    .product-content.narrow { max-width: 1040px; margin: 0 auto; }
+    .product-header { margin-bottom: 18px; }
+    .product-header h2 { margin: 0; font-size: 22px; line-height: 1.35; }
+    .product-header p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+    .card { position: relative; border: 1px solid var(--line); border-radius: 15px; background: #fff; box-shadow: var(--card-shadow); }
+    .card-pad { padding: 20px; }
+    .card-title { margin: 0; font-size: 13px; font-weight: 750; }
+    .card-subtitle { margin: 4px 0 0; color: var(--faint); font-size: 10px; }
+    .section-label { color: #7c8aa5; font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+    .blue-label { color: var(--blue); }
+    .muted { color: var(--muted); }
+    .faint { color: var(--faint); }
+    .small { font-size: 10px; }
+    .tiny { font-size: 9px; }
+    .strong { font-weight: 700; }
+    .blue { color: var(--blue); }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    .grid { display: grid; gap: 18px; }
+    .two-col { grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); }
+    .stack { display: flex; flex-direction: column; gap: 16px; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    .row-wrap { flex-wrap: wrap; }
+    .space-between { justify-content: space-between; }
+    .btn {
+      position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: 34px; padding: 8px 15px; border: 1px solid transparent; border-radius: 10px;
+      font-size: 11px; font-weight: 700; text-decoration: none; transition: .17s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { color: #fff; background: var(--blue); box-shadow: 0 8px 18px -10px rgba(37,99,235,.8); }
+    .btn-primary:hover { background: var(--blue-dark); }
+    .btn-ghost { border-color: #d8dfea; color: #334155; background: #fff; }
+    .btn-ghost:hover { border-color: #8fb0f3; color: var(--blue); }
+    .btn-danger { color: #fff; background: var(--red); }
+    .btn-text { min-height: 0; padding: 2px; color: var(--blue); background: transparent; }
+    .btn:disabled { opacity: .48; transform: none; box-shadow: none; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 999px; color: #64748b; background: #f8fafc; font-size: 9px; font-weight: 700; white-space: nowrap; }
+    .badge.blue { border-color: #d9e7fd; color: #1d4ed8; background: #eff5ff; }
+    .badge.green { border-color: #d1fae5; color: #047857; background: #ecfdf5; }
+    .badge.amber { border-color: #fde68a; color: #b45309; background: #fffbeb; }
+    .tag { display: inline-flex; padding: 4px 7px; border: 1px solid #d9e7fd; border-radius: 7px; color: #2563eb; background: #fff; font-size: 9px; }
+    .progress-track { height: 7px; overflow: hidden; border-radius: 8px; background: #edf1f7; }
+    .progress-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .empty-card { border: 1.5px dashed #cbd5e3; border-radius: 15px; color: #94a3b8; background: #fbfcfe; text-align: center; }
+    .input, .textarea, .select {
+      width: 100%; border: 1px solid #dbe2ec; border-radius: 10px; color: #1e293b; background: #fff; outline: none;
+      font-size: 11px; transition: border .17s, box-shadow .17s;
+    }
+    .input { height: 38px; padding: 0 11px; }
+    .textarea { min-height: 112px; padding: 11px; resize: vertical; line-height: 1.75; }
+    .input:focus, .textarea:focus, .select:focus { border-color: #77a5f6; box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+    .field { display: flex; flex-direction: column; gap: 7px; }
+    .field-label { color: #334155; font-size: 11px; font-weight: 650; }
+    .required { color: var(--red); }
+    .chip-group { display: flex; flex-wrap: wrap; gap: 7px; }
+    .choice-chip { padding: 7px 10px; border: 1px solid #dfe5ed; border-radius: 9px; color: #64748b; background: #fff; font-size: 10px; }
+    .choice-chip.selected { border-color: #9bbcff; color: #1d4ed8; background: #eff5ff; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 22px; }
+    .form-grid .span-2 { grid-column: 1 / -1; }
+    .hotspot { position: relative; }
+    body:not(.clean-mode) .hotspot { outline: 1px dashed transparent; outline-offset: 3px; transition: outline-color .15s, background-color .15s; }
+    body:not(.clean-mode) .hotspot:hover, body:not(.clean-mode) .hotspot:focus-within { outline-color: rgba(232,121,46,.72); }
+    .hotspot::after {
+      content: "i"; position: absolute; z-index: 8; top: -6px; right: -6px; width: 16px; height: 16px;
+      display: grid; place-items: center; border: 2px solid #fff; border-radius: 50%;
+      color: #fff; background: var(--orange); box-shadow: 0 3px 8px rgba(132,73,31,.25);
+      font: 800 9px/1 Georgia, serif; pointer-events: none; opacity: 0; transform: scale(.7); transition: .15s;
+    }
+    body:not(.clean-mode) .hotspot::after { opacity: 1; transform: scale(1); }
+    .hotspot.inline-hotspot::after { top: -8px; right: -9px; width: 13px; height: 13px; border-width: 1px; font-size: 8px; }
+    .clean-mode .guide-strip, .clean-mode .state-switcher { display: none; }
+    #note-tooltip {
+      position: fixed; z-index: 100; display: none; width: min(380px, calc(100vw - 24px)); max-height: min(520px, calc(100vh - 24px)); overflow-y: auto;
+      border: 1px solid #33465f; border-radius: 15px; color: #dce6f2; background: rgba(15,26,42,.98);
+      box-shadow: 0 24px 70px -18px rgba(2,8,23,.62); backdrop-filter: blur(12px);
+    }
+    #note-tooltip.visible { display: block; animation: note-in .14s ease-out; }
+    @keyframes note-in { from { opacity: 0; transform: translateY(4px) scale(.985); } to { opacity: 1; transform: none; } }
+    .note-head { padding: 16px 17px 12px; border-bottom: 1px solid rgba(255,255,255,.09); }
+    .note-kicker { color: #f4a261; font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+    .note-title { margin: 4px 28px 0 0; color: #fff; font-size: 15px; line-height: 1.45; }
+    .note-close { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border: 0; border-radius: 7px; color: #8ea1b7; background: transparent; }
+    .note-close:hover { color: #fff; background: rgba(255,255,255,.08); }
+    .note-body { padding: 12px 17px 15px; }
+    .note-row + .note-row { margin-top: 11px; }
+    .note-label { display: block; margin-bottom: 3px; color: #7fafff; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+    .note-text { color: #bac8d8; font-size: 11px; line-height: 1.75; }
+    .note-path { display: block; padding: 8px 9px; overflow-wrap: anywhere; border-radius: 8px; color: #9db5d2; background: rgba(255,255,255,.05); font: 9px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .note-pin-state { margin-top: 12px; color: #637b97; font-size: 9px; }
+    .toast { position: fixed; z-index: 110; left: 50%; bottom: 26px; transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; color: #fff; background: #17253a; box-shadow: 0 12px 32px rgba(15,23,42,.25); font-size: 11px; }
+    .overview-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 18px; }
+    .hero-panel { position: relative; overflow: hidden; padding: 30px; border-radius: 18px; color: #fff; background: #14243a; }
+    .hero-panel::before { content: ""; position: absolute; width: 320px; height: 320px; right: -150px; top: -150px; border: 1px solid rgba(112,157,239,.22); border-radius: 50%; box-shadow: 0 0 0 50px rgba(64,112,196,.04), 0 0 0 100px rgba(64,112,196,.03); }
+    .hero-panel h2 { position: relative; z-index: 1; max-width: 650px; margin: 12px 0; font-size: clamp(25px, 3vw, 40px); line-height: 1.35; letter-spacing: -.03em; }
+    .hero-panel p { position: relative; z-index: 1; max-width: 650px; margin: 0; color: #aebed0; font-size: 13px; line-height: 1.9; }
+    .loop-flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 18px; }
+    .loop-step { position: relative; min-height: 116px; padding: 14px 11px; border: 1px solid #e2e8f0; border-radius: 13px; background: #fff; }
+    .loop-number { color: #b6c5d8; font: 18px Georgia, serif; }
+    .loop-step h3 { margin: 12px 0 4px; font-size: 11px; }
+    .loop-step p { margin: 0; color: #94a3b8; font-size: 9px; line-height: 1.6; }
+    .dimension-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .dimension-item { padding: 13px 9px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff; text-align: center; font-size: 10px; }
+    .dimension-item b { display: block; margin-bottom: 4px; color: #2563eb; font: 18px Georgia, serif; }
+    .dimension-details { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .dimension-detail { padding: 20px; border: 1px solid #dfe6f0; border-radius: 15px; background: #fff; }
+    .dimension-detail-head { display: flex; align-items: flex-start; gap: 11px; }
+    .dimension-detail-index { width: 31px; height: 31px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; color: #2563eb; background: #eff5ff; font: 16px Georgia, serif; }
+    .dimension-detail h3 { margin: 0; font-size: 15px; }
+    .dimension-definition { margin: 5px 0 0; color: #475569; font-size: 11px; line-height: 1.75; }
+    .dimension-question { margin: 13px 0; padding: 9px 11px; border-left: 2px solid #2563eb; color: #1d4ed8; background: #f7faff; font-size: 11px; font-weight: 650; line-height: 1.7; }
+    .dimension-detail h4 { margin: 13px 0 6px; color: #7c8aa5; font-size: 9px; letter-spacing: .1em; }
+    .dimension-detail ul { margin: 0; padding-left: 17px; color: #52647c; font-size: 10px; line-height: 1.8; }
+    .dimension-boundary { margin: 12px 0 0; color: #718096; font-size: 10px; line-height: 1.75; }
+    .dimension-examples { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 13px; }
+    .dimension-example { padding: 10px; border-radius: 9px; font-size: 9px; line-height: 1.7; }
+    .dimension-example.strong { color: #166534; background: #f0fdf4; }
+    .dimension-example.weak { color: #92400e; background: #fffbeb; }
+    .dimension-example b { display: block; margin-bottom: 3px; }
+    .fact-list { display: flex; flex-direction: column; gap: 10px; }
+    .fact-item { padding: 13px 14px; border-left: 2px solid #2563eb; border-radius: 0 10px 10px 0; background: #f7faff; }
+    .fact-item b { display: block; margin-bottom: 3px; font-size: 11px; }
+    .fact-item span { color: #64748b; font-size: 10px; line-height: 1.7; }
+    .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .stat-box { padding: 15px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+    .stat-box strong { display: block; color: #12233f; font: 26px Georgia, serif; }
+    .stat-box span { color: #94a3b8; font-size: 9px; }
+    .score-number { color: #2563eb; font: 700 28px/1 Georgia, serif; }
+    .big-number { font: 700 26px/1 Georgia, serif; }
+    .quote-card { position: relative; overflow: hidden; }
+    .quote-card::before { content: "“"; position: absolute; right: 12px; top: -30px; color: #eaf1fd; font: 100px Georgia, serif; }
+    .history-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 18px; border: 0; border-bottom: 1px solid #f0f3f8; color: inherit; background: #fff; text-align: left; }
+    .history-row:hover { background: #fafbfe; }
+    .history-row:last-child { border-bottom: 0; }
+    .history-main { flex: 1; min-width: 220px; }
+    .history-title { margin: 5px 0; font-size: 12px; font-weight: 700; }
+    .history-scores { color: #64748b; font-size: 9px; text-align: right; }
+    .workbench { display: grid; grid-template-columns: minmax(210px, .9fr) minmax(320px, 1.4fr) minmax(190px, .8fr); gap: 14px; align-items: start; }
+    .case-fields { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 0; }
+    .case-field { display: grid; grid-template-columns: 48px 1fr; gap: 6px; font-size: 9px; line-height: 1.75; }
+    .case-field dt { color: #94a3b8; }
+    .case-field dd { margin: 0; color: #475569; }
+    .source-link { position: relative; color: #2563eb; font-size: 8px; text-decoration: none; }
+    .question-box { font-size: 16px; line-height: 1.75; font-weight: 750; }
+    .focus-card { border: 1px solid #d9e7fd; border-radius: 15px; background: #eff5ff; }
+    .material { padding: 10px 0; border-bottom: 1px solid #f0f3f8; }
+    .material:last-child { border-bottom: 0; }
+    .material-title { margin: 5px 0 3px; font-size: 10px; font-weight: 700; }
+    .material p { margin: 0 0 4px; color: #64748b; font-size: 9px; line-height: 1.65; }
+    .chat-list { display: flex; flex-direction: column; gap: 13px; max-height: 240px; overflow-x: hidden; overflow-y: auto; padding: 3px; }
+    .chat-line { display: flex; gap: 8px; align-items: flex-start; }
+    .chat-line.user { flex-direction: row-reverse; }
+    .avatar { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; color: #fff; background: #2563eb; font-size: 8px; font-weight: 800; }
+    .user .avatar { background: #6b8199; }
+    .bubble { max-width: 80%; padding: 9px 11px; border: 1px solid #e9edf4; border-radius: 13px 13px 13px 4px; color: #334155; background: #fff; font-size: 10px; line-height: 1.75; }
+    .user .bubble { border-color: #d9e7fd; border-radius: 13px 13px 4px 13px; background: #eff5ff; }
+    .hint-box { padding: 10px 12px; border: 1px solid #fde68a; border-radius: 10px; color: #92400e; background: #fffbeb; font-size: 9px; line-height: 1.7; }
+    .gate-box { padding: 12px; border: 1px dashed #86efac; border-radius: 10px; color: #166534; background: #f0fdf4; font-size: 10px; }
+    .score-row { padding: 15px 0; border-bottom: 1px solid #eef1f6; }
+    .score-row:last-child { border-bottom: 0; }
+    .score-line { display: grid; grid-template-columns: 90px 55px 1fr auto; align-items: center; gap: 12px; }
+    .calculation { margin-top: 10px; padding: 11px 13px; border-radius: 10px; color: #475569; background: #f8fafd; font-size: 10px; line-height: 1.8; }
+    .issue-card { padding: 20px; border: 1px solid #d9e7fd; border-left: 3px solid #2563eb; border-radius: 14px; background: #f7faff; }
+    .star-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid #eef1f6; }
+    .stars { display: flex; gap: 2px; }
+    .star { padding: 0 2px; border: 0; color: #cbd5e1; background: transparent; font-size: 20px; }
+    .star.lit { color: #2563eb; }
+    .calculator { margin-top: 18px; padding: 20px; border: 1px solid #cddcf5; border-radius: 16px; background: #f5f8ff; }
+    .calc-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1.2fr; gap: 16px; align-items: end; }
+    .range-field label { display: flex; justify-content: space-between; margin-bottom: 8px; color: #52647c; font-size: 10px; }
+    .range-field input { width: 100%; accent-color: #2563eb; }
+    .calc-result { padding: 13px; border-radius: 12px; color: #fff; background: #172a47; text-align: center; }
+    .calc-result strong { display: block; font: 25px Georgia, serif; }
+    .network-stage { position: relative; min-height: 430px; overflow: hidden; border-radius: 16px; background: radial-gradient(circle at 50% 45%, #1d3555, #0e1a2b 70%); }
+    .network-stage svg { width: 100%; height: 430px; display: block; }
+    .network-legend { position: absolute; top: 15px; right: 15px; display: flex; gap: 10px; padding: 7px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; color: #a9b9cd; background: rgba(8,17,30,.65); font-size: 8px; }
+    .network-help { position: absolute; left: 16px; bottom: 13px; color: #758ca7; font-size: 9px; }
+    .network-node { cursor: pointer; }
+    .network-node:hover circle { stroke: #fff; stroke-width: 2; }
+    .ability-row { width: 100%; display: grid; grid-template-columns: 1.1fr 60px 80px 1fr auto; align-items: center; gap: 12px; padding: 14px 18px; border: 0; border-bottom: 1px solid #f0f3f8; background: #fff; text-align: left; }
+    .ability-row:hover { background: #fafbfe; }
+    .modal-backdrop { position: absolute; z-index: 12; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(15,23,42,.48); }
+    .node-modal { width: min(540px, 100%); max-height: 90%; overflow-y: auto; padding: 22px; border-radius: 16px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.25); }
+    .gauge { display: flex; gap: 5px; }
+    .gauge span { width: 40px; height: 8px; border-radius: 5px; background: #e2e8f0; }
+    .gauge span.on { background: #60a5fa; }
+    .settings-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 24px; }
+    .summary-item dt { color: #94a3b8; font-size: 9px; }
+    .summary-item dd { margin: 4px 0 0; color: #334155; font-size: 11px; }
+    .notification { position: absolute; z-index: 15; top: 48px; right: 15px; width: 285px; padding: 14px; border: 1px solid #d9e7fd; border-radius: 13px; background: #fff; box-shadow: 0 18px 40px -15px rgba(15,23,42,.3); }
+    .architecture-flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: stretch; }
+    .architecture-layer { position: relative; padding: 17px 14px; border: 1px solid #dfe6ef; border-radius: 13px; background: #fff; }
+    .architecture-layer:not(:last-child)::after { content: "→"; position: absolute; z-index: 2; right: -15px; top: 40%; color: #7ea5ed; font-size: 16px; }
+    .architecture-layer h3 { margin: 0 0 7px; font-size: 11px; }
+    .architecture-layer p { margin: 0; color: #64748b; font-size: 9px; line-height: 1.75; }
+    .api-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .api-group { padding: 13px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff; }
+    .api-group h4 { margin: 0 0 7px; font-size: 10px; }
+    .api-group code { display: block; color: #64748b; font-size: 8px; line-height: 1.8; overflow-wrap: anywhere; }
+    .boundary-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .boundary-item { padding: 13px 15px; border: 1px solid #f1dfca; border-radius: 11px; color: #785638; background: #fffcf8; font-size: 10px; line-height: 1.7; }
+    .route-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .route-table th, .route-table td { padding: 10px; border-bottom: 1px solid #edf1f6; text-align: left; }
+    .route-table th { color: #94a3b8; font-size: 9px; }
+    .route-table code { color: #2563eb; font-size: 9px; }
+    .page-footer { max-width: 1480px; margin: 20px auto 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #8796a9; font-size: 10px; }
+    .footer-nav { display: flex; gap: 8px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 1180px) {
+      .tour-app { grid-template-columns: 210px minmax(0,1fr); }
+      .tour-main { padding: 20px; }
+      .product-app { grid-template-columns: 150px minmax(0,1fr); }
+      .product-content { padding: 18px; }
+      .workbench { grid-template-columns: 1fr 1.35fr; }
+      .workbench > :last-child { grid-column: 1 / -1; }
+      .loop-flow { grid-template-columns: repeat(3, 1fr); }
+      .architecture-flow { grid-template-columns: 1fr 1fr; }
+      .architecture-layer::after { display: none; }
+      .api-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 820px) {
+      .tour-app { display: block; }
+      .tour-sidebar { position: relative; width: 100%; height: auto; }
+      .tour-brand { padding: 16px 20px; }
+      .tour-promise, .tour-nav, .tour-side-footer { display: none; }
+      .tour-topbar { top: 0; padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+      .topbar-title { display: none; }
+      .mobile-page-select { display: block; flex: 1; min-width: 150px; height: 36px; padding: 0 9px; border: 1px solid #d8dfea; border-radius: 9px; color: #334155; background: #fff; font-size: 11px; }
+      .topbar-actions { margin-left: 0; }
+      .topbar-actions .tour-button:not(.primary) { display: none; }
+      .tour-main { padding: 16px 12px; }
+      .page-intro { grid-template-columns: 1fr; gap: 10px; }
+      .time-stamp { display: none; }
+      .demo-label { display: none; }
+      .product-app { display: block; min-height: 0; }
+      .product-sidebar { display: none; }
+      .product-content { padding: 15px; }
+      .two-col, .overview-grid, .workbench, .form-grid, .calc-grid, .boundary-list, .dimension-details, .dimension-examples { grid-template-columns: 1fr; }
+      .workbench > :last-child { grid-column: auto; }
+      .form-grid .span-2 { grid-column: auto; }
+      .loop-flow { grid-template-columns: 1fr 1fr; }
+      .stat-strip { grid-template-columns: 1fr 1fr; }
+      .dimension-grid { grid-template-columns: repeat(2, 1fr); }
+      .score-line { grid-template-columns: 80px 45px 1fr; }
+      .score-line .btn { grid-column: 1 / -1; justify-self: start; }
+      .ability-row { grid-template-columns: 1fr 50px auto; }
+      .ability-row > :nth-child(3), .ability-row > :nth-child(4) { display: none; }
+      .settings-summary { grid-template-columns: 1fr; }
+      .architecture-flow, .api-grid { grid-template-columns: 1fr; }
+      .page-footer { align-items: flex-start; flex-direction: column; }
+      .browser-demo { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="tour-app">
+    <aside class="tour-sidebar" aria-label="30 分钟讲解目录">
+      <div class="tour-brand">
+        <div class="brand-lockup">
+          <div class="brand-mark">训</div>
+          <div><div class="brand-name">项目讲解地图</div><div class="brand-sub">SKILLTRAINING · BLUEPRINT</div></div>
+        </div>
+        <p class="tour-promise">不是功能清单，而是一条从用户动作到业务规则的完整故事线。</p>
+      </div>
+      <nav class="tour-nav" id="tour-nav">
+        <div class="nav-section">开场</div>
+        <button class="tour-nav-button" data-page-id="overview" data-page="overview"><span class="nav-index">00</span><span class="nav-label">产品全景</span><span class="nav-time">2 min</span></button>
+        <div class="nav-section">首次进入</div>
+        <button class="tour-nav-button" data-page-id="login" data-page="login"><span class="nav-index">01</span><span class="nav-label">邮箱登录</span><span class="nav-time">1 min</span></button>
+        <button class="tour-nav-button" data-page-id="onboarding" data-page="onboarding"><span class="nav-index">02</span><span class="nav-label">初始画像问卷</span><span class="nav-time">2 min</span></button>
+        <button class="tour-nav-button" data-page-id="baseline" data-page="baseline"><span class="nav-index">03</span><span class="nav-label">能力基线测评</span><span class="nav-time">3 min</span></button>
+        <div class="nav-section">日常训练闭环</div>
+        <button class="tour-nav-button" data-page-id="home" data-page="home"><span class="nav-index">04</span><span class="nav-label">首页仪表盘</span><span class="nav-time">2 min</span></button>
+        <button class="tour-nav-button" data-page-id="training" data-page="training"><span class="nav-index">05</span><span class="nav-label">产品训练大厅</span><span class="nav-time">2 min</span></button>
+        <button class="tour-nav-button" data-page-id="session" data-page="session"><span class="nav-index">06</span><span class="nav-label">三栏训练工作台</span><span class="nav-time">6 min</span></button>
+        <button class="tour-nav-button" data-page-id="feedback" data-page="feedback"><span class="nav-index">07</span><span class="nav-label">评分与训练反馈</span><span class="nav-time">4 min</span></button>
+        <button class="tour-nav-button" data-page-id="profile" data-page="profile"><span class="nav-index">08</span><span class="nav-label">八维能力画像</span><span class="nav-time">3 min</span></button>
+        <button class="tour-nav-button" data-page-id="history" data-page="history"><span class="nav-index">09</span><span class="nav-label">训练历史回放</span><span class="nav-time">2 min</span></button>
+        <div class="nav-section">账号与系统</div>
+        <button class="tour-nav-button" data-page-id="settings" data-page="settings"><span class="nav-index">10</span><span class="nav-label">我的</span><span class="nav-time">1 min</span></button>
+        <button class="tour-nav-button" data-page-id="architecture" data-page="architecture"><span class="nav-index">11</span><span class="nav-label">系统架构与边界</span><span class="nav-time">2 min</span></button>
+      </nav>
+      <div class="tour-side-footer">
+        <div class="side-progress-meta"><span>讲解进度</span><span id="progress-text">0 / 30 分钟</span></div>
+        <div class="side-progress"><span id="progress-bar" style="width:0%"></span></div>
+        <p class="side-note">离线单文件 · 虚构演示数据<br>事实依据：当前代码 + BR / D 决策</p>
+      </div>
+    </aside>
+    <div class="tour-workspace">
+      <header class="tour-topbar">
+        <div class="topbar-title"><div class="topbar-kicker">PROJECT WALKTHROUGH</div><div class="topbar-heading" id="topbar-heading">产品全景</div></div>
+        <select class="mobile-page-select" id="mobile-page-select" aria-label="选择讲解页面"></select>
+        <div class="topbar-actions">
+          <button class="tour-button" id="mode-toggle" type="button" aria-pressed="false">纯净预览</button>
+          <button class="tour-button icon" id="prev-page" type="button" aria-label="上一页">←</button>
+          <button class="tour-button primary" id="next-page" type="button">下一页 →</button>
+        </div>
+      </header>
+      <main class="tour-main" id="tour-main"></main>
+    </div>
+  </div>
+  <div id="note-tooltip" role="tooltip" aria-live="polite">
+    <div class="note-head"><div class="note-kicker">功能指针 · 实现说明</div><h2 class="note-title" id="note-title"></h2><button class="note-close" id="note-close" type="button" aria-label="关闭说明">×</button></div>
+    <div class="note-body" id="note-body"></div>
+  </div>
+  <noscript><div style="padding:20px;background:#fff3cd">请启用 JavaScript，以查看页面复刻与交互注释。</div></noscript>
+  <script>
+    'use strict';
+
+    const PAGES = [
+      { id: 'overview', title: '产品全景', minutes: 2, route: '/', subtitle: '先讲清楚它为什么存在，再看页面。' },
+      { id: 'login', title: '邮箱登录', minutes: 1, route: '/login', subtitle: '用一次性魔法链接降低进入门槛。' },
+      { id: 'onboarding', title: '初始画像问卷', minutes: 2, route: '/onboarding', subtitle: '先收集方向与经验，让训练有上下文。' },
+      { id: 'baseline', title: '能力基线测评', minutes: 3, route: '/baseline', subtitle: '先明确能力边界，再进入日常训练。' },
+      { id: 'home', title: '首页仪表盘', minutes: 2, route: '/', subtitle: '每次回来，都知道现在该做什么。' },
+      { id: 'training', title: '产品训练大厅', minutes: 2, route: '/training', subtitle: '当前训练与历史轨迹都收在一个入口。' },
+      { id: 'session', title: '三栏训练工作台', minutes: 6, route: '/training/session/[id]', subtitle: '案例、问题、资料同屏，完成一次真实产品判断。' },
+      { id: 'feedback', title: '评分与训练反馈', minutes: 4, route: '/training/feedback/[id]', subtitle: '不仅告诉你多少分，还告诉你下一步怎么练。' },
+      { id: 'profile', title: '八维能力画像', minutes: 3, route: '/profile', subtitle: '把每次有效表现沉淀成持续更新的能力地图。' },
+      { id: 'history', title: '训练历史回放', minutes: 2, route: '/training/history/[id]', subtitle: '答案、提示、追问与评分都有据可查。' },
+      { id: 'settings', title: '我的', minutes: 1, route: '/settings', subtitle: '管理账号和会影响训练的初始画像。' },
+      { id: 'architecture', title: '系统架构与边界', minutes: 2, route: 'SYSTEM', subtitle: '最后用一张图串起前端、业务、数据与 AI。' }
+    ];
+
+    const state = {
+      page: 'overview', clean: false, loginSent: false, baseline: 'intro', current: 'in_progress', restartConfirm: false,
+      session: 'followup', hintCount: 1, followupHintCount: 0, feedback: 'done', calculation: false,
+      survey: { q1: 0, q2: 0, q3: 0 }, surveySubmitted: false, profileView: 'network', profileNode: false,
+      history: 'done', settingsEdit: false, notification: true, calcRaw: 80, calcMain: 2, calcFollowup: 1
+    };
+
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+    const esc = (value) => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+
+    const DIMENSION_DETAILS = [
+      {
+        id: 'dimension-problem', name: '问题定义',
+        definition: '将模糊诉求界定为有明确对象、场景、目标差距与处理边界的问题。',
+        question: '本次究竟要解决什么问题？',
+        measures: ['说清当前状态、期望状态、两者差距与本次处理边界。', '区分“诉求的复述”与“待验证的问题定义”。', '定义要清楚、可验证，能够直接导出验证动作与方案方向。'],
+        boundary: '用户理解产出对“人”的认识；问题定义产出对“要改变什么状态”的界定；根因分析进一步回答“为什么发生”。',
+        strong: '说清当前状态、期望状态、差距与处理边界。',
+        weak: '只复述题面诉求，或定义大而无当，无法导出任何行动。'
+      },
+      {
+        id: 'dimension-user', name: '用户理解',
+        definition: '理解相关用户在具体场景下的目标、行为动机、约束与差异。',
+        question: '谁在什么处境下，希望完成什么，为什么这样行动？',
+        measures: ['给出有依据的用户分层，而不是“所有年轻人”。', '还原何时何地、带着什么约束、一步步如何使用的场景链。', '解释行为背后的动机与心理机制，识别多方角色的目标与张力。'],
+        boundary: '它提供有关“人”的素材与证据，不是问题结论；问题定义据此界定本次要改变的状态。',
+        strong: '月底见底的学生与午休紧张的白领，同一笔消费解决的是不同问题。',
+        weak: '画像只有人口属性，没有场景与动机，把用户当成“均值人”。'
+      },
+      {
+        id: 'dimension-root', name: '根因分析',
+        definition: '分析问题发生的关键原因，形成并比较有依据、可检验的因果解释。',
+        question: '问题为什么发生，哪些解释更可能成立？',
+        measures: ['让机制、激励、结构到现象的每一环都有事实支撑。', '形成并比较多个解释，说明现有证据支持什么、还不能排除什么。', '指出证据边界，并对材料中的官方解释保持检验意识。'],
+        boundary: '根因分析负责提出和比较解释；指标与验证负责设计如何检验。证据不足时强行收敛到唯一根因，反而应扣分。',
+        strong: '现有证据支持 A，但无法排除 B，需要某类数据进一步区分。',
+        weak: '把第一个解释当根因，或靠想象补齐断裂的因果链。'
+      },
+      {
+        id: 'dimension-value', name: '产品价值判断',
+        definition: '判断解决某个问题或投入某个方向，能否创造足以支持投入的用户与业务价值，以及价值成立的条件。',
+        question: '为什么值得做，价值对谁成立？',
+        measures: ['判断价值来自哪里、对谁成立，以及价值成立的条件。', '立场明确，判据具体可检验，而非两头都说好话。', '能处理间接价值与战略价值，并给出可迁移的判断标准。'],
+        boundary: '价值判断回答“价值是否成立、是否足以支持投入”；产品取舍回答“现实约束下采取哪种行动、分配多少资源”。',
+        strong: '值得，但成立条件是 X；如果 X 消失，结论就会反转。',
+        weak: '立场骑墙、判据无法检验，只看需求存在，不看解决成本。'
+      },
+      {
+        id: 'dimension-solution', name: '方案设计',
+        definition: '在现实约束下，设计能够作用于关键问题的机制、流程与交互，并处理关键异常。',
+        question: '具体通过什么方式解决问题？',
+        measures: ['设计作用于关键问题的具体机制，以及相关方在其中如何行动。', '覆盖用户、供给与平台，说明利益和压力如何重新分配。', '单独处理关键异常，并给出基本可行的试点、推广与配套节奏。'],
+        boundary: '方案设计说明“在这个范围内如何运作”；资源投入的先后属于产品取舍，指标体系属于指标与验证。',
+        strong: '把配送时间拆成如何生成、如何展示、如何考核，分别设计。',
+        weak: '只有“优化算法、加强运营”的方向，没有机制，或把压力转嫁给另一方。'
+      },
+      {
+        id: 'dimension-tradeoff', name: '产品取舍',
+        definition: '在目标与资源约束下，比较备选做法的收益、代价与风险，确定投入、范围和优先级。',
+        question: '选择什么、放弃什么，做到什么程度？',
+        measures: ['比较备选做法的收益、代价与风险，明确投入、范围和优先级。', '明确立场与排序，对次要方向给出收缩、限定预算或退出止损。', '识别机会成本，并看清谁受益、谁买单。'],
+        boundary: '取舍决定“做什么、放弃什么、做到什么程度”；方案设计决定“定下范围后如何运作”。',
+        strong: '继续做 A 但收缩到核心区域，用明确信号验证；B 限定预算观察。',
+        weak: '全都要，只算收益不算代价，或排序没有依据。'
+      },
+      {
+        id: 'dimension-metric', name: '指标与验证',
+        definition: '设计验证方法，用合适的指标与证据检验关键判断和方案效果，并据此更新决策。',
+        question: '如何知道判断是否成立、方案是否有效？',
+        measures: ['检验用户假设、问题定义、根因解释、价值判断与方案效果。', '先把“好不好”翻译成可证伪命题，再选择结果/过程/护栏指标。', '识别虚荣指标，给出判断基准、对比设计与证据限制。'],
+        boundary: '其他维度产出判断，这个维度产出“如何知道判断对不对”；证据不足以下结论也是合法且严谨的结果。',
+        strong: '观察补贴退坡后的自然留存，区分买来的活跃与长出来的活跃。',
+        weak: '堆砌指标却没有判断基准，或把没有证据的判断包装成结论。'
+      },
+      {
+        id: 'dimension-expression', name: '产品表达',
+        definition: '面向特定听众，清楚、准确地传递产品判断及依据，并理解和回应关键异议。',
+        question: '如何让对方理解判断，并据此作出决策？',
+        measures: ['观点明确且前置，不让听众自己寻找结论。', '每个理由落到具体事实，并按听众认知与情绪控制信息密度。', '准确理解并回应关键异议，结尾给出支持决策的下一步。'],
+        boundary: '评价信息如何被传递，不评价判断内容本身；听众理解后仍合理反对，不代表表达失败。',
+        strong: '开头一句结论、三条事实依据、回应最强反对、结尾一个行动建议。',
+        weak: '铺垫很久仍没有观点，堆砌信息，回避或曲解异议。'
+      }
+    ];
+
+    const NOTES = {
+    'nav-home': { title: '全站导航：首页', what: '回到成长驾驶舱，查看当前任务、连续节奏和能力总览。', how: 'Next.js Link 指向 `/`；当前项仅高亮，不重复跳转。', why: '让“今天该做什么”成为默认落点。', path: 'app/_shared/nav-items.ts；app/_dashboard/home-shell.tsx' },
+    'nav-training': { title: '全站导航：产品训练', what: '进入训练大厅，继续当前题、开始新题或查看历史。', how: '统一指向 `/training`，旧 `/today` 与旧历史列表也重定向到这里。', why: 'D27 将训练链路合并成单一模块，减少入口分裂。', path: 'app/_shared/nav-items.ts；app/training/page.tsx' },
+    'nav-profile': { title: '全站导航：能力画像', what: '查看八维分数、趋势、提示依赖和下一步方向。', how: '指向 `/profile`，数据来自 `GET /api/profile/ability`。', why: '让“AI 越来越懂我”变成可见、可验证的成长记录。', path: 'app/profile/page.tsx；app/profile/profile-flow.tsx' },
+    'nav-settings': { title: '全站导航：我的', what: '管理账号、初始画像与退出登录。', how: '指向 `/settings`，账号与画像并行加载。', why: '把会影响出题与追问的用户上下文集中管理。', path: 'app/settings/settings-flow.tsx' },
+    'score-notifier': { title: '全局评分完成通知', what: '评分异步完成后，在任何页面都能收到提醒并进入反馈。', how: '根布局挂载通知器，每 10 秒轮询；最多同时展示 3 条，其余排队。', why: '评分需要等待，通知让用户不必停留在反馈页。', path: 'app/layout.tsx；app/_shared/score-notifier/score-notifier.tsx' },
+    'notification-close': { title: '关闭当前通知', what: '只移除这一条提醒，不影响评分结果。', how: '更新前端通知队列，不删除数据库中的训练记录。', why: '通知是快捷入口，不是结果本身。', path: 'app/_shared/score-notifier/score-notifier.tsx' },
+    'notification-open': { title: '查看评分结果', what: '关闭通知并进入该次训练的反馈页。', how: '路由到 `/training/feedback/[sessionId]`。', why: '把异步完成事件接回训练闭环。', path: 'app/_shared/score-notifier/score-notifier.tsx' },
+    'overview-loop': { title: '核心闭环：训练 → 画像 → 再选题', what: '真实案例作答，经提示、追问、终答和评分，更新画像并影响下一题。', how: 'training、scoring、profile、selection 四个领域模块串联。', why: '产品目标不是做完题，而是持续识别并训练真正的短板。', path: 'maps/features.md F1/F3/F4；maps/architecture.md §4.1' },
+    'overview-dimensions': { title: '八个产品能力一级维度', what: '问题定义、用户理解、根因分析、产品价值判断、方案设计、产品取舍、指标与验证、产品表达。', how: '每题只按自己的 abilityTags 覆盖维度评分，画像读取时始终补齐八维。', why: '统一观察语言，同时允许暂时没有证据的维度保持“未知”。', path: 'server/modules/content/question-schema.ts；Prd.md BR-1/BR-6' },
+    'overview-truth': { title: '这份讲解图的事实口径', what: '页面、按钮和公式按当前代码复刻；设计理由只引用 BR 或 D 决策。', how: '静态 HTML 不连接数据库和 API，所有答案与分数均为虚构演示数据。', why: '避免把 PRD 中已经过期的“2 题基线、必追问、同步评分”等旧描述当成现状。', path: 'maps/features.md；maps/architecture.md；maps/changelog.md' },
+    'overview-adaptive': { title: '自适应的真正含义', what: '系统根据未知维度、弱项、提示依赖、兴趣和难度选择题，而不是随机推题。', how: '有未知维度进入探索期；八维都观测后进入强化期并优先最低分维度。', why: 'BR-5：案例可以随机，训练目标不能随机。', path: 'server/modules/selection/engine.ts；Prd.md BR-5' },
+    'login-email': { title: '邮箱输入', what: '用户只需填写邮箱，不需要创建或记忆密码。', how: '必填 email 输入，提交 `{ email }` 到发信接口；服务端做 schema 校验和限流。', why: 'D17 选择低摩擦的免密码认证。', path: 'app/login/login-form.tsx；app/api/auth/send-link/route.ts' },
+    'login-send': { title: '发送登录链接', what: '向邮箱发送 15 分钟有效、只能使用一次的登录链接。', how: '生成 32 字节随机 token；邮件带明文，数据库只保存 SHA-256 哈希，核销时原子校验。', why: '兼顾低摩擦、链接泄露后的数据库安全和防重复使用。', path: 'server/modules/auth/token.ts；server/modules/auth/service.ts' },
+    'login-sent': { title: '统一的发送成功提示', what: '不透露某邮箱是否已经注册，只提示“如果可用于登录，已发送”。', how: '表单替换为成功说明；真实邮件由服务端 mailer 投递，开发环境输出到服务端控制台。', why: '避免通过响应枚举账号，同时给开发环境保留可测试路径。', path: 'app/login/login-form.tsx；server/modules/auth/mailer.ts' },
+    'login-security': { title: '登录后的会话与落点', what: '核销链接后签发 7 天会话，并按用户状态进入问卷、基线或首页。', how: 'httpOnly + SameSite=Lax cookie；生产环境 Secure；post-login 依次检查画像与基线。', why: '新用户不能跳过必要上下文与基线，老用户则直接回到训练。', path: 'server/modules/auth/session.ts；server/modules/auth/post-login.ts' },
+    'onboarding-role': { title: '职位', what: '记录用户当前承担的产品相关角色，为必填单选。', how: 'Chip 选择写入初始画像 draft，最终随 PUT /api/profile 保存。', why: '追问和诊断需要理解用户的工作语境。', path: 'app/onboarding/profile-form.tsx；server/modules/profile/schema.ts' },
+    'onboarding-experience': { title: '产品相关经验年限', what: '记录从 0–1 年到 10 年以上的经验区间，为必填单选。', how: '与其他画像字段使用同一 zod 契约校验。', why: '同样的答案，对新手和资深 PM 应有不同解读。', path: 'app/onboarding/profile-form.tsx；server/modules/profile/schema.ts' },
+    'onboarding-industry': { title: '所在行业', what: '记录互联网、电商、金融、教育等行业背景，为必填单选。', how: '选择值进入用户画像，后续作为模型理解用户的上下文。', why: '产品判断高度依赖行业约束，不能脱离语境评分。', path: 'app/onboarding/profile-form.tsx；server/modules/profile/schema.ts' },
+    'onboarding-products': { title: '熟悉的产品（多选）', what: '选择微信、飞书、抖音等熟悉产品，帮助系统理解经验范围。', how: '多选 Chip 数组保存；选题引擎包含熟悉产品优先逻辑。', why: 'D11 希望首日产生“它懂我”的体验；但标准基线路径下该逻辑不一定触发，不能讲成必然。', path: 'app/onboarding/profile-form.tsx；server/modules/selection/service.ts' },
+    'onboarding-custom-product': { title: '自定义熟悉产品', what: '列表不够时输入产品名，回车或点“添加”。', how: '去除空白并查重后加入本地数组，单个最多 50 字，随画像一起暂存。', why: '避免固定选项限制真实的用户经历。', path: 'app/onboarding/profile-form.tsx' },
+    'onboarding-interests': { title: '感兴趣的领域', what: '多选 AI 应用、增长、社交、电商等方向。', how: '选题排序时用兴趣关键词加分；候选不足会逐级放宽。', why: '在训练目标不变的前提下提升案例的相关性与持续动力。', path: 'server/modules/profile/schema.ts；server/modules/selection/engine.ts' },
+    'onboarding-project': { title: '项目经验', what: '用最多 300 字补充实际负责过的项目，可跳过。', how: '多行文本随画像保存，作为 AI 理解回答的背景。', why: '真实经历比自评标签更能帮助总监判断答案深度。', path: 'app/onboarding/profile-form.tsx；server/modules/profile/schema.ts' },
+    'onboarding-goal': { title: '学习目标', what: '用最多 200 字写下希望提升的方向，可跳过。', how: '单行文本进入初始画像。', why: '让训练不仅知道“你是谁”，也知道“你想成为什么”。', path: 'app/onboarding/profile-form.tsx；server/modules/profile/schema.ts' },
+    'onboarding-strengths': { title: '自评更强的方向', what: '从八维中多选自认为较强的能力，可跳过。', how: '保存为自评信息，不直接改写能力分数。', why: '自评是追问上下文，不能替代真实作答证据。', path: 'app/onboarding/profile-form.tsx；server/modules/profile/schema.ts' },
+    'onboarding-draft': { title: '画像草稿自动暂存', what: '填写过程中自动保存草稿，刷新或中断后仍可继续。', how: '变更后 800ms 防抖 PUT /api/profile/draft；初始化优先读取草稿。', why: '减少长表单中途退出造成的重复劳动。', path: 'app/onboarding/profile-form.tsx；app/api/profile/draft/route.ts' },
+    'onboarding-submit': { title: '提交画像并进入基线', what: '按钮虽仍写“开始今日训练”，实际成功后进入 `/baseline`。', how: '三项必填完整才可提交；PUT /api/profile 成功后路由到基线测评。', why: 'D19 要求先建立能力边界；这里也是当前界面文案与实际行为不一致的一处。', path: 'app/onboarding/profile-form.tsx' },
+    'baseline-intro': { title: '基线测评开场', what: '说明题量、流程、可恢复性与完成后的解锁结果。', how: '当前代码读取全部已上架 baseline 题；仓库当前为 8 题试测，题量不是写死的 2 题。', why: 'D19：先明确边界，再在边缘拓展。', path: 'app/baseline/baseline-flow.tsx；server/modules/baseline/service.ts' },
+    'baseline-start': { title: '开始测评', what: '进入与日常训练相同的三栏作答流程。', how: '切换 BaselineFlow 阶段，复用 TrainingFlow；中断恢复时通常直接回训练。', why: '基线和日常题使用同一观察标准，结果才能进入同一画像。', path: 'app/baseline/baseline-flow.tsx；app/training/session/training-flow.tsx' },
+    'baseline-progress': { title: '题间分段进度', what: '每段代表一道已提交终答的基线题，不等同于已评分题数。', how: 'answeredCount 控制流程推进；doneCount 控制最终完成与解锁。', why: 'D38 把“作答进度”和“评分进度”拆开，避免每题之间干等。', path: 'server/modules/baseline/service.ts；app/baseline/baseline-flow.tsx' },
+    'baseline-next': { title: '进入下一题', what: '本题终答提交后，用户可主动进入下一题，不等待本题评分。', how: '终答落库即后台触发评分；按钮重新加载下一份未作答会话。', why: '8 题串行等待会累计数分钟，并行评分让等待发生在后台。', path: 'server/modules/scoring/trigger.ts；maps/changelog.md D38' },
+    'baseline-finishing': { title: '能力边界生成中', what: '全部作答后逐项点亮八维，全部评分完成再自动进入画像。', how: '每 4 秒查询 baseline 状态；接口会对已答未评分会话补触发自愈。', why: '保留首次画像揭晓的仪式感，同时避免评分失败把用户永久卡住。', path: 'app/baseline/baseline-flow.tsx；app/api/training/baseline/route.ts' },
+    'baseline-poll': { title: '完成判定与日常训练解锁', what: '只有全部基线题评分完成，才写 baselineCompletedAt 并解锁日常训练。', how: '等待期间 today 返回 BASELINE_SCORING_PENDING，加练返回 BASELINE_REQUIRED。', why: '流程可提前作答，但能力边界未形成前不能绕过基线。', path: 'server/modules/baseline/service.ts；app/api/training/extra/route.ts' },
+    'home-greeting': { title: '问候与训练节奏', what: '按本地时间问候，并显示“今日训练 · 第 N 天”。', how: '客户端计算问候避免 SSR 时区不一致；副行由连续训练数据生成。', why: '首页首先回应“我是否在持续前进”，而不是堆功能。', path: 'app/_dashboard/home-dashboard.tsx；app/_dashboard/view-model.ts' },
+    'home-streak': { title: '连续训练天数', what: '展示连续完成训练的天数。', how: 'dashboard 聚合训练日期；当前“今日”和连续统计使用 UTC 日期口径。', why: '用最小反馈强化每日训练节奏。', path: 'server/modules/dashboard/assemble.ts' },
+    'home-week': { title: '本周完成分段', what: '显示本周 n/7 与七个日期段。', how: '每个日期段根据是否训练、是否为今天计算样式。', why: '比单独一个总数更能看出本周节奏。', path: 'app/_dashboard/home-dashboard.tsx；server/modules/dashboard/assemble.ts' },
+    'current-card': { title: '共享“当前训练”三态卡', what: '未开始、进行中、已完成三种状态共用同一个组件。', how: '首页与大厅都调用 CurrentTrainingCard，并使用同一 getCurrentTrainingCard 数据源。', why: 'D28 用单一事实源避免两处状态、文案和动作漂移。', path: 'app/training/current-training-card.tsx；server/modules/training/hub-view.ts' },
+    'home-diagnosis': { title: '最近一条诊断', what: '摘录最近一次训练最需要优化的问题，并显示相对时间。', how: '读取最新 session_feedback.top_issue_text，首页只展示摘要。', why: '让上次训练的价值在下次开始前仍然可见。', path: 'app/_dashboard/home-dashboard.tsx；server/modules/dashboard' },
+    'home-diagnosis-link': { title: '查看训练反馈', what: '进入该诊断所属的完整训练反馈。', how: '链接携带 sessionId 到 `/training/feedback/[id]`。', why: '摘要负责唤起记忆，详情负责支持行动。', path: 'app/_dashboard/home-dashboard.tsx' },
+    'home-ability': { title: '能力总览', what: '右侧汇总八维中已观测和待解锁的部分。', how: '画像聚合失败时仅本卡降级为空态，不阻塞今日训练。', why: '首页需要成长感，但非核心数据失败不能破坏主任务。', path: 'app/_dashboard/home-dashboard.tsx' },
+    'home-ability-bar': { title: '维度分与趋势标记', what: '分数条显示该维度全部历史有效分的简单平均，箭头表示均值变化方向。', how: '趋势是本次重算历史均值与上次历史均值比较，差值超过 ±0.5 才上升或下降。', why: 'BR-6 采用简单平均；±0.5 是当前代码阈值，并非额外锁定的产品公式。', path: 'server/modules/profile/ability.ts' },
+    'home-ability-locked': { title: '待解锁维度', what: '没有有效评分证据的维度显示“待解锁”，不是 0 分。', how: '无数测评据时 currentScore=null，读取视图补齐未知态。', why: '未知和低分是两种不同结论，不能混淆。', path: 'server/modules/profile/ability.ts；Prd.md BR-6' },
+    'current-start': { title: '开始今日训练', what: '获取或创建今天的日常训练会话，然后进入工作台。', how: 'GET /api/training/today 走 get-or-create；基线未完成会被分流回 `/baseline`。', why: '幂等创建避免重复点击生成多道题，也保证新用户先完成基线。', path: 'app/training/current-training-card.tsx；server/modules/training/service.ts' },
+    'current-continue': { title: '继续训练 / 查看评分进度', what: '作答或追问中回工作台；已交终答则进入反馈页看评分进度。', how: '按 current.stage 计算链接与按钮文案；数据库没有独立 scoring 状态。', why: '用户看到的是任务阶段，不必理解底层状态机细节。', path: 'app/training/view-model.ts；server/modules/training/hub-view.ts' },
+    'current-progress': { title: '进行中进度说明', what: '解释当前是在作答、等待回应追问，还是后台评分。', how: '“评分中”由 followup 状态 + 已提交终答派生。', why: '把技术状态翻译成用户下一步可理解的提示。', path: 'server/modules/training/hub-view.ts；app/training/view-model.ts' },
+    'current-restart': { title: '重启训练', what: '未交终答时，可放弃当前题并重新开始；先展开二次确认。', how: '仅前端展开确认条，真正终止要再点“确认重启”；评分中不显示入口。', why: 'D40 让用户不被迫完成当天题，同时防止误触丢弃作答。', path: 'app/training/current-training-card.tsx' },
+    'current-restart-confirm': { title: '确认重启', what: '把当前会话推进到 abandoned 终态，卡片回到未开始态。', how: 'POST abandon 使用数据库条件守卫；基线、已交终答、已评分返回 409，重复终止幂等。', why: '保留记录但不评分、不计入画像，并处理终止与交卷的并发竞态。', path: 'app/api/training/[id]/abandon/route.ts；server/modules/training/service.ts' },
+    'current-restart-cancel': { title: '取消重启', what: '关闭确认条，保留当前作答。', how: '只复位前端确认状态，不调用 API。', why: '破坏性动作必须给用户无成本退路。', path: 'app/training/current-training-card.tsx' },
+    'current-scores': { title: '完成卡维度得分', what: '最多展示三个本次维度有效分。', how: '来自已完成会话的 scores，数值是原始分乘独立系数后的结果。', why: '让完成状态直接呈现成果，而不是只有“已完成”。', path: 'app/training/current-training-card.tsx；server/modules/training/hub-view.ts' },
+    'current-result': { title: '查看结果', what: '进入本次完整反馈页。', how: '按 sessionId 链接到反馈路由。', why: '完成卡是摘要，具体诊断与下一步由反馈页承接。', path: 'app/training/current-training-card.tsx' },
+    'current-extra': { title: '再练一题', what: '创建或复用一份加练会话并进入新工作台。', how: 'POST /api/training/extra；当天有未交终答会话时先复用，否则创建 isExtra=true 新会话。', why: 'D3/D24：加练与每日题同等计入画像，V1 不设产品次数硬上限。', path: 'app/api/training/extra/route.ts；server/modules/training/service.ts' },
+    'training-history': { title: '训练历史列表', what: '每日题与加练统一展示，用徽章区分类型和状态。', how: '按开始时间倒序最多取 20 条；基线不进入此列表，已终止保留。', why: '训练轨迹属于同一个模块，加练不应成为另一套历史。', path: 'app/training/hub-flow.tsx；server/modules/training/hub-view.ts' },
+    'training-history-row': { title: '一整行都是回放入口', what: '未完成记录回工作台，已完成或已终止记录进入只读回放。', how: 'historyHrefFor 根据会话状态计算目标地址。', why: '让用户从任何历史状态继续或复盘，而不是只看到静态标题。', path: 'app/training/view-model.ts；app/training/hub-flow.tsx' },
+    'training-load-more': { title: '加载更多（当前占位）', what: '按钮始终禁用，当前不会请求更多历史。', how: '首版固定返回 20 条，代码明确保留空实现。', why: '这是当前边界，讲解时不能说已经实现分页。', path: 'app/training/hub-flow.tsx' },
+    'session-case': { title: '左栏：今日案例', what: '用产品、服务谁、场景、相关功能、当前状态五要素给出真实问题背景。', how: '五字段均为 `{ text, citations[] }`，从数据库上架题读取；宽屏内容超高时卡内滚动。', why: 'D23 三栏工作台让做题所需信息同屏；BR-8 要求事实有来源。', path: 'app/training/session/training-flow.tsx CaseCard' },
+    'session-citations': { title: '案例原文引用', what: '每个背景字段后的“原文”可打开对应出处。', how: 'citation 编号关联 case_sources，链接新窗口打开并带 noopener。', why: 'D18 让案例事实可核查；系统校验引用结构，但不会自动证明来源内容真实。', path: 'app/training/session/view-model.ts；server/modules/content/question-schema.ts' },
+    'session-focus': { title: '训练重点', what: '告诉用户本题主要训练哪些维度，本次也只评这些维度。', how: '直接渲染题目 abilityTags，评分模块按这些标签生成 Rubric 评分。', why: 'BR-1 避免一道题对所有能力泛泛打分。', path: 'app/training/session/training-flow.tsx FocusCard' },
+    'session-materials': { title: '右栏：参考资料', what: '提供核心 2 篇、扩展 3 篇预策展摘要和来源，阅读不扣分。', how: '资料随 YAML 题库导入，不是运行时实时搜索或抓取。', why: 'D9 保证信息可控；BR-3 明确只有请求提示才影响独立系数。', path: 'app/training/session/training-flow.tsx MaterialsCard' },
+    'session-material-link': { title: '资料原文链接', what: '新窗口打开该参考资料的原始来源。', how: '使用预策展 URL；本讲解文件里只做说明，不访问外网。', why: '摘要提高阅读效率，原文保留深入核查路径。', path: 'app/training/session/training-flow.tsx MaterialsCard' },
+    'session-question': { title: '中栏：今日问题', what: '给出这次需要作出的真实产品判断，而不是知识选择题。', how: '主问题来自当前题目的 mainQuestion，固定在交互区上方。', why: '训练的是问题定义、取舍和论证，不是背标准答案。', path: 'app/training/session/training-flow.tsx' },
+    'session-first-answer': { title: '首次自由作答', what: '不设格式写下第一版判断，提交后成为追问与思路变化的依据。', how: '非空、trim 后最多 10000 字；重复提交不会覆盖首答或重复调用 AI。', why: '先保留独立判断，再用总监追问暴露假设与证据缺口。', path: 'app/api/training/[id]/first-answer/route.ts；server/modules/training/service.ts' },
+    'session-thinking': { title: '思考方向提示', what: '给出用户任务、当前问题、新价值、成本、风险等可选思考角度。', how: '只是静态引导，不计为已释放提示，不影响系数。', why: '提供轻量脚手架，但不把回答变成固定表单。', path: 'app/training/session/training-flow.tsx' },
+    'session-hint': { title: '给我一个提示：5 层渐进提示', what: '卡住时逐级释放一层提示，首答前最多 5 层。', how: '每次 POST hint 原子记录 hint_events；刷新恢复已释放内容，首答后主提示入口永久消失。', why: 'D7 防止“先随便答再绕过提示扣分”；提示透明地换取独立系数。', path: 'server/modules/training/service.ts；Prd.md BR-3' },
+    'session-hint-count': { title: '当前系数与已释放层数', what: '实时显示提示次数和对应独立完成系数。', how: '主提示每次减 0.1，追问提示每次减 0.05，两类共用 0.6 下限。', why: 'D12 让用户在请求帮助前知道代价，而不是评分后才发现。', path: 'server/modules/training/coefficient.ts；maps/changelog.md D22' },
+    'session-submit-first': { title: '提交答案', what: '保存首答并进入总监追问判断。', how: 'reading/answering → followup；同一次 AI 调用先判断是否值得追问，再生成 0 或 1–2 个问题。', why: '首答后不立刻给分或参考答案，先观察能否修正与深化判断。', path: 'server/modules/training/service.ts；server/ai/followup.ts' },
+    'session-chat-first': { title: '对话中的首答气泡', what: '在追问上下文中保留用户最初判断。', how: '首答与 followups 组合成只读消息历史，用户右侧、总监左侧。', why: '让答案变化可见，避免追问脱离原始语境。', path: 'app/training/session/training-flow.tsx ChatBubble' },
+    'session-followup-gate': { title: '追问闸门：好答案可以 0 问', what: '首答要素完整、证据匹配且无明显误解时，显示“首答足够扎实”，直接终答。', how: 'AI 锚定主测维度 Rubric 判断；判定理由落库仅审计，不下发用户。', why: 'D37：固定追问对好答案是时间税；真正动态多轮对话仍未实现。', path: 'server/ai/prompts/followup.v1.ts；server/modules/training/today-view.ts' },
+    'session-followup-chat': { title: '总监追问', what: '需要追问时一次生成 1–2 个问题，用户在一个终答框统一回应。', how: '当前不是每问每答的多轮状态机；追问本身不扣分。', why: '挑战逻辑漏洞、假设和证据，同时避免把“追问”误解成扣分。', path: 'server/ai/followup.ts；app/training/session/contract.ts' },
+    'session-followup-hint': { title: '追问阶段提示', what: '每条追问最多释放一条预生成提示。', how: '提示在生成追问的同一次 AI 调用中预先落库，点击只读库，不再等待 AI。', why: 'D22 保留帮助通道且零额外 AI 延迟；每次使用系数减 0.05。', path: 'server/modules/training/service.ts；maps/changelog.md D22' },
+    'session-followup-generating': { title: '总监思考中', what: '首答后追问尚未生成时显示等待说明。', how: '前端每 5 秒重新加载会话；生成中与真正失败是两个不同状态。', why: '异步生成需要明确预期，不能把短暂等待误报为失败。', path: 'app/training/session/training-flow.tsx' },
+    'session-followup-retry': { title: '重试本次对话', what: '追问生成失败时重新触发生成。', how: 'POST followup-retry 幂等重试；已被闸门判定无需追问的会话会返回 409。', why: 'D39 给用户恢复通道，不再只能等待运维补救。', path: 'app/api/training/[id]/followup-retry/route.ts；server/modules/training/service.ts' },
+    'session-followup-skip': { title: '跳过追问，直接作答', what: '追问失败时仍可进入终答，不浪费本次首答。', how: '前端展开终答输入区；未跳过且生成失败时输入区保持隐藏。', why: 'AI 故障不应成为训练流程的单点阻塞。', path: 'app/training/session/training-flow.tsx' },
+    'session-final-answer': { title: '最终答案', what: '回应追问、修正或深化结论；零追问或手动跳过时直接写最终判断。', how: '非空、最多 10000 字；终答保存是评分主体，首答与追问用于理解思路变化。', why: '评价的不只是最初答案，也包括面对挑战后的判断质量。', path: 'server/modules/training/service.ts；server/ai/prompts/scoring.v1.ts' },
+    'session-coefficient': { title: '本题独立完成系数', what: '同时统计首答前提示与追问提示。', how: '`c = max(0.6, 1 − 0.1n − 0.05m)`；代码用 20 分制整数运算避免浮点误差。', why: 'BR-2 区分答案质量与独立完成程度；追问提示半价。', path: 'server/modules/training/coefficient.ts' },
+    'session-submit-final': { title: '提交最终答案', what: '保存终答并立即进入反馈流程，后台开始评分。', how: '终答后数据库仍为 followup，fire-and-forget 触发评分；完成后才变 scored。', why: 'D38 的异步触发避免接口等待 AI；“评分中”是界面派生状态。', path: 'app/api/training/[id]/final-answer/route.ts；server/modules/scoring/trigger.ts' },
+    'session-released-hints': { title: '已释放的提示', what: '按层号和阶段保留本题已经使用过的提示。', how: '读取持久化 hint_events，只展示已释放内容，未释放提示与 Rubric 不下发。', why: '让用户知道分数系数来自哪些具体帮助，也避免提前泄露答案路径。', path: 'app/training/session/training-flow.tsx ReleasedHintsCard' },
+    'session-done': { title: '本次训练已完成', what: '终答已保存，评分与诊断将在反馈页展示。', how: '工作台完成态提供反馈入口；日常模式还可再练，基线模式不显示加练。', why: '把作答结束与评分完成分开，用户不必停留在工作台等待。', path: 'app/training/session/training-flow.tsx DoneSection' },
+    'feedback-scoring': { title: '总监评分中', what: '显示后台评分进度，通常 30–60 秒，自动刷新。', how: '反馈页每 3 秒轮询；发现未评分会经共享入口补触发，连续失败 5 次才显示错误。', why: 'AI 评分是异步任务，需要等待预期和失败自愈，而不是假进度条。', path: 'app/training/feedback/[id]/feedback-flow.tsx；server/modules/feedback/view.ts' },
+    'feedback-effective-score': { title: '本次有效得分', what: '每个维度展示最终计入画像的分数。', how: 'AI 先按题目 Rubric 给 0–100 原始表现分，再乘独立完成系数并保留两位小数。', why: 'BR-1 同时衡量“答得好不好”和“是否独立完成”。', path: 'server/modules/scoring/service.ts；server/modules/scoring/rubric-scorer.ts' },
+    'feedback-raw-score': { title: '原始分、系数与有效分', what: '例如原始 80，主提示 2 次、追问提示 1 次，系数 0.75，有效分 60。', how: '原始分、提示次数、系数、有效分四元组分开保存。', why: 'D8 保留原始事实，便于审计与以后重算，而不是只存一个无法解释的总分。', path: 'server/modules/scoring/service.ts；maps/changelog.md D8' },
+    'feedback-calculation': { title: '查看计算过程', what: '展开当前维度的乘法过程和诊断。', how: '前端本地展开，不调用 API；本讲解使用完整 BR-2 公式，包含追问提示。', why: '分数必须可解释。现有产品这段微文案主要讲主提示，讲解时不要误说追问提示不参与。', path: 'app/training/feedback/[id]/feedback-flow.tsx；app/training/feedback/[id]/view-model.ts' },
+    'feedback-top-issue': { title: '最需要优化的一个问题', what: '每次只强调一个具体、可行动的核心问题。', how: '评分 prompt 强制生成，服务端校验非空；没有算法能保证每句都绝不泛泛。', why: 'BR-7 避免一堆正确但无法执行的反馈，让改进有抓手。', path: 'server/modules/scoring/rubric-scorer.ts；Prd.md BR-7' },
+    'feedback-next-step': { title: '下一步训练方向', what: '给出与核心问题同源的后续练习建议。', how: '反馈记录保存 next_step_text；画像页另根据弱项和未知维度计算下一题重点。', why: '诊断只有接到下一次行动，训练闭环才成立。', path: 'server/modules/feedback/view.ts；server/modules/profile/ability-page.ts' },
+    'feedback-survey': { title: '训练后感知问卷', what: '固定询问“问题是否说清”和“是否知道下一步”，周期追加“是否越来越针对你”。', how: '固定两问 1–5 星；当前 scored 总数为 5 的倍数时显示第三问。', why: 'D16 用用户感知校验系统是否真正有效，而不只看模型自评。', path: 'server/modules/feedback/survey.ts；maps/changelog.md D16' },
+    'feedback-stars': { title: '1–5 星选择', what: '每题必须选择一个分值，星级只做本地选择，尚未提交。', how: 'radio 语义按钮记录 q1/q2/q3；可见问题全部作答后提交按钮可用。', why: '简单量化“反馈是否有用”，并保留键盘可操作性。', path: 'app/training/feedback/[id]/feedback-flow.tsx StarRow' },
+    'feedback-survey-submit': { title: '提交反馈', what: '保存本次感知问卷，成功后替换为感谢状态。', how: 'POST /api/feedback-survey；同会话重复提交不会覆盖已有答案。', why: '保留第一次真实感受，失败时本地选择不丢失可直接重试。', path: 'app/training/feedback/[id]/api.ts；server/modules/feedback/survey.ts' },
+    'feedback-view-profile': { title: '查看能力画像', what: '从单次反馈跳到长期八维画像。', how: '链接到 `/profile`。', why: '把“这次怎么样”和“长期哪里薄弱”连接起来。', path: 'app/training/feedback/[id]/feedback-flow.tsx' },
+    'profile-insight': { title: '画像顶部洞察', what: '总结已了解多少维度，并预告下一题优先探索或强化哪里。', how: '有未知维度显示探索；全部已观测后选择当前分最低维度强化。', why: '把自适应选题的理由翻译成用户能理解的下一步。', path: 'server/modules/profile/ability-page.ts' },
+    'profile-tabs': { title: '网络图 / 列表切换', what: '同一画像数据提供空间和清单两种看法。', how: '前端本地切换；3D 加载失败自动降级到列表。', why: '可视化增强洞察，但不能让图形库故障阻断核心信息。', path: 'app/profile/profile-flow.tsx' },
+    'profile-network': { title: '3D 能力网络图', what: '八维节点固定在知识空间中，分数影响视觉，未观测显示灰态。', how: '真实页面使用 react-force-graph-3d + three + three-spritetext；此处用离线 SVG 复刻。', why: 'D20/D21 让强弱、未知和维度关系一眼可见。', path: 'app/profile/ability-network.tsx；maps/changelog.md D20/D21' },
+    'profile-network-node': { title: '点击维度节点', what: '打开该维度的评估记录、观察次数、趋势、提示依赖与下一步。', how: '点击设置 selectedDimension，渲染节点详情弹窗；真实图支持旋转与缩放，节点不可拖动改位置。', why: '网络负责总览，弹窗负责证据和行动。', path: 'app/profile/profile-flow.tsx；app/profile/node-detail-modal.tsx' },
+    'profile-node-close': { title: '关闭节点详情', what: '点击 × 或遮罩返回完整网络图。', how: '清空前端 selectedDimension，不修改画像数据。', why: '详情是临时查看层，不应改变页面状态。', path: 'app/profile/node-detail-modal.tsx' },
+    'profile-recent-evaluations': { title: '最近评估记录', what: '列出该维度最近评分的日期、有效分和案例标题，最多 6 条。', how: 'API 按评分时间倒序返回 recentEvaluations。', why: 'D21 用可追溯记录替代一屏长篇诊断，让分数有证据。', path: 'server/modules/profile/ability-page.ts；app/profile/node-detail-modal.tsx' },
+    'profile-evaluation-link': { title: '查看评估', what: '从某次维度评估跳到对应训练反馈。', how: '记录携带 sessionId，链接到反馈页。', why: '画像不是黑箱结论，可以回到具体作答与诊断。', path: 'app/profile/node-detail-modal.tsx' },
+    'profile-observation': { title: '观察次数与样本状态', what: '显示该维度有效评分记录数；少于 3 次界面优先标“样本较少”。', how: '观察次数是 scores 中该用户该维度记录数；3 次为当前代码阈值。', why: '避免一次表现被包装成稳定能力结论；阈值没有额外 D 决策理由。', path: 'server/modules/profile/ability.ts；server/modules/profile/ability-page.ts' },
+    'profile-trend': { title: '趋势与火花线', what: '趋势比较重算后的历史均值与上一次历史均值，火花线最多展示最近 6 次有效分。', how: '差值 > +0.5 上升，< −0.5 下降，其余稳定；首次观测无趋势。', why: '这里不是近期分数回归斜率；±0.5 和 6 次是当前实现口径。', path: 'server/modules/profile/ability.ts；server/modules/profile/ability-page.ts' },
+    'profile-dependency': { title: '提示依赖特征', what: '区分同分但独立性不同的用户，输出不同诊断。', how: '该维度最近 5 次评分的首答前提示次数取平均：<1 低，1–2.5 中，>2.5 高；不含追问提示。', why: 'BR-6 要“同分不同病”；窗口与分档是代码实现，不应包装成更多锁定规则。', path: 'server/modules/profile/ability.ts；app/profile/view-model.ts' },
+    'profile-next-focus': { title: '下一步训练方向', what: '结合当前弱项与提示依赖，给出独立性或分析深度建议。', how: '视图模型按依赖档位生成差异化文案，命中下一题方向时加标记。', why: '同样的分数可能需要“减少提示”或“加深分析”两种完全不同训练。', path: 'app/profile/view-model.ts；server/modules/profile/ability-page.ts' },
+    'profile-ability-row': { title: '已观测维度行', what: '整行可点击展开或收起该维度特征与诊断。', how: '本地 expandedDimension 控制，默认展开当前最弱维度。', why: '列表默认保持简洁，需要时再深入证据。', path: 'app/profile/profile-flow.tsx ObservedRow' },
+    'profile-unknown': { title: '未观测维度卡', what: '显示“待解锁”，不可点击，也不显示 0 分。', how: '没有有效评分时不写画像行，API 视图补 currentScore=null。', why: '系统必须诚实地区分“不知道”与“表现差”。', path: 'app/profile/profile-flow.tsx GhostCard；server/modules/profile/ability.ts' },
+    'profile-overall-dependency': { title: '整体提示依赖度', what: '用五段仪表展示整体低、中、高档位。', how: '画像接口聚合整体值；没有足够数据时显示 —。', why: '给长期独立性一个快速入口，但单维度判断仍只看首答前提示窗口。', path: 'app/profile/profile-flow.tsx HintDependencyGauge' },
+    'profile-go-training': { title: '去今日训练', what: '八维全未知时，引导用户进入产品训练大厅。', how: '实际链接是 `/training`，不是直接创建会话。', why: '空态仍要给出唯一下一步，而不是只展示一张空图。', path: 'app/profile/profile-flow.tsx GuideCard' },
+    'history-back': { title: '返回训练历史', what: '回到产品训练大厅的历史列表。', how: '链接到 `/training`。', why: 'D27 后历史列表已并入训练大厅，不再是独立模块。', path: 'app/training/history/[id]/detail-flow.tsx' },
+    'history-case': { title: '回放：案例', what: '只读展示案例标题、能力标签、难度、主问题与五要素来源。', how: 'GET /api/history/[id] 聚合题目和会话；他人记录与不存在记录统一 404。', why: '复盘必须回到原始问题语境，同时保护记录所有权。', path: 'app/training/history/[id]/detail-flow.tsx；server/modules/history/view.ts' },
+    'history-difficulty': { title: '难度 N/5', what: '展示题目难度等级。', how: '内容模型基础/中等/挑战映射为 2/3/4，界面按 5 级语境展示。', why: '帮助用户理解不同案例表现不能直接等同。', path: 'server/modules/content/question-schema.ts；app/training/history/[id]/detail-flow.tsx' },
+    'history-first-answer': { title: '回放：首次作答', what: '保留追问前的原始答案与提交时间。', how: '读取 session.firstAnswer；未提交或记录缺失分别展示。', why: '独立首答是观察思考变化的基准。', path: 'server/modules/history/view.ts；app/training/history/[id]/detail-flow.tsx' },
+    'history-final-answer': { title: '回放：最终作答', what: '展示追问后提交的终答。', how: '读取 finalAnswer，只读不允许在回放页编辑。', why: '两版对照能看到判断如何被修正和深化。', path: 'app/training/history/[id]/detail-flow.tsx' },
+    'history-hints': { title: '回放：提示使用', what: '显示首答前提示层数、时间和独立完成系数。', how: '读取 hint_events；当前历史不回放完整提示树或未释放提示。', why: '分数的独立性依据应该可审计。', path: 'server/modules/history/view.ts' },
+    'history-followups': { title: '回放：总监追问', what: '按轮次展示实际追问问题。', how: '读取会话 followups 的可见问题；内部 gate_decision 审计理由不作为用户对话展示。', why: '复盘需要看到是什么问题促使答案变化。', path: 'server/modules/history/view.ts；server/modules/training/today-view.ts' },
+    'history-scores': { title: '回放：评分', what: '展示各维度有效分、原始分×系数和诊断。', how: '已评分记录来自 scores 四元组；已终止或未完成显示尚未评分。', why: '评分过程可追溯；终止题不评分也不计入画像。', path: 'app/training/history/[id]/detail-flow.tsx；server/modules/history/view.ts' },
+    'history-feedback': { title: '回放：反馈', what: '保留最需优化问题与下一步方向。', how: '读取 session_feedback；当前 API 不包含“画像前后能力变化”字段。', why: '历史页是训练证据回放，不应宣称展示了当前没有的数据。', path: 'server/modules/history/view.ts' },
+    'history-abandoned': { title: '已终止记录', what: '保留案例、已有答案和提示历史，以“已终止”徽章只读展示。', how: 'abandoned 是终态，不物理删除、不触发评分、不计入画像。', why: 'D40 允许退出，同时保留真实训练轨迹。', path: 'server/modules/training/service.ts；server/modules/history/view.ts' },
+    'settings-account': { title: '账号信息', what: '展示当前登录邮箱和已登录状态。', how: 'GET /api/auth/session；无会话开发占位可能显示 dev 身份。', why: '让用户明确自己的训练数据属于哪个账号。', path: 'app/settings/settings-flow.tsx；app/settings/view-model.ts' },
+    'settings-profile': { title: '初始画像摘要', what: '查看职位、经验、行业、产品、兴趣、项目、目标和自评方向。', how: 'GET /api/profile，未填写字段统一显示“未填写”。', why: '出题与追问依赖这些上下文，用户应能检查系统了解了自己什么。', path: 'app/settings/profile-card.tsx；app/settings/view-model.ts' },
+    'settings-edit': { title: '编辑初始画像', what: '切换到与首次问卷相同的字段编辑态。', how: '本地复制画像到编辑状态，不写草稿，也不跳转。', why: '用户经验和目标会变化，画像上下文不能一次填写后永久固定。', path: 'app/settings/profile-card.tsx' },
+    'settings-save': { title: '保存画像', what: '保存编辑内容并回到查看态。', how: 'PUT /api/profile；三项必填未齐禁用，失败保留当前编辑内容。', why: '避免保存失败导致重复填写，同时维持输入契约。', path: 'app/settings/profile-card.tsx；app/settings/api.ts' },
+    'settings-cancel': { title: '取消编辑', what: '放弃本地修改，恢复已保存画像。', how: '退出编辑态，不调用保存接口。', why: '给编辑操作明确退路。', path: 'app/settings/profile-card.tsx' },
+    'settings-basic': { title: '基础设置（后续版本）', what: '训练偏好、通知等设置当前只有占位说明，没有实际控件。', how: '静态虚线卡，不读取或保存任何设置。', why: '这是当前范围边界，不能讲成已经支持偏好设置。', path: 'app/settings/settings-flow.tsx' },
+    'settings-logout': { title: '退出登录', what: '注销当前会话并返回登录页。', how: 'POST /api/auth/logout 后路由 `/login`；请求中禁用，失败就地提示。', why: '提供明确账号退出路径，下次需要重新验证邮箱。', path: 'app/settings/settings-flow.tsx；app/api/auth/logout/route.ts' },
+    'architecture-frontend': { title: '页面层：Next.js App Router', what: '10 个真实页面负责渲染与交互，页面组件不写领域业务。', how: 'Next.js 16 + React 19 + TypeScript + Tailwind CSS 4，共享 Shell 与视图模型。', why: '让 UI 变化与业务规则分离，页面只组合可展示数据。', path: 'app/；maps/architecture.md §1/§2' },
+    'architecture-api': { title: 'API 层：Route Handlers', what: '23 个路由接收页面请求，统一校验、鉴权、限流和响应格式。', how: 'zod 验证输入；成功 `{ success:true,data }`，失败 `{ success:false,error }`。', why: '所有外部输入不可信，边界必须快速失败且错误格式一致。', path: 'app/api/；server/lib/api-response.ts' },
+    'architecture-domain': { title: '领域层：十个业务模块', what: 'auth、training、scoring、selection、profile、content、baseline、dashboard、feedback、history。', how: 'service 负责业务编排，repository 负责数据访问，schema/contract 定义边界。', why: '把状态机、评分和画像等核心规则从页面与数据库细节中独立出来。', path: 'server/modules/；maps/architecture.md §3' },
+    'architecture-database': { title: '数据层：PostgreSQL + Prisma', what: '保存用户、题目、会话、提示、评分、画像和审计记录。', how: 'Prisma 参数化查询；评分、反馈、画像更新和状态推进在同一事务完成。', why: '避免 AI 或校验失败留下“有分数但没画像”的半截状态。', path: 'prisma/schema.prisma；server/modules/scoring/service.ts' },
+    'architecture-ai': { title: 'AI 网关：DeepSeek', what: '总监追问、追问闸门和 Rubric 评分统一经过服务端网关。', how: 'OpenAI 兼容协议，当前模型 deepseek-flash；密钥只在服务端，支持超时、重试和用量审计。', why: 'D39 因稳定性切换供应商；provider 中立封装降低再次切换成本。', path: 'server/ai/client.ts；server/ai/followup.ts；maps/changelog.md D39' },
+    'architecture-content': { title: '内容管线：YAML → 校验 → 入库', what: '题目在 Git 中评审，经 schema 校验后整批导入数据库，运行时只读上架题。', how: '能力标签 2–4 个、提示恰好 5 层、核心资料 2 篇、扩展 3 篇，五要素均带引用。', why: '内容可 diff、可回滚；结构校验不等于自动事实核验，真实性仍需人审。', path: 'content/questions/；server/modules/content/；scripts/import-content.ts' },
+    'architecture-state': { title: '训练状态机：五个数据库状态', what: 'reading、answering、followup、scored、abandoned；没有 scoring 状态。', how: '请求主提示进入 answering；首答进入 followup；终答后仍 followup，评分完成才 scored；终止为 abandoned。', why: '把异步评分表示为“followup + 已交终答”，避免增加不必要的状态。', path: 'prisma/schema.prisma；server/modules/training/state-machine.ts' },
+    'architecture-redirects': { title: '四个旧地址只是重定向', what: '`/today` → `/training`；`/history` → `/training`；两个详情旧地址保留 id 转到新详情。', how: 'Next.js redirect，不渲染独立页面。', why: 'D27 合并模块后保留旧链接可达性，但不维护两套 UI。', path: 'app/today/page.tsx；app/history/page.tsx；app/history/[id]/page.tsx；app/today/feedback/[id]/page.tsx' },
+    'architecture-api-list': { title: '完整 API 分组', what: '认证 4、画像 3、训练 13、首页 1、历史详情 1、感知问卷 1，共 23 个 Route Handler。', how: '训练组含 hub/today/baseline/extra、单会话、提示、首答、终答、追问提示/重试、反馈、终止和评分通知。', why: '按用户动作组织接口，页面不直接访问数据库或 AI。', path: 'app/api/**/route.ts' },
+    'architecture-limits': { title: '当前实现边界', what: '占位分页、基础设置、非真正多轮追问、UTC 今日口径、未外露选题理由等都在这里明确标出。', how: '这些是按代码核对的现状，不是拟议功能，也不在本讲解文件中擅自修复。', why: '半小时理解项目，既要会讲价值，也要知道什么还不能承诺。', path: '当前代码核对；maps/features.md；maps/changelog.md' }
+    };
+
+    for (const dimension of DIMENSION_DETAILS) {
+      NOTES[dimension.id] = {
+        title: `${dimension.name}：详细定义`,
+        what: `${dimension.definition} 主要回答：${dimension.question}`,
+        how: `评分观察点：${dimension.measures.join('；')}`,
+        why: `${dimension.boundary} 强表现：${dimension.strong} 弱表现：${dimension.weak}`,
+        path: 'docs/v2/ability-model.md（产品负责人审定评分基准）'
+      };
+    }
+
+    function pageIntro(page, extra = '') {
+      return `<section class="page-intro"><div><div class="eyebrow">${page.id === 'overview' ? 'THE PRODUCT IN ONE STORY' : `PAGE ${String(PAGES.indexOf(page)).padStart(2, '0')} · ${esc(page.route)}`}</div><h1>${esc(page.title)}</h1><p>${esc(page.subtitle)} ${extra}</p></div><div class="time-stamp"><b>${page.minutes}</b><span>分钟<br>建议讲解</span></div></section>`;
+    }
+
+    function guideStrip(text = '鼠标悬浮、点击或键盘 Tab 到橙色 i 标记，即可查看功能、实现与设计依据。') {
+      return `<div class="guide-strip"><span class="live-dot"></span><span>${text}</span><span class="demo-label">静态复刻 · 全部为虚构演示数据</span></div>`;
+    }
+
+    function switcher(items, current, group) {
+      return `<div class="state-switcher"><span>演示状态</span>${items.map(([value, label]) => `<button type="button" class="state-chip ${current === value ? 'active' : ''}" data-state-group="${group}" data-state-value="${value}">${label}</button>`).join('')}</div>`;
+    }
+
+    function productShell(active, content, stage = '待开始', showNotification = false) {
+      const nav = [
+        ['home', '⌂', '首页', 'nav-home'], ['training', '◇', '产品训练', 'nav-training'],
+        ['profile', '◎', '能力画像', 'nav-profile'], ['settings', '⚙', '我的', 'nav-settings']
+      ];
+      return `<div class="product-app">
+        <aside class="product-sidebar">
+          <div class="product-brand"><div class="brand-mark">训</div><div><div class="product-brand-name">训练台</div><div class="product-brand-sub">产品经理刻意练习</div></div></div>
+          <nav class="product-nav">${nav.map(([id, symbol, label, note]) => `<button type="button" class="product-nav-item hotspot ${active === id ? 'active' : ''}" data-go="${id}" data-note="${note}"><span class="nav-symbol">${symbol}</span>${label}</button>`).join('')}</nav>
+          <div class="product-side-bottom"><div class="side-caption">${active === 'profile' ? '画像进度' : active === 'settings' ? '当前账号' : '今日状态'}</div><div class="side-value">${active === 'profile' ? '5 / 8 已观测' : active === 'settings' ? 'demo@example.com' : stage}</div>${active === 'home' || active === 'training' ? '<div class="side-value" style="margin-top:8px">连续训练 6 天</div>' : ''}</div>
+        </aside>
+        <div class="product-content">${content}</div>
+        ${showNotification && state.notification ? `<div class="notification hotspot" data-note="score-notifier"><div class="row space-between"><span class="badge green">✓ 训练评分完成</span><button class="btn btn-text hotspot inline-hotspot" data-action="close-notification" data-note="notification-close" aria-label="关闭通知">×</button></div><div class="strong small" style="margin-top:10px">飞书知识库的 AI 自动整理</div><button class="btn btn-text small hotspot inline-hotspot" style="margin-top:7px" data-go="feedback" data-note="notification-open">查看评分结果 →</button></div>` : ''}
+      </div>`;
+    }
+
+    function browser(route, content) {
+      return `<div class="replica-wrap"><div class="replica-browser"><div class="browser-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-url">skilltraining.local${route}</span><span class="browser-demo">INTERACTIVE REPLICA</span></div><div style="position:relative">${content}</div></div></div>`;
+    }
+
+    function chips(items, note, selected = []) {
+      return `<div class="chip-group">${items.map(item => `<button type="button" class="choice-chip hotspot inline-hotspot ${selected.includes(item) ? 'selected' : ''}" data-action="chip" data-note="${note}" aria-pressed="${selected.includes(item)}">${item}</button>`).join('')}</div>`;
+    }
+
+    function dimensionDetailsSection() {
+      return `<section class="card card-pad"><div class="row space-between row-wrap"><div><div class="section-label blue-label">八维详细定义</div><h2 class="card-title" style="margin-top:5px">每个维度到底观察什么</h2><p class="card-subtitle" style="margin-top:6px">定义、核心问题、评分观察点、维度边界与典型强弱表现</p></div><span class="badge blue">评分基准 v0.2</span></div><div class="dimension-details" style="margin-top:18px">${DIMENSION_DETAILS.map((dimension, index) => `<article class="dimension-detail hotspot" data-note="${dimension.id}" tabindex="0"><div class="dimension-detail-head"><span class="dimension-detail-index">0${index + 1}</span><div><h3>${dimension.name}</h3><p class="dimension-definition">${dimension.definition}</p></div></div><div class="dimension-question">${dimension.question}</div><h4>测什么 · 评分观察点</h4><ul>${dimension.measures.map(measure => `<li>${measure}</li>`).join('')}</ul><h4>与相邻维度的边界</h4><p class="dimension-boundary">${dimension.boundary}</p><div class="dimension-examples"><div class="dimension-example strong"><b>典型强表现</b>${dimension.strong}</div><div class="dimension-example weak"><b>典型弱表现</b>${dimension.weak}</div></div></article>`).join('')}</div><p class="tiny faint" style="margin:15px 0 0">依据：docs/v2/ability-model.md（产品负责人审定评分基准）。八维相互关联，不要求每次判断机械地按顺序走完。</p></section>`;
+    }
+
+    function overviewPage() {
+      const steps = [
+        ['01', '真实案例', '五要素事实 + 来源'], ['02', '独立首答', '先保留原始判断'], ['03', '渐进提示', '帮助与独立度挂钩'],
+        ['04', '总监追问', '闸门决定 0 或 1–2 问'], ['05', '评分反馈', '原始分 × 独立系数'], ['06', '画像与选题', '有效分影响下一步']
+      ];
+      const dims = ['问题定义', '用户理解', '根因分析', '产品价值判断', '方案设计', '产品取舍', '指标与验证', '产品表达'];
+      return `${pageIntro(PAGES[0])}${guideStrip('建议先用这一页讲清产品闭环，再进入页面。右侧所有数字均为演示。')}
+        <div class="replica-wrap stack">
+          <div class="overview-grid">
+            <section class="hero-panel hotspot" data-note="overview-loop" tabindex="0"><div class="eyebrow" style="color:#82adf8">一句话理解项目</div><h2>不是题库，也不是 AI 老师。<br>是一套会越来越懂你的产品判断力训练系统。</h2><p>每天用一个真实产品问题训练判断。系统观察你怎么思考、需要多少帮助、被挑战后如何修正，再把证据沉淀成能力画像，决定下一次最值得练什么。</p></section>
+            <section class="card card-pad"><div class="section-label">它刻意不做三件事</div><div class="fact-list" style="margin-top:14px"><div class="fact-item"><b>不是随机刷题</b><span>训练目标由未知维度与弱项决定。</span></div><div class="fact-item"><b>不是 AI 直接代答</b><span>提示逐级释放，并用独立系数保持诚实。</span></div><div class="fact-item"><b>不是只给总分</b><span>每次必须给出一个具体可行动的问题。</span></div></div></section>
+          </div>
+          <section class="card card-pad hotspot" data-note="overview-loop" tabindex="0"><div class="row space-between row-wrap"><div><div class="section-label blue-label">核心闭环</div><h2 class="card-title" style="margin-top:5px">一次训练如何变成下一次训练的“更懂你”</h2></div><span class="badge blue">BR-1 ～ BR-9</span></div><div class="loop-flow">${steps.map(([n, t, d]) => `<div class="loop-step"><span class="loop-number">${n}</span><h3>${t}</h3><p>${d}</p></div>`).join('')}</div></section>
+          <div class="overview-grid">
+            <section class="card card-pad hotspot" data-note="overview-dimensions" tabindex="0"><div class="section-label">能力坐标系</div><h2 class="card-title" style="margin:5px 0 14px">八个维度，允许“未知”</h2><div class="dimension-grid">${dims.map((d, i) => `<div class="dimension-item"><b>0${i + 1}</b>${d}</div>`).join('')}</div></section>
+            <section class="card card-pad hotspot" data-note="overview-adaptive" tabindex="0"><div class="section-label">自适应规则</div><h2 class="card-title" style="margin:5px 0 14px">案例可变，目标不乱</h2><div class="fact-list"><div class="fact-item"><b>还有未知 → 探索期</b><span>优先让没有证据的维度得到观察。</span></div><div class="fact-item"><b>全部已观测 → 强化期</b><span>优先最低分，再叠加提示依赖、兴趣与难度。</span></div></div></section>
+          </div>
+          ${dimensionDetailsSection()}
+          <section class="stat-strip hotspot" data-note="overview-truth" tabindex="0"><div class="stat-box"><strong>10</strong><span>真实产品页面</span></div><div class="stat-box"><strong>5</strong><span>数据库训练状态</span></div><div class="stat-box"><strong>23</strong><span>API Route Handlers</span></div><div class="stat-box"><strong>30</strong><span>分钟完整讲解路径</span></div></section>
+        </div>`;
+    }
+
+    function loginPage() {
+      const page = PAGES[1];
+      const card = `<div style="min-height:620px;display:grid;place-items:center;padding:30px;background:radial-gradient(circle at 50% 20%,#fff,#f3f4f6)"><section class="card card-pad" style="width:min(370px,100%);padding:28px"><h2 style="margin:0;font-size:19px">邮箱登录</h2><p class="muted small" style="margin:7px 0 20px">免密码登录：我们会向你的邮箱发送一次性登录链接。</p>${state.loginSent ? `<div class="hotspot" data-note="login-sent" tabindex="0" style="padding:14px;border-radius:10px;color:#047857;background:#ecfdf5;font-size:11px;line-height:1.8">如果该邮箱可用于登录，我们已向它发送登录链接，请查收邮件（15 分钟内有效，仅可使用一次）。开发环境下链接会输出到服务端控制台。</div><button class="btn btn-ghost" style="margin-top:14px" data-action="login-reset" data-note="login-send">重新演示</button>` : `<form data-action="login-form"><div class="field hotspot" data-note="login-email"><label class="field-label" for="login-email">邮箱</label><input class="input" id="login-email" type="email" value="demo@example.com" required></div><button type="submit" class="btn btn-primary hotspot" style="width:100%;margin-top:15px" data-note="login-send">发送登录链接</button></form>`}<div class="hotspot" data-note="login-security" tabindex="0" style="margin-top:18px;padding-top:14px;border-top:1px solid #edf1f6;color:#94a3b8;font-size:9px;line-height:1.7">一次性链接 · 15 分钟有效 · 7 天签名会话<br>登录后按状态进入问卷 / 基线 / 首页</div></section></div>`;
+      return `${pageIntro(page)}${guideStrip()}${switcher([[false, '填写邮箱'], [true, '链接已发送']], state.loginSent, 'loginSent')}${browser('/login', card)}`;
+    }
+
+    function onboardingPage() {
+      const page = PAGES[2];
+      const content = `<div class="product-content narrow" style="margin:auto;max-width:900px"><div class="product-brand" style="padding:0 0 22px"><div class="brand-mark">训</div><div><div class="product-brand-name" style="color:#12233f">训练台</div><div class="product-brand-sub">产品经理刻意练习</div></div></div><div class="product-header"><h2>先认识一下你</h2><p>2~3 分钟完成。你的回答会让第一道题优先来自你熟悉的产品，也让训练更贴近你的方向。</p></div><section class="card card-pad"><div class="form-grid">
+        <div class="field"><span class="field-label">你的职位 <span class="required">*</span></span>${chips(['产品经理', '产品运营', '项目经理', '设计师/研发转岗'], 'onboarding-role', ['产品经理'])}</div>
+        <div class="field"><span class="field-label">产品相关经验年限 <span class="required">*</span></span>${chips(['0-1年', '1-3年', '3-5年', '5-10年'], 'onboarding-experience', ['1-3年'])}</div>
+        <div class="field span-2"><span class="field-label">所在行业 <span class="required">*</span></span>${chips(['互联网/软件', '电商/零售', '金融', '教育', '企业服务/SaaS', '内容/媒体'], 'onboarding-industry', ['互联网/软件'])}</div>
+        <div class="field span-2"><span class="field-label">熟悉的产品 <span class="faint">（多选）</span></span>${chips(['微信', '飞书', '抖音', '小红书', 'Notion', '钉钉'], 'onboarding-products', ['飞书', 'Notion'])}<div class="row"><input class="input hotspot" id="custom-product" data-note="onboarding-custom-product" placeholder="不在列表里？输入后回车添加"><button type="button" class="btn btn-ghost hotspot" data-action="add-product" data-note="onboarding-custom-product">添加</button></div><span class="tiny faint">第一道题的案例会优先来自这里的产品。</span></div>
+        <div class="field span-2"><span class="field-label">感兴趣的领域 <span class="faint">（多选）</span></span>${chips(['AI 应用', '效率工具', '增长/商业化', '社交/社区', '电商/交易', '企业协作'], 'onboarding-interests', ['AI 应用', '效率工具'])}</div>
+        <div class="field"><label class="field-label" for="project-exp">项目经验 <span class="faint">可选，可跳过</span></label><textarea class="textarea hotspot" id="project-exp" data-note="onboarding-project" placeholder="一两句即可，例如：负责过一款工具类 App 的从 0 到 1">负责过企业知识库的搜索与权限设计。</textarea></div>
+        <div class="field"><label class="field-label" for="learning-goal">学习目标 <span class="faint">可选，可跳过</span></label><textarea class="textarea hotspot" id="learning-goal" data-note="onboarding-goal" placeholder="例如：提升方案设计与取舍能力">提升方案设计与取舍能力。</textarea><span class="field-label" style="margin-top:8px">你觉得自己相对更强的方向</span>${chips(['问题定义', '用户理解', '方案设计', '产品表达'], 'onboarding-strengths', ['用户理解'])}</div>
+      </div><div class="row space-between row-wrap" style="margin-top:22px;padding-top:17px;border-top:1px solid #edf1f6"><span class="small faint hotspot inline-hotspot" data-note="onboarding-draft" tabindex="0">✓ 草稿已暂存 · 14:32</span><button class="btn btn-primary hotspot" data-go="baseline" data-note="onboarding-submit">开始今日训练 ▸</button></div></section></div>`;
+      return `${pageIntro(page)}${guideStrip()}${browser('/onboarding', `<div style="background:#f5f6f8">${content}</div>`)}`;
+    }
+
+    function baselineContent() {
+      if (state.baseline === 'workbench') return workbenchContent(true);
+      if (state.baseline === 'transition') return `<div style="min-height:620px;display:grid;place-items:center;padding:28px"><section class="card card-pad hotspot" data-note="baseline-progress" style="width:min(590px,100%);padding:34px;text-align:center"><div style="font-size:28px;color:#047857">✓</div><h2>本题已提交</h2><p class="muted small">本题的评审将在全部完成后统一揭晓。准备好后继续。</p><div class="row" style="margin:24px auto 10px;max-width:390px">${Array.from({ length: 8 }, (_, i) => `<span style="height:6px;flex:1;border-radius:5px;background:${i < 3 ? '#2563eb' : '#e2e8f0'}"></span>`).join('')}</div><p class="small faint">已完成 3/8 题</p><button class="btn btn-primary hotspot" style="margin-top:15px" data-action="baseline-next" data-note="baseline-next">进入下一题 →</button></section></div>`;
+      if (state.baseline === 'finishing') return `<div style="min-height:620px;display:grid;place-items:center;padding:28px"><section class="card card-pad" style="width:min(600px,100%);padding:32px;text-align:center"><div class="section-label blue-label">能力基线测评</div><h2 style="margin:10px 0">能力边界生成中</h2><p class="muted small">全部作答已提交，AI 产品总监正在逐题评审，完成后自动揭晓。</p><p class="strong small hotspot inline-hotspot" data-note="baseline-poll" tabindex="0">已完成 6/8 项能力分析</p><div class="dimension-grid hotspot" data-note="baseline-finishing" style="grid-template-columns:1fr 1fr;margin-top:18px;text-align:left">${['问题定义', '用户理解', '根因分析', '产品价值判断', '方案设计', '产品取舍', '指标与验证', '产品表达'].map((d, i) => `<div class="dimension-item" style="text-align:left;background:${i < 6 ? '#eff5ff' : '#f8fafc'}"><span class="badge ${i < 6 ? 'blue' : ''}">${i < 6 ? '✓' : i + 1}</span> ${d}</div>`).join('')}</div><p class="tiny faint" style="margin-top:18px">评分完成后自动进入能力画像 · 无需操作</p></section></div>`;
+      return `<div style="min-height:620px;display:grid;place-items:center;padding:28px"><section class="card card-pad hotspot" data-note="baseline-intro" style="width:min(620px,100%);padding:36px;text-align:center"><div class="section-label blue-label">能力基线测评</div><h2 style="margin:12px 0;font-size:24px">先明确边界，再在边缘拓展</h2><p class="muted" style="font-size:12px;line-height:1.9">这是一次能力边界测绘：8 道综合案例题，合计覆盖 8 个产品能力维度，约 20~30 分钟。流程与日常训练一致——阅读案例、自由作答、AI 产品总监追问、提交终答，独立完成系数规则同样适用。</p><div class="stack" style="margin:22px auto;max-width:440px;text-align:left"><div class="fact-item"><b>中途退出可随时恢复</b><span>进度自动保存。</span></div><div class="fact-item"><b>完成后解锁日常训练</b><span>生成你的初始能力边界。</span></div></div><button class="btn btn-primary hotspot" data-state-group="baseline" data-state-value="workbench" data-note="baseline-start">开始测评 ▸</button></section></div>`;
+    }
+
+    function baselinePage() {
+      const page = PAGES[3];
+      return `${pageIntro(page)}${guideStrip('切换四种状态，重点讲“作答不等评分、解锁必须全部评完”。')}${switcher([['intro', '开场说明'], ['workbench', '作答中（复用）'], ['transition', '题间过渡'], ['finishing', '生成能力边界']], state.baseline, 'baseline')}${browser('/baseline', productShell('training', baselineContent(), '基线测评 · 3/8'))}`;
+    }
+
+    function currentTrainingCard() {
+      if (state.current === 'not_started') return `<section class="card card-pad hotspot" data-note="current-card"><div class="row space-between"><span class="section-label blue-label">当前训练</span><span class="badge">今日训练</span></div><h2 style="margin:13px 0 4px;font-size:21px">10 月 22 日 · 星期四</h2><p class="muted small">今天的训练已准备好，约 15 分钟</p><div class="row row-wrap" style="margin-top:19px"><button class="btn btn-primary hotspot" data-action="start-today" data-note="current-start">开始今日训练 ▸</button><span class="tiny faint">作答后，AI 产品总监将追问并给出诊断</span></div></section>`;
+      if (state.current === 'completed') return `<section class="card card-pad hotspot" data-note="current-card"><div class="row space-between"><span class="section-label blue-label">当前训练</span><span class="badge green">● 今日训练已完成</span></div><h2 style="margin:13px 0;font-size:20px">飞书知识库是否应加入 AI 自动整理？</h2><div class="row row-wrap hotspot" data-note="current-scores">${[['方案设计', '72'], ['产品取舍', '68'], ['指标与验证', '76']].map(([d, s]) => `<div style="flex:1;min-width:100px;padding:12px;border-radius:10px;background:#f8fafd"><div class="tiny muted">${d}</div><div class="big-number" style="margin-top:4px">${s}<span class="tiny faint"> 分</span></div></div>`).join('')}</div><div class="row row-wrap" style="margin-top:18px"><button class="btn btn-ghost hotspot" data-go="feedback" data-note="current-result">查看结果</button><button class="btn btn-primary hotspot" data-action="extra" data-note="current-extra">再练一题 ▸</button></div></section>`;
+      return `<section class="card card-pad hotspot" data-note="current-card"><div class="row space-between"><span class="section-label blue-label">当前训练</span><span class="badge blue">● 进行中 · 追问中</span></div><h2 style="margin:13px 0;font-size:20px">飞书知识库是否应加入 AI 自动整理？</h2><div class="hotspot" data-note="current-progress" tabindex="0" style="padding:11px 13px;border:1px solid #d9e7fd;border-radius:10px;color:#3d5a90;background:#eff5ff;font-size:10px">◆ 已完成首次作答，等待你回应总监追问</div><div class="row row-wrap" style="margin-top:18px"><button class="btn btn-primary hotspot" data-go="session" data-note="current-continue">继续训练 ▸</button>${state.restartConfirm ? `<span class="row row-wrap" style="padding:8px 10px;border:1px solid #fde2e2;border-radius:10px;background:#fff8f8"><span class="tiny red">丢弃当前作答并重启？</span><button class="btn btn-danger hotspot" data-action="restart-confirm" data-note="current-restart-confirm">确认重启</button><button class="btn btn-text hotspot" data-action="restart-cancel" data-note="current-restart-cancel">取消</button></span>` : `<button class="btn btn-ghost hotspot" data-action="restart" data-note="current-restart">重启训练</button>`}<span class="tiny faint">追问不扣分，放心补充你的判断</span></div></section>`;
+    }
+
+    function homePage() {
+      const page = PAGES[4];
+      const bars = [['问题定义', 78, '↑'], ['用户理解', 84, ''], ['根因分析', 66, '↓'], ['方案设计', 72, '↑']];
+      const content = `<div class="product-header row space-between row-wrap"><div class="hotspot" data-note="home-greeting" tabindex="0"><h2>下午好，回到训练场。</h2><p><b class="blue">今日训练 · 第 18 天</b> · 保持节奏，每天一道真实产品案例</p></div><div class="card row hotspot" data-note="home-streak" style="padding:11px 15px"><div><span class="big-number">6<span class="tiny faint"> 天</span></span><div class="tiny muted">连续训练</div></div><div style="width:1px;height:28px;background:#e9edf4"></div><div class="hotspot" data-note="home-week" tabindex="0"><div class="row space-between tiny muted"><span>本周</span><b>5/7</b></div><div class="row" style="gap:3px;margin-top:6px">${[1,1,1,0,1,1,0].map(v => `<span style="width:15px;height:5px;border-radius:4px;background:${v ? '#2563eb' : '#e2e8f0'}"></span>`).join('')}</div></div></div></div><div class="grid two-col"><div class="stack">${currentTrainingCard()}<section class="card card-pad quote-card"><div class="section-label">最近一条诊断</div><blockquote class="hotspot" data-note="home-diagnosis" tabindex="0" style="position:relative;margin:13px 0;font-size:12px;line-height:1.9">「你的方案先列出了功能，却没有证明“自动整理”比现有搜索更能降低用户找资料的成本。」</blockquote><div class="row space-between"><span class="tiny faint">—— 昨天</span><button class="btn btn-text hotspot" data-go="feedback" data-note="home-diagnosis-link">查看训练反馈 →</button></div></section></div><section class="card card-pad hotspot" data-note="home-ability"><div class="row space-between"><div><h3 class="card-title">能力总览</h3><p class="card-subtitle">8 个维度 · 随训练持续更新</p></div><span class="badge blue">5/8 已解锁</span></div><div class="stack" style="margin-top:20px;gap:14px">${bars.map(([d, s, t]) => `<div class="hotspot" data-note="home-ability-bar" tabindex="0" style="display:grid;grid-template-columns:68px 1fr 38px;align-items:center;gap:8px"><span class="small muted">${d}</span><div class="progress-track"><span style="width:${s}%"></span></div><b class="small">${s}<span class="blue">${t}</span></b></div>`).join('')}</div><div class="stack" style="gap:7px;margin-top:18px;padding-top:14px;border-top:1px dashed #e2e8f0">${['产品取舍', '指标与验证', '产品表达'].map(d => `<div class="row empty-card hotspot" data-note="home-ability-locked" style="padding:8px 10px;text-align:left"><span>▣</span><span class="small">${d}</span><span class="badge" style="margin-left:auto">待解锁</span></div>`).join('')}</div></section></div>`;
+      return `${pageIntro(page)}${guideStrip()}${switcher([['not_started', '未开始'], ['in_progress', '进行中'], ['completed', '已完成']], state.current, 'current')}${browser('/', productShell('home', content, state.current === 'completed' ? '已完成' : state.current === 'not_started' ? '待开始' : '追问中', true))}`;
+    }
+
+    function historyRows() {
+      const rows = [
+        ['每日', '已完成', '飞书知识库是否应加入 AI 自动整理？', '方案设计 72 · 产品取舍 68', 'done'],
+        ['加练', '评分中', '小红书是否应隐藏点赞总数？', '', 'in_progress'],
+        ['每日', '已终止', ' Notion 是否应默认启用 AI 写作？', '', 'abandoned']
+      ];
+      return rows.map(([type, status, title, scores, target]) => `<button class="history-row hotspot" data-go="${target === 'in_progress' ? 'session' : 'history'}" data-note="training-history-row"><div class="history-main"><div class="row"><span class="badge ${type === '加练' ? 'blue' : ''}">${type}</span><span class="badge ${status === '已完成' ? 'green' : status === '评分中' ? 'blue' : ''}">${status}</span></div><div class="history-title">${title}</div><div class="row"><span class="tag">方案设计</span><span class="tag">产品取舍</span></div></div><div class="history-scores">${scores}<div style="margin-top:6px">10 月 21 日 21:30</div></div></button>`).join('');
+    }
+
+    function trainingPage() {
+      const page = PAGES[5];
+      const content = `<div class="product-header"><h2>产品训练</h2><p>每天一个真实产品问题，训练产品判断力</p></div><div style="margin-bottom:18px">${currentTrainingCard()}</div><div class="row row-wrap" style="margin:0 0 10px"><h3 class="card-title">训练历史</h3><span class="tiny faint">加练与每日一题同等计入能力画像</span></div><section class="card hotspot" data-note="training-history"><div>${historyRows()}</div><div style="padding:13px;text-align:center;border-top:1px solid #e9edf4"><span class="hotspot inline-hotspot" data-note="training-load-more" tabindex="0"><button class="btn btn-ghost" disabled>加载更多</button></span></div></section>`;
+      return `${pageIntro(page)}${guideStrip()}${switcher([['not_started', '未开始'], ['in_progress', '进行中'], ['completed', '已完成']], state.current, 'current')}${browser('/training', productShell('training', content, state.current === 'completed' ? '已完成' : state.current === 'not_started' ? '待开始' : '追问中'))}`;
+    }
+
+    function caseColumn() {
+      return `<div class="stack"><section class="card card-pad hotspot" data-note="session-case"><div class="section-label blue-label">今日案例</div><h3 style="margin:10px 0;font-size:13px;line-height:1.7">飞书知识库是否应加入 AI 自动整理？</h3><dl class="case-fields">${[
+        ['产品', '飞书知识库，面向企业协作与知识沉淀。'], ['服务谁', '需要跨团队查找资料的成员与管理员。'], ['场景', '文档持续增加，重复内容与过期信息让查找变慢。'], ['相关功能', '现有搜索、目录、权限与文档评论。'], ['当前状态', '团队考虑用 AI 自动归类、摘要与去重。']
+      ].map(([k, v], i) => `<div class="case-field"><dt>${k}</dt><dd>${v} <a href="#" class="source-link hotspot inline-hotspot" data-action="source" data-note="session-citations">原文${i ? i + 1 : ''}</a></dd></div>`).join('')}</dl></section><section class="focus-card card-pad hotspot" data-note="session-focus"><div class="small strong blue">★ 训练重点</div><div class="row row-wrap" style="margin:10px 0"><span class="tag">方案设计</span><span class="tag">产品取舍</span><span class="tag">指标与验证</span></div><p class="tiny" style="color:#3d5a90;margin:0">今天主要训练以上 3 个维度，本次仅按它们评分。</p></section></div>`;
+    }
+
+    function materialsColumn() {
+      return `<section class="card card-pad hotspot" data-note="session-materials"><div class="row space-between"><h3 class="card-title">参考资料</h3><span class="tiny faint">阅读不扣分</span></div><div>${[
+        ['★核心', '飞书知识库官方帮助', '了解目录、搜索与权限的现有能力。'], ['★核心', '企业知识管理实践', '资料可查性比文档数量更影响协作效率。'], ['○扩展', 'AI 摘要的质量边界', '自动整理需要处理错误归因与权限继承。']
+      ].map(([badge, title, desc]) => `<div class="material"><span class="badge ${badge.includes('核心') ? 'amber' : ''}">${badge}</span><div class="material-title">${title}</div><p>${desc}</p><a href="#" class="source-link hotspot inline-hotspot" data-action="source" data-note="session-material-link">原文链接 ↗</a></div>`).join('')}</div></section>`;
+    }
+
+    function answeringSection() {
+      return `<section class="card card-pad"><div class="row space-between row-wrap"><h3 class="card-title">我的回答</h3><span class="tiny faint">作答后，AI 产品总监将追问并给出诊断</span></div><textarea class="textarea hotspot" style="margin-top:12px" data-note="session-first-answer">建议先做灰度：为成员提供“自动整理建议”，而不是直接移动文档。先用查找成功率和整理接受率验证价值，再决定是否自动化。</textarea><p class="tiny faint hotspot inline-hotspot" data-note="session-thinking" tabindex="0">思考方向（非必填）：用户任务 · 当前问题 · 新价值 · 成本 · 风险</p><div class="row space-between row-wrap" style="margin-top:15px;align-items:flex-end"><div>${state.hintCount < 5 ? `<button class="btn btn-ghost hotspot" data-action="hint" data-note="session-hint">◇ 给我一个提示</button>` : ''}<div class="tiny faint hotspot inline-hotspot" data-note="session-hint-count" tabindex="0" style="margin-top:5px">当前 ×${coefficient(state.hintCount, 0).toFixed(2).replace(/0$/, '')} · 已释放 ${state.hintCount}/5 层</div></div><button class="btn btn-primary hotspot" data-action="submit-first" data-note="session-submit-first">提交答案</button></div></section>`;
+    }
+
+    function followupSection() {
+      const userBubble = `<div class="chat-line user hotspot" data-note="session-chat-first" tabindex="0"><div class="avatar">我</div><div class="bubble">建议先做灰度：为成员提供“自动整理建议”，而不是直接移动文档。先用查找成功率和整理接受率验证价值。</div></div>`;
+      let body = '';
+      let input = true;
+      if (state.session === 'followup') {
+        body = `${userBubble}<div class="chat-line hotspot" data-note="session-followup-chat" tabindex="0"><div class="avatar">总监</div><div><div class="tiny faint" style="margin-bottom:4px">产品总监 <span class="badge blue">追问</span></div><div class="bubble">你把“整理接受率”作为指标，但接受建议不等于找资料更快。你会如何证明新价值，而不是只证明用户点了按钮？</div></div></div><div class="hotspot" data-note="session-followup-hint" tabindex="0"><button class="btn btn-ghost hotspot" data-action="followup-hint" data-note="session-followup-hint">◇ 给我一个提示</button><span class="tiny faint" style="margin-left:7px">追问提示 · 系数 −0.05</span>${state.followupHintCount ? '<div class="hint-box" style="margin-top:8px">提示：把指标拆成“找到正确资料的时间”和“找到后是否能直接使用”。</div>' : ''}</div>`;
+      } else if (state.session === 'gate') {
+        body = `${userBubble}<div class="gate-box hotspot" data-note="session-followup-gate" tabindex="0"><b>首答足够扎实 ✓</b><br>你的首答已足够扎实，总监认为无需追问——可直接提交最终答案。</div>`;
+      } else if (state.session === 'generating') {
+        body = `${userBubble}<div class="empty-card hotspot" data-note="session-followup-generating" tabindex="0" style="padding:14px;text-align:left"><b>总监思考中…</b><br>正在针对你的回答设计追问，通常 20 秒内，高负载时约 1 分钟。页面会自动刷新，无需操作。</div>`;
+        input = false;
+      } else if (state.session === 'failure') {
+        body = `${userBubble}<div class="empty-card" style="padding:14px;text-align:left"><b>总监暂时离开（追问生成失败）</b><br><span class="small">不影响本次训练——可重试生成追问，或跳过追问直接作答。</span><div class="row row-wrap" style="margin-top:10px"><button class="btn btn-primary hotspot" data-action="followup-retry" data-note="session-followup-retry">重试本次对话</button><button class="btn btn-text hotspot" data-action="followup-skip" data-note="session-followup-skip">跳过追问，直接作答</button></div></div>`;
+        input = false;
+      }
+      return `<section class="card card-pad"><div class="row space-between"><h3 class="card-title">总监追问</h3><span class="tiny faint">追问不扣分，放心补充</span></div><div class="chat-list" style="margin-top:14px">${body}</div>${input ? `<div style="margin-top:15px;padding-top:14px;border-top:1px solid #e9edf4"><textarea class="textarea hotspot" style="min-height:80px" data-note="session-final-answer" placeholder="回应追问，修正或深化你的结论……">接受率只是过程指标。我会把主要指标改为“完成资料查找任务的中位时间”，并用人工抽查确认找到的内容是否可用。</textarea><div class="row space-between row-wrap" style="margin-top:12px"><span class="tiny faint hotspot inline-hotspot" data-note="session-coefficient" tabindex="0">本题提示 ${state.hintCount} 次 · 追问提示 ${state.followupHintCount} 次 · 独立完成系数 ×${coefficient(state.hintCount, state.followupHintCount).toFixed(2).replace(/0$/, '')}</span><button class="btn btn-primary hotspot" data-action="submit-final" data-note="session-submit-final">提交最终答案</button></div></div>` : ''}</section>`;
+    }
+
+    function doneSection() {
+      return `<section class="card card-pad hotspot" data-note="session-done" style="padding:28px;text-align:center"><div style="font-size:25px;color:#047857">✓</div><h3 style="margin:8px 0">本次训练已完成</h3><p class="muted small">最终答案已提交，评分与诊断生成后将在训练反馈页展示。</p><div class="calculation" style="text-align:left;margin:15px auto;max-width:480px">接受率只是过程指标。我会把主要指标改为“完成资料查找任务的中位时间”，并用人工抽查确认找到的内容是否可用。</div><div class="row" style="justify-content:center"><button class="btn btn-text hotspot" data-go="feedback" data-note="current-result">查看训练反馈 →</button><button class="btn btn-primary hotspot" data-action="extra" data-note="current-extra">再练一题</button></div></section>`;
+    }
+
+    function releasedHints() {
+      if (!state.hintCount) return '';
+      return `<section class="card card-pad hotspot" data-note="session-released-hints"><div class="row space-between"><h3 class="card-title">已释放的提示</h3><span class="tiny faint">${state.hintCount}/5 层</span></div><div class="fact-item" style="margin-top:12px"><b><span class="badge blue">1</span> 界定问题</b><span>先确认用户真正的任务是“整理文档”，还是“更快找到可用资料”。</span></div></section>`;
+    }
+
+    function workbenchContent(isBaseline = false) {
+      const center = state.session === 'answering' ? answeringSection() : state.session === 'done' ? doneSection() : followupSection();
+      return `<div class="workbench">${caseColumn()}<div class="stack"><section class="card card-pad hotspot" data-note="session-question"><div class="section-label">今日问题</div><div class="question-box" style="margin-top:8px">如果要为知识库加入 AI 自动整理，你会如何定义价值、设计方案，并判断它值得投入？</div></section>${center}${releasedHints()}</div>${materialsColumn()}</div>${isBaseline ? '<p class="tiny faint" style="margin:14px 0 0;text-align:center">基线模式复用同一 TrainingFlow；终答后进入题间过渡，不展示单题反馈或加练。</p>' : ''}`;
+    }
+
+    function sessionPage() {
+      const page = PAGES[6];
+      const stageText = { answering: '作答中', followup: '追问中', gate: '追问中', generating: '追问生成中', failure: '追问失败', done: '评分中' }[state.session];
+      return `${pageIntro(page)}${guideStrip('这是核心页。建议依次切换：首答 → 追问 → 零追问 → 失败兜底 → 完成。')}${switcher([['answering', '首次作答'], ['followup', '总监追问'], ['gate', '零追问闸门'], ['generating', '生成中'], ['failure', '失败兜底'], ['done', '已完成']], state.session, 'session')}${browser('/training/session/demo-session', productShell('training', workbenchContent(), stageText))}`;
+    }
+
+    function scoreRows() {
+      const scores = [['方案设计', 80, 60], ['产品取舍', 78, 58.5], ['指标与验证', 84, 63]];
+      return `<section class="card card-pad"><div class="row space-between row-wrap"><h3 class="card-title">本次有效得分</h3><span class="tiny faint">有效得分 = 原始分 × 独立完成系数</span></div>${scores.map(([d, raw, effective], i) => `<div class="score-row hotspot" data-note="feedback-effective-score" tabindex="0"><div class="score-line"><span class="small strong">${d}</span><span class="score-number">${effective}</span><span class="tiny muted hotspot inline-hotspot" data-note="feedback-raw-score" tabindex="0">原始 ${raw} × 系数 0.75<br>主提示 2 次 · 追问提示 1 次</span><button class="btn btn-text hotspot" data-action="calculation" data-note="feedback-calculation">${state.calculation && i === 0 ? '收起计算过程' : '查看计算过程'}</button></div>${state.calculation && i === 0 ? `<div class="calculation">有效得分 = 原始表现分 × 独立完成系数<br>80 × 0.75 = 60<br>系数 = max(0.6, 1 − 0.1 × 2 − 0.05 × 1) = 0.75<br>诊断：方案有灰度意识，但价值指标仍停留在使用行为，尚未直接证明任务收益。</div>` : ''}</div>`).join('')}</section>`;
+    }
+
+    function surveyCard() {
+      if (state.surveySubmitted) return `<section class="card card-pad" style="text-align:center"><div class="green" style="font-size:22px">✓</div><b class="small">已收到你的反馈</b><p class="tiny faint">你的评价会让后续训练更贴近你的需要。</p></section>`;
+      const questions = [['q1', '这次反馈说清了你的问题所在吗？'], ['q2', '你知道下一步该练什么、为什么吗？'], ['q3', '最近的训练是否越来越针对你自己？']];
+      return `<section class="card card-pad hotspot" data-note="feedback-survey"><h3 class="card-title" style="margin-bottom:8px">这次训练对你有帮助吗？</h3>${questions.map(([key, text]) => `<div class="star-row"><span class="small">${text}</span><div class="stars" role="radiogroup" aria-label="${text}">${[1,2,3,4,5].map(v => `<button type="button" class="star hotspot inline-hotspot ${state.survey[key] >= v ? 'lit' : ''}" data-action="star" data-question="${key}" data-value="${v}" data-note="feedback-stars" role="radio" aria-checked="${state.survey[key] === v}" aria-label="${v} 星">${state.survey[key] >= v ? '★' : '☆'}</button>`).join('')}</div></div>`).join('')}<div style="text-align:right;margin-top:14px"><button class="btn btn-primary hotspot" data-action="survey-submit" data-note="feedback-survey-submit" ${Object.values(state.survey).some(v => !v) ? 'disabled' : ''}>提交反馈</button></div></section>`;
+    }
+
+    function calculator() {
+      const c = coefficient(state.calcMain, state.calcFollowup);
+      const result = Math.round(state.calcRaw * c * 100) / 100;
+      return `<section class="calculator"><div class="row space-between row-wrap"><div><div class="section-label blue-label">讲解实验 · 不属于原产品页面</div><h3 class="card-title" style="margin-top:5px">拖动条件，亲手算一次有效分</h3></div><span class="badge blue">BR-2</span></div><div class="calc-grid" style="margin-top:18px"><div class="range-field"><label for="calc-raw"><span>原始表现分</span><b id="calc-raw-value">${state.calcRaw}</b></label><input id="calc-raw" type="range" min="0" max="100" value="${state.calcRaw}" data-calc="calcRaw"></div><div class="range-field"><label for="calc-main"><span>首答前提示</span><b id="calc-main-value">${state.calcMain} 次</b></label><input id="calc-main" type="range" min="0" max="8" value="${state.calcMain}" data-calc="calcMain"></div><div class="range-field"><label for="calc-followup"><span>追问提示</span><b id="calc-followup-value">${state.calcFollowup} 次</b></label><input id="calc-followup" type="range" min="0" max="4" value="${state.calcFollowup}" data-calc="calcFollowup"></div><div class="calc-result"><span class="tiny" style="color:#9fb5d1">有效得分</span><strong id="calc-result">${result}</strong><span class="tiny" id="calc-formula" style="color:#9fb5d1">${state.calcRaw} × ${c} = ${result}</span></div></div><p class="tiny muted" style="margin:13px 0 0">当前示例：原始 80，主提示 2 次，追问提示 1 次 → 80 × 0.75 = 60。系数最低 0.6，追问本身不扣分，只有使用提示才扣分。</p></section>`;
+    }
+
+    function feedbackContent() {
+      if (state.feedback === 'scoring') return `<section class="card card-pad hotspot" data-note="feedback-scoring" style="padding:36px;text-align:center"><div style="font-size:26px" class="blue">◌</div><h3>总监评分中…</h3><p class="muted small" style="max-width:480px;margin:8px auto">产品总监正在按评分细则逐维度评阅你的作答，通常需要 30~60 秒。页面会自动刷新，无需操作。</p><div class="stack" style="max-width:460px;margin:25px auto 0">${[1,2,3].map(() => '<div class="progress-track"><span style="width:65%;opacity:.22"></span></div>').join('')}</div></section>`;
+      return `<div class="stack">${scoreRows()}<section class="issue-card hotspot" data-note="feedback-top-issue" tabindex="0"><div class="section-label blue-label">最需要优化的一个问题</div><p style="margin:10px 0 0;font-size:13px;font-weight:700;line-height:1.8">你把“用户接受自动整理”误当成了“用户更快找到可用资料”。下一次先写清任务终点，再选择能直接证明任务收益的指标。</p></section><section class="card card-pad hotspot" data-note="feedback-next-step" tabindex="0"><div class="section-label">下一步</div><p style="margin:10px 0;font-size:13px;font-weight:700">练一题“从功能使用指标回到用户任务结果”的方案设计题。</p><p class="tiny faint">理由：总监依据本次作答诊断给出，与上面「最需要优化的问题」同源。</p></section>${surveyCard()}<div class="row row-wrap"><button class="btn btn-ghost hotspot" data-go="profile" data-note="feedback-view-profile">查看能力画像</button><button class="btn btn-primary hotspot" data-action="extra" data-note="current-extra">再练一题 ▸</button></div></div>`;
+    }
+
+    function feedbackPage() {
+      const page = PAGES[7];
+      return `${pageIntro(page)}${guideStrip('先讲原始分与有效分的区别，再用下方试算器验证 80 × 0.75 = 60。')}${switcher([['scoring', '评分中'], ['done', '评分完成']], state.feedback, 'feedback')}${browser('/training/feedback/demo-session', productShell('training', feedbackContent(), state.feedback === 'done' ? '已完成' : '评分中'))}${state.feedback === 'done' ? `<div class="replica-wrap">${calculator()}</div>` : ''}`;
+    }
+
+    function networkGraph() {
+      const nodes = [
+        [350, 58, '问题定义', '78', '#3b82f6'], [535, 140, '用户理解', '84', '#2563eb'], [580, 310, '根因分析', '66', '#93c5fd'],
+        [455, 405, '产品价值判断', '71', '#60a5fa'], [245, 405, '方案设计', '72', '#60a5fa'], [120, 310, '产品取舍', '未观测', '#64748b'],
+        [165, 140, '指标与验证', '未观测', '#64748b'], [350, 225, '产品表达', '未观测', '#64748b']
+      ];
+      const lines = nodes.map(([x,y], i) => nodes.slice(i + 1).map(([x2,y2]) => `<line x1="${x}" y1="${y}" x2="${x2}" y2="${y2}" stroke="#547298" stroke-opacity=".18" stroke-width="1"/>`).join('')).join('');
+      return `<div class="network-stage hotspot" data-note="profile-network"><svg viewBox="0 0 700 470" role="img" aria-label="八维能力网络图离线复刻"><defs><radialGradient id="nodeBlue"><stop stop-color="#8eb9ff"/><stop offset="1" stop-color="#2563eb"/></radialGradient></defs>${lines}${nodes.map(([x,y,d,s,c], i) => `<g class="network-node hotspot" data-action="profile-node" data-note="profile-network-node" tabindex="0" role="button" aria-label="查看${d}评估"><circle cx="${x}" cy="${y}" r="${s === '未观测' ? 18 : 23 + Number(s) / 10}" fill="${s === '未观测' ? '#64748b' : 'url(#nodeBlue)'}" fill-opacity="${s === '未观测' ? '.35' : '.9'}" stroke="${c}" stroke-opacity=".7"/><text x="${x}" y="${y + 4}" fill="#fff" text-anchor="middle" font-size="9" font-family="sans-serif">${i + 1}</text><text x="${x}" y="${y + 45}" fill="${s === '未观测' ? '#8294aa' : '#d9e9ff'}" text-anchor="middle" font-size="11" font-family="sans-serif">${d} · ${s}${s === '未观测' ? '' : '分'}</text></g>`).join('')}</svg><div class="network-legend"><span>● 较强</span><span>● 一般</span><span>● 较弱</span><span>○ 未观测</span></div><div class="network-help">真实页面：拖动旋转 · 滚轮缩放 · 点击节点查看评估记录（此处点击节点可演示）</div></div>`;
+    }
+
+    function profileList() {
+      const rows = [['问题定义', '78.25', '观察 4 次', '↑ 上升中'], ['用户理解', '84.00', '观察 5 次', '稳定'], ['根因分析', '66.40', '观察 5 次', '↓ 下降中'], ['产品价值判断', '71.20', '观察 5 次', '稳定'], ['方案设计', '72.00', '观察 2 次', '样本较少']];
+      return `<section class="card"><div class="row space-between" style="padding:15px 18px;border-bottom:1px solid #e9edf4"><h3 class="card-title">已观测维度</h3><span class="tiny faint">共 5 个维度 · 每次训练后更新</span></div>${rows.map(([d,s,c,t], i) => `<button class="ability-row hotspot" data-action="ability-row" data-note="profile-ability-row"><span class="small strong">${d}</span><span class="big-number" style="font-size:20px">${s}</span><span class="tiny muted">${c}</span><svg viewBox="0 0 100 25" height="25" aria-hidden="true"><polyline points="0,${18-i} 20,${12+i} 40,${15-i} 60,${8+i} 80,${11-i} 100,${5+i}" fill="none" stroke="${t.includes('下降') ? '#d97706' : '#2563eb'}" stroke-width="1.8"/></svg><span class="badge ${t.includes('上升') ? 'blue' : t.includes('下降') ? 'amber' : ''}">${t}</span></button>${i === 0 ? `<div class="calculation hotspot" data-note="profile-next-focus" style="margin:0 18px 12px"><b>特征：</b>基本独立作答，当前分数反映真实水平<br><b>诊断：</b>思考独立性良好，下一步继续加强问题边界的收敛。 <span class="badge blue">已列入下一题训练方向</span></div>` : ''}`).join('')}</section>`;
+    }
+
+    function nodeModal() {
+      if (!state.profileNode) return '';
+      return `<div class="modal-backdrop" data-action="profile-close"><section class="node-modal" data-stop-propagation><div class="row space-between"><div><div class="section-label blue-label">维度详情</div><h3 style="margin:5px 0">问题定义 · 78.25 分</h3></div><button class="btn btn-ghost hotspot" data-action="profile-close" data-note="profile-node-close">×</button></div><div class="hotspot" data-note="profile-recent-evaluations" tabindex="0" style="margin-top:18px"><h4 class="card-title">最近评估记录</h4><div class="card" style="margin-top:9px;padding:12px"><div class="row space-between"><span class="small strong">飞书知识库的 AI 自动整理</span><span class="score-number" style="font-size:20px">60</span></div><div class="row space-between" style="margin-top:7px"><span class="tiny faint">2026-10-21</span><button class="btn btn-text hotspot" data-go="feedback" data-note="profile-evaluation-link">查看评估 →</button></div></div></div><div class="grid" style="grid-template-columns:1fr 1fr;margin-top:16px"><div class="fact-item hotspot" data-note="profile-observation" tabindex="0"><b>观察 4 次</b><span>超过 3 次，显示趋势状态。</span></div><div class="fact-item hotspot" data-note="profile-trend" tabindex="0"><b>↑ 上升中</b><span>历史均值较上次 +1.25。</span></div></div><div class="calculation hotspot" data-note="profile-dependency" style="margin-top:15px"><b>提示依赖：低</b><br>最近 5 次首答前提示平均 0.6 次；基本独立作答。</div><div class="issue-card hotspot" data-note="profile-next-focus" style="margin-top:15px;padding:14px"><b class="small">下一步训练方向</b><p class="small" style="margin:6px 0 0">继续练习把开放问题收敛成可验证的决策边界。</p></div></section></div>`;
+    }
+
+    function profileContent() {
+      return `<div class="stack"><div class="issue-card hotspot" data-note="profile-insight" style="padding:12px 15px;font-size:11px">◇ AI 已了解你 <b class="blue">5/8</b> 个维度 · 下一题将优先探索「产品取舍」</div><div class="row hotspot" data-note="profile-tabs"><button class="btn ${state.profileView === 'network' ? 'btn-primary' : 'btn-ghost'}" data-state-group="profileView" data-state-value="network">网络图</button><button class="btn ${state.profileView === 'list' ? 'btn-primary' : 'btn-ghost'}" data-state-group="profileView" data-state-value="list">列表</button></div>${state.profileView === 'network' ? networkGraph() : profileList()}<div class="row space-between row-wrap"><h3 class="card-title">未观测维度</h3><span class="tiny faint">完成更多训练后，AI 将逐步探索这些维度</span></div><div class="dimension-grid" style="grid-template-columns:repeat(3,1fr)">${['产品取舍', '指标与验证', '产品表达'].map(d => `<div class="empty-card hotspot" data-note="profile-unknown" tabindex="0" style="padding:17px"><div>▣</div><b class="small">${d}</b><div class="tiny" style="margin-top:4px">待解锁 · 完成更多训练后开启观测</div></div>`).join('')}</div><section class="card card-pad row space-between row-wrap hotspot" data-note="profile-overall-dependency"><div><h3 class="card-title">整体提示依赖度</h3><p class="card-subtitle">提示使用越独立，得分系数越高</p></div><div><div class="gauge">${[1,1,0,0,0].map(v => `<span class="${v ? 'on' : ''}"></span>`).join('')}</div><div class="row space-between tiny faint" style="margin-top:5px"><span>低</span><span>中</span><span>高</span></div></div><span class="badge blue" style="font-size:14px">低</span></section></div>${nodeModal()}`;
+    }
+
+    function profilePage() {
+      const page = PAGES[8];
+      return `${pageIntro(page)}${guideStrip('网络图和列表共享同一数据。点击任意节点，查看“分数背后的证据”。')}${switcher([['network', '网络图'], ['list', '列表']], state.profileView, 'profileView')}${browser('/profile', productShell('profile', profileContent(), '5 / 8 已观测'))}`;
+    }
+
+    function historyContent() {
+      const abandoned = state.history === 'abandoned';
+      return `<div class="stack"><div class="row space-between row-wrap"><button class="btn btn-text hotspot" data-go="training" data-note="history-back">← 训练历史</button><span class="badge ${abandoned ? '' : 'green'}">2026-10-21 · ${abandoned ? '已终止' : '已完成'} · 加练</span></div><section class="card card-pad hotspot" data-note="history-case"><div class="row row-wrap"><span class="tag">方案设计</span><span class="tag">产品取舍</span><span class="badge hotspot inline-hotspot" data-note="history-difficulty" tabindex="0">难度 3/5</span></div><h2 style="margin:12px 0;font-size:18px">飞书知识库是否应加入 AI 自动整理？</h2><p class="small strong">如果要加入 AI 自动整理，你会如何定义价值、设计方案，并判断它值得投入？</p><dl class="case-fields" style="display:grid;grid-template-columns:1fr 1fr"><div class="case-field"><dt>产品</dt><dd>飞书知识库 <a href="#" class="source-link" data-action="source">原文</a></dd></div><div class="case-field"><dt>服务对象</dt><dd>跨团队查找资料的成员 <a href="#" class="source-link" data-action="source">原文</a></dd></div><div class="case-field"><dt>典型场景</dt><dd>重复与过期信息增加查找成本 <a href="#" class="source-link" data-action="source">原文</a></dd></div><div class="case-field"><dt>当前状态</dt><dd>考虑自动归类、摘要与去重 <a href="#" class="source-link" data-action="source">原文</a></dd></div></dl></section><h3 class="card-title" style="margin-bottom:-4px">我的两版答案</h3><div class="grid" style="grid-template-columns:1fr 1fr"><section class="card card-pad hotspot" data-note="history-first-answer"><div class="section-label">首次作答</div><p class="small muted" style="line-height:1.9">建议先做灰度：为成员提供“自动整理建议”，而不是直接移动文档。先用查找成功率和整理接受率验证价值。</p><span class="tiny faint">提交于 21:12</span></section><section class="card card-pad hotspot" data-note="history-final-answer"><div class="section-label">最终作答（追问后）</div><p class="small muted" style="line-height:1.9">${abandoned ? '未提交' : '接受率只是过程指标。主要指标改为“完成资料查找任务的中位时间”，并用人工抽查确认内容可用。'}</p><span class="tiny faint">${abandoned ? '未提交' : '提交于 21:26'}</span></section></div><section class="card card-pad hotspot" data-note="history-hints"><div class="row space-between"><h3 class="card-title">提示使用</h3><span class="badge blue">独立完成系数 ×0.9</span></div><p class="small muted">首次提交前使用了 1 层提示</p><div class="fact-item"><b>第 1 层提示 · 21:05</b><span>先界定用户任务，再讨论功能方案。</span></div></section><section class="card card-pad hotspot" data-note="history-followups"><h3 class="card-title">总监追问</h3><div class="chat-line" style="margin-top:12px"><div class="avatar">总监</div><div class="bubble"><span class="badge blue">第 1 轮追问</span><br>接受建议不等于找资料更快。你会如何证明新价值，而不是只证明用户点了按钮？</div></div></section><section class="card card-pad hotspot" data-note="history-scores"><h3 class="card-title">评分</h3>${abandoned ? '<p class="small faint" style="margin-top:12px">本次训练尚未评分。已终止会话不评分、不计入画像。</p>' : `<div class="score-line" style="margin-top:12px"><span class="small strong">方案设计</span><span class="score-number">72</span><span class="tiny muted">原始 80 × 系数 0.9<br>诊断：灰度合理，价值指标仍需回到任务结果。</span><span></span></div><p class="tiny faint">以上有效分已计入对应维度的能力画像（BR-6）。</p>`}</section><section class="card card-pad hotspot" data-note="history-feedback"><div class="section-label blue-label">最需要优化的一个问题</div><p class="small strong">${abandoned ? '本次训练尚未生成反馈' : '先把“接受功能”与“完成用户任务”区分开。'}</p><div class="section-label" style="margin-top:14px">下一步</div><p class="small muted">${abandoned ? '—' : '练习从用户任务结果反推指标。'}</p><p class="tiny faint" style="margin-top:14px">回放时间：2026-10-22 09:30</p></section></div>`;
+    }
+
+    function historyPage() {
+      const page = PAGES[9];
+      return `${pageIntro(page)}${guideStrip('回放页是只读证据链。切到“已终止”，看系统如何保留记录但不计分。')}${switcher([['done', '已完成'], ['abandoned', '已终止']], state.history, 'history')}${browser('/training/history/demo-session', productShell('training', historyContent(), '历史回放'))}`;
+    }
+
+    function profileSummary() {
+      const fields = [['职位', '产品经理'], ['产品相关经验年限', '1-3年'], ['所在行业', '互联网/软件'], ['熟悉的产品', '飞书、Notion'], ['感兴趣的领域', 'AI 应用、效率工具'], ['项目经验', '负责过知识库搜索与权限设计'], ['学习目标', '提升方案设计与取舍能力'], ['自评更强的方向', '用户理解']];
+      return `<dl class="settings-summary hotspot" data-note="settings-profile">${fields.map(([k,v]) => `<div class="summary-item"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+    }
+
+    function settingsContent() {
+      return `<div class="product-header"><h2>我的</h2><p>账号信息、初始画像与基础设置</p></div><div class="stack"><section class="card card-pad hotspot" data-note="settings-account"><div class="row space-between"><div><h3 class="card-title">账号信息</h3><p class="card-subtitle">当前登录的账号邮箱</p></div><span class="badge green">已登录</span></div><div class="row" style="margin-top:13px"><div class="avatar" style="border-radius:50%">D</div><span class="small strong">demo@example.com</span></div></section><section class="card card-pad"><div class="row space-between"><div><h3 class="card-title">初始画像</h3><p class="card-subtitle">出题与追问会参考这里的画像信息</p></div>${state.settingsEdit ? '' : '<button class="btn btn-ghost hotspot" data-action="settings-edit" data-note="settings-edit">编辑</button>'}</div><div style="margin-top:18px">${state.settingsEdit ? `<div class="form-grid"><div class="field"><span class="field-label">职位</span>${chips(['产品经理', '产品运营', '项目经理'], 'onboarding-role', ['产品经理'])}</div><div class="field"><span class="field-label">经验年限</span>${chips(['0-1年', '1-3年', '3-5年'], 'onboarding-experience', ['1-3年'])}</div><div class="field span-2"><label class="field-label">学习目标</label><input class="input hotspot" data-note="onboarding-goal" value="提升方案设计与取舍能力"></div></div><div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn btn-ghost hotspot" data-action="settings-cancel" data-note="settings-cancel">取消</button><button class="btn btn-primary hotspot" data-action="settings-save" data-note="settings-save">保存</button></div>` : profileSummary()}</div></section><section class="empty-card hotspot" data-note="settings-basic" tabindex="0" style="padding:22px"><h3 class="card-title">基础设置</h3><p class="tiny" style="margin:5px 0">训练偏好、通知等设置将在后续版本开放</p></section><section class="card card-pad row space-between row-wrap"><div><h3 class="card-title">退出登录</h3><p class="card-subtitle">退出后将返回登录页，需要重新验证邮箱</p></div><button class="btn btn-ghost hotspot" style="color:#dc2626;border-color:#fecaca;background:#fef2f2" data-action="logout" data-note="settings-logout">退出登录</button></section></div>`;
+    }
+
+    function settingsPage() {
+      const page = PAGES[10];
+      return `${pageIntro(page)}${guideStrip()}${switcher([[false, '查看画像'], [true, '编辑画像']], state.settingsEdit, 'settingsEdit')}${browser('/settings', productShell('settings', settingsContent(), 'demo@example.com'))}`;
+    }
+
+    function architecturePage() {
+      const page = PAGES[11];
+      const layers = [
+        ['architecture-frontend', '01 页面', 'Next.js / React<br>10 个真实页面<br>渲染与本地交互'],
+        ['architecture-api', '02 API', '23 个 Route Handlers<br>zod 校验 / 限流<br>统一响应封装'],
+        ['architecture-domain', '03 领域', 'training / scoring<br>selection / profile<br>共 10 个模块'],
+        ['architecture-database', '04 数据', 'PostgreSQL / Prisma<br>事务与参数化查询<br>独立测试库'],
+        ['architecture-ai', '05 AI', 'DeepSeek 网关<br>追问 / 闸门 / 评分<br>超时重试与审计']
+      ];
+      const apiGroups = [
+        ['认证 · 4', 'send-link / verify<br>session / logout'], ['画像 · 3', 'profile / draft<br>profile / ability'],
+        ['训练入口 · 5', 'hub / today / baseline<br>extra / score-notifications'], ['训练会话 · 8', '[id] / hint / first-answer<br>final-answer / feedback<br>followup-hint / retry<br>abandon'],
+        ['首页 · 1', 'GET /api/dashboard'], ['历史 · 1', 'GET /api/history/[id]'],
+        ['问卷 · 1', 'POST /api/feedback-survey'], ['内容 · 非 API', 'YAML validate + import<br>运行时只读上架题']
+      ];
+      return `${pageIntro(page)}${guideStrip('最后用这一页回答“它具体怎么做出来”，并明确当前不能承诺什么。')}
+        <div class="replica-wrap stack">
+          <section class="card card-pad"><div class="section-label">分层与依赖方向</div><h2 class="card-title" style="margin:5px 0 16px">页面不直接碰数据库，也不直接碰 AI</h2><div class="architecture-flow">${layers.map(([note,title,text]) => `<div class="architecture-layer hotspot" data-note="${note}" tabindex="0"><h3>${title}</h3><p>${text}</p></div>`).join('')}</div></section>
+          <div class="overview-grid"><section class="card card-pad hotspot" data-note="architecture-state" tabindex="0"><div class="section-label blue-label">训练状态机</div><h3 class="card-title" style="margin:5px 0 15px">五个数据库状态，外加一个界面派生“评分中”</h3><div class="row row-wrap"><span class="badge">reading 阅读</span>→<span class="badge">answering 已用主提示</span>→<span class="badge blue">followup 首答 / 追问 / 终答</span>→<span class="badge green">scored 已评分</span></div><div class="calculation" style="margin-top:14px">reading / answering / followup → abandoned 已终止<br>终答后仍是 followup；“评分中” = followup + finalAnswer 已存在。</div></section><section class="card card-pad hotspot" data-note="architecture-content" tabindex="0"><div class="section-label">内容管线</div><h3 class="card-title" style="margin:5px 0 15px">题目先评审，再进入运行时</h3><div class="fact-list"><div class="fact-item"><b>YAML 题库</b><span>案例、Rubric、5 层提示、资料、引用。</span></div><div class="fact-item"><b>zod 契约校验</b><span>结构合法后整批事务 upsert。</span></div><div class="fact-item"><b>数据库上架题</b><span>运行时按 status + kind 选题。</span></div></div></section></div>
+          <section class="card card-pad hotspot" data-note="architecture-api-list" tabindex="0"><div class="row space-between"><div><div class="section-label">23 个 API 路由</div><h3 class="card-title" style="margin-top:5px">按用户动作分组</h3></div><span class="badge blue">统一 success / error</span></div><div class="api-grid" style="margin-top:15px">${apiGroups.map(([title,text]) => `<div class="api-group"><h4>${title}</h4><code>${text}</code></div>`).join('')}</div></section>
+          <div class="overview-grid"><section class="card card-pad hotspot" data-note="architecture-redirects" tabindex="0"><div class="section-label">路由现状</div><h3 class="card-title" style="margin:5px 0 12px">10 个页面 + 4 个重定向</h3><table class="route-table"><thead><tr><th>旧地址</th><th>当前去向</th></tr></thead><tbody><tr><td><code>/today</code></td><td>/training</td></tr><tr><td><code>/history</code></td><td>/training</td></tr><tr><td><code>/history/[id]</code></td><td>/training/history/[id]</td></tr><tr><td><code>/today/feedback/[id]</code></td><td>/training/feedback/[id]</td></tr></tbody></table></section><section class="card card-pad"><div class="section-label">最容易讲错的当前边界</div><div class="boundary-list hotspot" data-note="architecture-limits" style="margin-top:12px"><div class="boundary-item"><b>基线不是固定 2 题</b><br>当前代码动态读取上架基线题；仓库当前为 8 题。</div><div class="boundary-item"><b>追问不是必然多轮</b><br>闸门可 0 问；1–2 问一次生成，一个终答框统一回应。</div><div class="boundary-item"><b>历史分页与基础设置未完成</b><br>“加载更多”禁用，偏好设置是占位卡。</div><div class="boundary-item"><b>画像指标有精确口径</b><br>提示依赖只算首答前提示；趋势比较历史均值。</div><div class="boundary-item"><b>“今日”使用 UTC 日期</b><br>不能擅自讲成用户本地自然日。</div><div class="boundary-item"><b>选题理由未完整外露</b><br>引擎生成 reason，但当前工作台视图没有该字段。</div></div></section></div>
+        </div>`;
+    }
+
+    const RENDERERS = { overview: overviewPage, login: loginPage, onboarding: onboardingPage, baseline: baselinePage, home: homePage, training: trainingPage, session: sessionPage, feedback: feedbackPage, profile: profilePage, history: historyPage, settings: settingsPage, architecture: architecturePage };
+
+    function coefficient(main, followup) {
+      return Math.max(0.6, 1 - 0.1 * main - 0.05 * followup);
+    }
+
+    function render() {
+      const page = PAGES.find(item => item.id === state.page) || PAGES[0];
+      const index = PAGES.indexOf(page);
+      hideNote();
+      $('#topbar-heading').textContent = page.title;
+      $('#tour-main').innerHTML = `${RENDERERS[page.id]()}<footer class="page-footer"><span>当前代码事实复刻 · 非生产环境 · 无真实请求</span><div class="footer-nav">${index > 0 ? `<button class="tour-button" data-go="${PAGES[index - 1].id}">← ${PAGES[index - 1].title}</button>` : ''}${index < PAGES.length - 1 ? `<button class="tour-button primary" data-go="${PAGES[index + 1].id}">${PAGES[index + 1].title} →</button>` : '<button class="tour-button primary" data-go="overview">回到开场 ↺</button>'}</div></footer>`;
+      $$('.tour-nav-button').forEach(button => {
+        const active = button.dataset.page === page.id;
+        button.classList.toggle('active', active);
+        if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+      });
+      $('#mobile-page-select').value = page.id;
+      $('#prev-page').disabled = index === 0;
+      $('#next-page').textContent = index === PAGES.length - 1 ? '回到开场 ↺' : '下一页 →';
+      const elapsed = PAGES.slice(0, index).reduce((sum, item) => sum + item.minutes, 0);
+      $('#progress-text').textContent = `${elapsed} / 30 分钟`;
+      $('#progress-bar').style.width = `${elapsed / 30 * 100}%`;
+      document.body.classList.toggle('clean-mode', state.clean);
+      $('#mode-toggle').textContent = state.clean ? '开启讲解' : '纯净预览';
+      $('#mode-toggle').setAttribute('aria-pressed', String(state.clean));
+      document.title = `${page.title} · 训练台项目讲解地图`;
+    }
+
+    function go(pageId) {
+      if (!RENDERERS[pageId]) return;
+      state.page = pageId;
+      if (location.hash !== `#${pageId}`) history.replaceState(null, '', `#${pageId}`);
+      render();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function showToast(message) {
+      $('.toast')?.remove();
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      document.body.append(toast);
+      setTimeout(() => toast.remove(), 2400);
+    }
+
+    let pinnedNote = null;
+    let activeNoteElement = null;
+
+    function positionNote(element) {
+      const tooltip = $('#note-tooltip');
+      const rect = element.getBoundingClientRect();
+      const tipRect = tooltip.getBoundingClientRect();
+      const gap = 12;
+      let left = rect.right + gap;
+      if (left + tipRect.width > window.innerWidth - 12) left = rect.left - tipRect.width - gap;
+      if (left < 12) left = Math.min(Math.max(12, rect.left), window.innerWidth - tipRect.width - 12);
+      let top = rect.top;
+      if (top + tipRect.height > window.innerHeight - 12) top = window.innerHeight - tipRect.height - 12;
+      tooltip.style.left = `${Math.max(12, left)}px`;
+      tooltip.style.top = `${Math.max(12, top)}px`;
+    }
+
+    function showNote(id, element, pin = false) {
+      const note = NOTES[id];
+      if (!note || state.clean) return;
+      if (pinnedNote && !pin && pinnedNote !== id) return;
+      activeNoteElement = element;
+      if (pin) pinnedNote = id;
+      $('#note-title').textContent = note.title;
+      $('#note-body').innerHTML = `<div class="note-row"><span class="note-label">做什么</span><div class="note-text">${esc(note.what)}</div></div><div class="note-row"><span class="note-label">怎么实现</span><div class="note-text">${esc(note.how)}</div></div><div class="note-row"><span class="note-label">为什么这样定</span><div class="note-text">${esc(note.why)}</div></div><div class="note-row"><span class="note-label">代码位置</span><code class="note-path">${esc(note.path)}</code></div><div class="note-pin-state">${pinnedNote ? '已固定 · 点击 × 或按 Esc 关闭' : '点击元素可固定说明'}</div>`;
+      const tooltip = $('#note-tooltip');
+      tooltip.classList.add('visible');
+      requestAnimationFrame(() => positionNote(element));
+    }
+
+    function hideNote(force = true) {
+      if (!force && pinnedNote) return;
+      pinnedNote = null;
+      activeNoteElement = null;
+      $('#note-tooltip')?.classList.remove('visible');
+    }
+
+    function setStateGroup(group, value) {
+      if (!(group in state)) return;
+      state[group] = typeof state[group] === 'boolean' ? value === 'true' : value;
+      render();
+    }
+
+    function handleAction(action, element, event) {
+      if (action === 'source') {
+        event.preventDefault();
+        showToast('真实产品会新窗口打开来源；讲解文件保持离线。');
+      } else if (action === 'chip') {
+        element.classList.toggle('selected');
+        element.setAttribute('aria-pressed', String(element.classList.contains('selected')));
+      } else if (action === 'add-product') {
+        const input = $('#custom-product');
+        const value = input.value.trim();
+        if (!value) return showToast('先输入一个产品名。');
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'choice-chip selected hotspot inline-hotspot';
+        chip.dataset.action = 'chip';
+        chip.dataset.note = 'onboarding-products';
+        chip.textContent = value;
+        input.closest('.field').querySelector('.chip-group').append(chip);
+        input.value = '';
+        showToast(`已添加「${value}」（仅本地演示）`);
+      } else if (action === 'login-reset') {
+        state.loginSent = false; render();
+      } else if (action === 'start-today' || action === 'extra') {
+        state.session = 'answering'; go('session');
+      } else if (action === 'restart') {
+        state.restartConfirm = true; render();
+      } else if (action === 'restart-cancel') {
+        state.restartConfirm = false; render();
+      } else if (action === 'restart-confirm') {
+        state.current = 'not_started'; state.restartConfirm = false; render(); showToast('演示：会话已终止，当前训练回到未开始。');
+      } else if (action === 'baseline-next') {
+        state.session = 'answering'; state.baseline = 'workbench'; render();
+      } else if (action === 'hint') {
+        state.hintCount = Math.min(5, state.hintCount + 1); render();
+      } else if (action === 'submit-first') {
+        state.session = 'followup'; render();
+      } else if (action === 'followup-hint') {
+        state.followupHintCount = 1; render();
+      } else if (action === 'followup-retry') {
+        state.session = 'generating'; render();
+        setTimeout(() => { if (state.session === 'generating') { state.session = 'followup'; render(); showToast('演示：追问已重新生成。'); } }, 1100);
+      } else if (action === 'followup-skip') {
+        state.session = 'gate'; render();
+      } else if (action === 'submit-final') {
+        state.feedback = 'scoring'; go('feedback');
+        setTimeout(() => { if (state.page === 'feedback' && state.feedback === 'scoring') { state.feedback = 'done'; render(); showToast('演示：评分完成。'); } }, 1400);
+      } else if (action === 'calculation') {
+        state.calculation = !state.calculation; render();
+      } else if (action === 'star') {
+        state.survey[element.dataset.question] = Number(element.dataset.value); render();
+      } else if (action === 'survey-submit') {
+        if (Object.values(state.survey).every(Boolean)) { state.surveySubmitted = true; render(); }
+      } else if (action === 'profile-node') {
+        state.profileNode = true; render();
+      } else if (action === 'profile-close') {
+        if (element.classList.contains('modal-backdrop') && event.target.closest('[data-stop-propagation]')) return;
+        state.profileNode = false; render();
+      } else if (action === 'ability-row') {
+        showToast('真实页面会在此展开该维度特征与诊断。');
+      } else if (action === 'settings-edit' || action === 'settings-save' || action === 'settings-cancel') {
+        state.settingsEdit = action === 'settings-edit' ? true : false;
+        render();
+        if (action === 'settings-save') showToast('演示：画像已保存（未发送真实请求）。');
+      } else if (action === 'logout') {
+        state.loginSent = false; go('login');
+      } else if (action === 'close-notification') {
+        state.notification = false; render();
+      }
+    }
+
+    document.addEventListener('click', event => {
+      const noteClose = event.target.closest('#note-close');
+      if (noteClose) { event.stopPropagation(); hideNote(); return; }
+      const noteElement = event.target.closest('[data-note]');
+      if (noteElement && !state.clean) showNote(noteElement.dataset.note, noteElement, true);
+      const pageButton = event.target.closest('[data-page]');
+      if (pageButton) { go(pageButton.dataset.page); return; }
+      const stateButton = event.target.closest('[data-state-group]');
+      if (stateButton) { setStateGroup(stateButton.dataset.stateGroup, stateButton.dataset.stateValue); return; }
+      const goButton = event.target.closest('[data-go]');
+      if (goButton) { event.preventDefault(); go(goButton.dataset.go); return; }
+      const actionElement = event.target.closest('[data-action]');
+      if (actionElement) handleAction(actionElement.dataset.action, actionElement, event);
+    });
+
+    document.addEventListener('submit', event => {
+      if (event.target.matches('[data-action="login-form"]')) {
+        event.preventDefault(); state.loginSent = true; render();
+      }
+    });
+
+    document.addEventListener('mouseover', event => {
+      const element = event.target.closest('[data-note]');
+      if (element && !pinnedNote) showNote(element.dataset.note, element);
+    });
+    document.addEventListener('mouseout', event => {
+      const element = event.target.closest('[data-note]');
+      if (element && !pinnedNote && !element.contains(event.relatedTarget)) hideNote();
+    });
+    document.addEventListener('focusin', event => {
+      const element = event.target.closest('[data-note]');
+      if (element && !pinnedNote) showNote(element.dataset.note, element);
+    });
+    document.addEventListener('focusout', event => {
+      const element = event.target.closest('[data-note]');
+      if (element && !pinnedNote && !element.contains(event.relatedTarget)) hideNote();
+    });
+    document.addEventListener('input', event => {
+      const key = event.target.dataset.calc;
+      if (!key) return;
+      state[key] = Number(event.target.value);
+      const c = coefficient(state.calcMain, state.calcFollowup);
+      const result = Math.round(state.calcRaw * c * 100) / 100;
+      $('#calc-raw-value').textContent = state.calcRaw;
+      $('#calc-main-value').textContent = `${state.calcMain} 次`;
+      $('#calc-followup-value').textContent = `${state.calcFollowup} 次`;
+      $('#calc-result').textContent = result;
+      $('#calc-formula').textContent = `${state.calcRaw} × ${c} = ${result}`;
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') hideNote();
+      if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('g[data-action]')) {
+        event.preventDefault(); event.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      }
+    });
+    window.addEventListener('scroll', () => { if (!pinnedNote) hideNote(); }, { passive: true });
+    window.addEventListener('resize', () => { if (activeNoteElement) positionNote(activeNoteElement); });
+    window.addEventListener('hashchange', () => {
+      const id = location.hash.slice(1);
+      if (RENDERERS[id] && id !== state.page) { state.page = id; render(); }
+    });
+
+    $('#mode-toggle').addEventListener('click', () => { state.clean = !state.clean; hideNote(); render(); });
+    $('#prev-page').addEventListener('click', () => {
+      const index = PAGES.findIndex(item => item.id === state.page);
+      if (index > 0) go(PAGES[index - 1].id);
+    });
+    $('#next-page').addEventListener('click', () => {
+      const index = PAGES.findIndex(item => item.id === state.page);
+      go(PAGES[(index + 1) % PAGES.length].id);
+    });
+    const select = $('#mobile-page-select');
+    select.innerHTML = PAGES.map((page, index) => `<option value="${page.id}">${String(index).padStart(2, '0')} · ${page.title}（${page.minutes} 分钟）</option>`).join('');
+    select.addEventListener('change', () => go(select.value));
+
+    const initialPage = location.hash.slice(1);
+    if (RENDERERS[initialPage]) state.page = initialPage;
+    render();
+  </script>
+</body>
+</html>

@@ -13,6 +13,13 @@ interface ApiEnvelope<T> {
   error?: { code: string; message: string };
 }
 
+/** /api/auth/* 的响应封装（与 server/modules/auth/response.ts 对齐，形如 { ok, data }） */
+interface AuthEnvelope<T> {
+  ok: boolean;
+  data?: T;
+  error?: { code: string; message: string };
+}
+
 /**
  * GET /api/auth/session：读取当前登录身份。
  * 未登录/无 cookie 返回 null——由页面回退为 dev 占位身份展示（仅展示，不代表已登录）。
@@ -22,8 +29,8 @@ export async function fetchSession(): Promise<SessionData | null> {
     headers: { "content-type": "application/json" },
   });
   if (res.status === 401) return null;
-  const json = (await res.json()) as ApiEnvelope<SessionData>;
-  if (!res.ok || !json.success) {
+  const json = (await res.json()) as AuthEnvelope<SessionData>;
+  if (!res.ok || !json.ok) {
     throw new Error(json.error?.message ?? "请求失败，请稍后重试");
   }
   return json.data ?? null;
@@ -60,8 +67,8 @@ export async function logout(): Promise<void> {
     method: "POST",
     headers: { "content-type": "application/json" },
   });
-  const json = (await res.json()) as ApiEnvelope<{ message: string }>;
-  if (!res.ok || !json.success) {
+  const json = (await res.json()) as AuthEnvelope<{ message: string }>;
+  if (!res.ok || !json.ok) {
     throw new Error(json.error?.message ?? "退出失败，请稍后重试");
   }
 }

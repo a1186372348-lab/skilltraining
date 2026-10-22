@@ -4,7 +4,8 @@
  * - SessionData 与 GET /api/auth/session 的 data 负载对齐；
  * - ProfileData 与 GET /api/profile 的 data 负载对齐（user_profiles 行 JSON 序列化，
  *   jsonb 字段为弱类型，视图装配时统一走 view-model 的防御性归一化）；
- * - 统一响应封装沿用 server/lib/api-response.ts：{ success: true, data } / { success: false, error }。
+ * - 响应封装按端点区分：/api/profile 用 server/lib/api-response.ts 的 { success, data }；
+ *   /api/auth/session 与 /api/auth/logout 用 auth 模块自己的 { ok, data }（server/modules/auth/response.ts）。
  */
 
 /** 会话信息（GET /api/auth/session 的 data） */

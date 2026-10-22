@@ -2,6 +2,8 @@ import type { PrismaClient, Question, TrainingSession } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
 import { generateFollowups, type FollowupGateResult, type FollowupInput } from "@/server/ai/followup";
+import { FOLLOWUP_PROMPT_V1 } from "@/server/ai/prompts/followup.v1";
+import { resolvePromptTemplates } from "@/server/ai/prompts/resolver";
 import { SelectionError } from "@/server/modules/selection/errors";
 import { selectTodayQuestion } from "@/server/modules/selection/service";
 
@@ -361,7 +363,10 @@ async function generateAndStoreFollowups(
   let gate: FollowupGateResult | null = null;
   try {
     const rubric = session.question.rubric as unknown as FollowupInput["rubric"];
-    gate = await (deps.generateFollowups ?? generateFollowups)({
+    // prompt 模板（T28 / D31）：DB active 版本优先，无 active 回退文件版本（resolver 进程内缓存）
+    const templates = await resolvePromptTemplates(db, FOLLOWUP_PROMPT_V1);
+    const run = deps.generateFollowups ?? ((input: FollowupInput) => generateFollowups(input, { templates }));
+    gate = await run({
       mainQuestion: session.question.mainQuestion,
       firstAnswer,
       rubric,

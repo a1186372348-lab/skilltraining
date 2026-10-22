@@ -215,3 +215,33 @@ model FeedbackSurvey {
 
   @@map("feedback_surveys")
 }
+
+// prompt 版本注册表（T28 / D31：Git 管内容、DB 管版本状态；状态机 draft→passed→active→rolled_back，
+// 合法跃迁见 server/ai/prompts/registry.ts；同 name 至多一个 active 由 repository 事务保证）
+model PromptVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   // prompt 名（scoring / followup）
+  version     String   // 版本号（v1 / v2 …）
+  content     String   // 模板内容（JSON canonical {system, user}，含 {{slot}} 插值点）
+  contentHash String   @map("content_hash") // sha256 hex（与文件版本哈希比对，漂移观测）
+  status      String   @default("draft") // draft / passed / active / rolled_back
+  createdAt   DateTime @default(now()) @map("created_at")
+  evalRuns    EvalRun[]
+
+  @@unique([name, version])
+  @@index([name, status])
+  @@map("prompt_versions")
+}
+
+// 调优回归留档（T28 / D31：每次回归门槛判定留档；report 为漂移报告 JSON 全文）
+model EvalRun {
+  id               String        @id @default(uuid()) @db.Uuid
+  promptVersionId  String        @map("prompt_version_id") @db.Uuid
+  consistencyScore Float?        @map("consistency_score") // 一致性得分（口径由回归脚本定义，可空为未评）
+  report           Json          // 漂移报告全文（含逐例明细与门槛判定）
+  createdAt        DateTime      @default(now()) @map("created_at")
+  promptVersion    PromptVersion @relation(fields: [promptVersionId], references: [id], onDelete: Cascade)
+
+  @@index([promptVersionId])
+  @@map("eval_runs")
+}
