@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import {
   jsonOk,
   unauthorized,
@@ -9,6 +11,9 @@ import {
   triggerSessionScoring,
   type TriggerSessionScoringDeps,
 } from "@/server/modules/scoring/trigger";
+
+// T39：后台评分保活上限（Vercel Hobby 单请求最长 300s，覆盖评分真实延迟 35~49 秒）
+export const maxDuration = 300;
 
 /**
  * GET /api/training/baseline（T17a / D19；T36 / D38）：能力基线测评状态。
@@ -29,7 +34,8 @@ export function createBaselineGetHandler(deps: TriggerSessionScoringDeps = {}) {
 
     const status = await getBaselineStatus(prisma, user.id);
     for (const sessionId of status.pendingScoringSessionIds) {
-      triggerSessionScoring(prisma, sessionId, user.id, deps);
+      // T39：注入 next/server 的 after 作 schedule，Serverless 下保活后台评分
+      triggerSessionScoring(prisma, sessionId, user.id, { ...deps, schedule: after });
     }
     return jsonOk({
       required: status.required,

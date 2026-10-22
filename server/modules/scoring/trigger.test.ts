@@ -64,6 +64,77 @@ describe("triggerSessionScoring：inflight 去重与失败重试（T36 / D38）"
     }
   });
 
+  it("注入 schedule（T39）：任务交由 schedule 调度，由调度方驱动执行", async () => {
+    let scheduled: (() => Promise<void>) | null = null;
+    const schedule = vi.fn((task: () => Promise<void>) => {
+      scheduled = task;
+    });
+    const scoreSession = vi.fn(() => Promise.resolve());
+
+    triggerSessionScoring(db, "session-sched", "u-1", { scoreSession, schedule });
+    // 任务未直接发起：schedule 收到 task，调度方尚未驱动时评分不执行
+    expect(schedule).toHaveBeenCalledTimes(1);
+    expect(scoreSession).not.toHaveBeenCalled();
+
+    await (scheduled as unknown as () => Promise<void>)();
+    expect(scoreSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("注入 schedule（T39）：进行中重复触发不重复调度，完成后可再次调度", async () => {
+    const tasks: Array<() => Promise<void>> = [];
+    const schedule = vi.fn((task: () => Promise<void>) => {
+      tasks.push(task);
+    });
+    const gate: { release: () => void } = { release: () => {} };
+    const scoreSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          gate.release = resolve;
+        }),
+    );
+
+    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
+    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
+    // inflight 去重在 schedule 路径下同样成立：进行中第二次触发不重复调度
+    expect(schedule).toHaveBeenCalledTimes(1);
+
+    // 驱动执行：评分进行中（未 resolve）时再触发仍被去重
+    const running = tasks[0]!();
+    expect(scoreSession).toHaveBeenCalledTimes(1);
+    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
+    expect(schedule).toHaveBeenCalledTimes(1);
+
+    // 任务完成（finally 释放标记）后再触发被接纳、重新调度
+    gate.release();
+    await running;
+    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
+    expect(schedule).toHaveBeenCalledTimes(2);
+  });
+
+  it("注入 schedule（T39）：失败仅日志不落库，标记释放后下次触发重新调度", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const tasks: Array<() => Promise<void>> = [];
+      const schedule = vi.fn((task: () => Promise<void>) => {
+        tasks.push(task);
+      });
+      const failing = vi.fn(() => Promise.reject(new Error("模拟 AI 网关故障")));
+
+      triggerSessionScoring(db, "session-sched-retry", "u-1", { scoreSession: failing, schedule });
+      expect(schedule).toHaveBeenCalledTimes(1);
+
+      // task 链内部 catch 兜底：驱动失败任务本身不抛出，仅记录日志
+      await tasks[0]!();
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+
+      // 失败后标记已释放：下一次触发重新调度（自动重试语义不变）
+      triggerSessionScoring(db, "session-sched-retry", "u-1", { scoreSession: failing, schedule });
+      expect(schedule).toHaveBeenCalledTimes(2);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
   it("透传 db/sessionId/userId 与 ScoreSessionDeps 给评分实现", () => {
     const seen: unknown[][] = [];
     const scoreWithRubric = async () => ({

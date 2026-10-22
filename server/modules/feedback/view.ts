@@ -1,8 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { SCORING_ERROR_CODES as CODES, ScoringError } from "@/server/modules/scoring/errors";
-import { scoreSession, type ScoreSessionDeps } from "@/server/modules/scoring/service";
-import { triggerSessionScoring } from "@/server/modules/scoring/trigger";
+import { scoreSession } from "@/server/modules/scoring/service";
+import {
+  triggerSessionScoring,
+  type TriggerSessionScoringDeps,
+} from "@/server/modules/scoring/trigger";
 
 import { getSurveyStatus, type SurveyStatus } from "./survey";
 
@@ -53,7 +56,8 @@ export interface ScoringFeedbackView {
 
 export type FeedbackView = ReadyFeedbackView | ScoringFeedbackView;
 
-export type FeedbackViewDeps = ScoreSessionDeps;
+// 与 TriggerSessionScoringDeps 对齐：视图 deps 原样透传给懒触发入口（T39 起含 schedule）
+export type FeedbackViewDeps = TriggerSessionScoringDeps;
 
 /**
  * 读取反馈视图：未评分 → 懒触发并返回 scoring；已评分 → 返回 ready 装配视图。

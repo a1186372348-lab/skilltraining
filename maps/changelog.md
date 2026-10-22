@@ -67,6 +67,10 @@
 
 ## 变更时间线
 
+### 2026-10-22
+
+- `feat` T39 线上部署启动（IN_PROGRESS，代码改造完成待提交）：选型锁定 Vercel + Neon（Singapore）+ QQ 邮箱 SMTP（465 隐式 TLS）+ GitHub 自动部署；后台评分 fire-and-forget 在 Serverless 下会被函数冻结，`triggerSessionScoring` 新增 `schedule` 注入，final-answer / baseline / feedback 三路由经 `next/server` 的 `after` 保活并声明 `maxDuration = 300`；`package.json` 新增 `postinstall: prisma generate`，`.env.example` 补生产配置说明；新增 trigger schedule 用例 3 个，全量 1030 测试通过。
+
 ### 2026-10-20
 
 - `decision` D40 训练终止与重启锁定。

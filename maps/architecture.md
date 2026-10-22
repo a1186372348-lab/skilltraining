@@ -77,4 +77,5 @@ YAML 题库（`content/questions/`，案例五要素每字段带 `{text, citatio
 
 - 本地数据库：`docker-compose.yml`（PostgreSQL，宿主机 5433；Windows 下连接串用 `127.0.0.1`）。
 - 测试隔离：`npm test` 的 pretest 钩子自动建 `skilltraining_test` 并执行 `prisma migrate deploy`。
-- 部署目标（未实施）：云服务器 + Docker + Nginx + 云 RDS（D15）。
+- 部署拓扑（T39）：Vercel（GitHub main 自动部署，Fluid compute 函数上限 300s）+ Neon 云 PostgreSQL（Singapore 区域）+ QQ 邮箱 SMTP（465 隐式 TLS，复用现有 `SmtpMailer`）+ DeepSeek API；环境差异全部走环境变量（Vercel 后台配置），本地开发不受影响。早期「云服务器 + Docker + Nginx + 云 RDS」设想（D15）由本选型取代。
+- 后台评分保活（T39）：Serverless 响应结束后函数冻结，`triggerSessionScoring` 支持路由层注入 `schedule`（`next/server` 的 `after`，响应返回后继续保活到评分完成）；三个触发路由（final-answer / baseline / feedback）传入并声明 `maxDuration = 300`。缺省维持 fire-and-forget，本地开发与测试行为不变；进程内限流在 Serverless 下降级为单实例粒度（已知限制，演示可接受）。

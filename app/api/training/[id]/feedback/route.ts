@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 
 import {
@@ -15,6 +16,9 @@ import { ScoringError } from "@/server/modules/scoring/errors";
 import { aiEndpointRateLimiter } from "@/server/modules/training/rate-limit";
 
 const sessionIdSchema = z.uuid();
+
+// T39：后台评分保活上限（Vercel Hobby 单请求最长 300s，覆盖评分真实延迟 35~49 秒）
+export const maxDuration = 300;
 
 /** 对外错误文案：按 code 固定映射，不泄露 Rubric/评分 prompt 等内部细节（Prd.md 3.5） */
 const SAFE_MESSAGES: Record<string, string> = {
@@ -56,7 +60,8 @@ export function createFeedbackGetHandler(deps: FeedbackViewDeps = {}) {
     }
 
     try {
-      return jsonOk(await getFeedbackView(prisma, id, user.id, deps));
+      // T39：注入 next/server 的 after 作 schedule（透传至懒触发评分），Serverless 下保活
+      return jsonOk(await getFeedbackView(prisma, id, user.id, { ...deps, schedule: after }));
     } catch (error) {
       if (error instanceof ScoringError) {
         return jsonError(

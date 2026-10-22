@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 
 import {
@@ -16,6 +17,9 @@ import { aiEndpointRateLimiter } from "@/server/modules/training/rate-limit";
 import { submitFinalAnswer } from "@/server/modules/training/service";
 
 const sessionIdSchema = z.uuid();
+
+// T39：后台评分保活上限（Vercel Hobby 单请求最长 300s，覆盖评分真实延迟 35~49 秒）
+export const maxDuration = 300;
 
 const bodySchema = z.object({
   answer: z.string().trim().min(1, "答案不能为空").max(10_000, "答案过长"),
@@ -70,7 +74,8 @@ export function createFinalAnswerPostHandler(deps: TriggerSessionScoringDeps = {
     try {
       const result = await submitFinalAnswer(prisma, id, user.id, parsed.data.answer);
       // T36 / D38：终答提交成功即后台触发评分（基线题间并行评分的前提）
-      triggerSessionScoring(prisma, id, user.id, deps);
+      // T39：注入 next/server 的 after 作 schedule，Serverless 下保活后台评分
+      triggerSessionScoring(prisma, id, user.id, { ...deps, schedule: after });
       return jsonOk(result);
     } catch (error) {
       if (error instanceof TrainingError) {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { sessionCookieHeader } from "@/app/api/_test/session";
 import type { RubricScoringInput, RubricScoringOutput } from "@/server/modules/scoring/rubric-scorer";
@@ -11,6 +11,18 @@ import { createFeedbackGetHandler } from "./route";
 // GET /api/training/[id]/feedback 集成测试：真实数据库，AI 评分经工厂注入 mock（真实冒烟 0 次）。
 // 覆盖：懒触发（200 scoring → 后台评分 → 200 ready）、幂等（重复 GET 不重复评分）、
 // 四元组装配、参数/状态/归属校验、AI 端点限流（Prd.md 3.5）。
+// T39：路由层注入 next/server 的 after 保活后台评分；node 测试环境无请求上下文，
+// mock 为「接收任务并立即驱动执行」，与缺省 fire-and-forget 行为一致。
+
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return {
+    ...actual,
+    after: (task: () => Promise<void>) => {
+      void task();
+    },
+  };
+});
 
 const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
