@@ -12,5 +12,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
+    // 项目暂存目录（gitignored）：.cache 下的调试脚本不是测试，不参与跑测（与 eslint 忽略口径一致）
+    exclude: [".cache/**", "**/node_modules/**"],
   },
 });
