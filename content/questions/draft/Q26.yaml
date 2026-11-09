@@ -1,0 +1,112 @@
+id: Q26
+title: Canva 教育工具：怎样向学校解释免费服务的边界
+case_title: 一份面向学校的介绍，怎样既说清价值也说清条件
+case_background:
+  product:
+    text: Canva 提供用于制作视觉内容的在线工具；其教育产品介绍将课堂设计与教学资源作为使用场景。
+    citations:
+      - 1
+      - 2
+  audience:
+    text: Canva for Districts 公告面向学校系统，并描述学区注册后教师和学生可获得教育工具访问权限。
+    citations:
+      - 1
+  scenario:
+    text: Canva 自称自 2019 年 12 月起为 K–12 教师和学生提供免费的教育产品，后又介绍面向学区的集中部署。
+    citations:
+      - 1
+  features:
+    text: 学区公告列出单点登录、集中账户配置和发布控制；当前帮助页区分学校团队中教师、学生和管理员的权限。
+    citations:
+      - 1
+      - 4
+  status:
+    text: 公告称注册学区的教师与学生可免费访问其所述高级功能；当前资格指引另列验证条件，具体适用范围须按学校情况核实。
+    citations:
+      - 1
+      - 3
+case_sources:
+  - id: 1
+    title: Canva for Districts 介绍
+    publisher: Canva
+    url: https://www.canva.com/newsroom/news/canva-for-districts/
+  - id: 2
+    title: Canva for Education 发布资料
+    publisher: Canva
+    url: https://static-cse.canva.com/blob/148194/Canva-for-Education.pdf
+  - id: 3
+    title: 教育产品资格指引
+    publisher: Canva
+    url: https://www.canva.com/education/eligibility-guidelines/
+  - id: 4
+    title: 教育团队角色与权限
+    publisher: Canva
+    url: https://www.canva.com/en_gb/help/education-tiers-roles-access/
+  - id: 5
+    title: Canva 十年产品时间线
+    publisher: Canva
+    url: https://www.canva.com/newsroom/news/canva-10-year-timeline/
+main_question: 学校负责人问：『这是一个所有学校、所有人都能免费使用的产品吗？我们为什么要考虑它？』请写一段面向负责人的简短说明，再列出教师和学校管理员各自需要确认的一项条件或问题。请基于材料回答；不清楚的资格或功能不要保证。
+ability_tags:
+  - 产品表达
+  - 产品价值判断
+difficulty: 基础
+domain: 教育
+kind: daily
+rubric:
+  dimensions:
+    产品表达:
+      - 正面回应是否普遍免费，讲清材料支持的对象、资格与待核实边界，并以学校负责人能理解的语言说明用途与潜在价值；不限定唯一叙述顺序。
+      - 区分学区注册、教师与学生使用、管理员负责的事项，不把不同角色混为一谈。
+      - 对无法从材料确认的地区或个人资格给出可核实的下一步，不承诺所有学校自动适用。
+    产品价值判断:
+      - 指出教学内容制作或学校统一配置能解决的具体任务及适用条件。
+      - 说明教师或管理员可能获得的具体价值，并识别一项资格核实或账号配置成本。
+      - 不把免费公告、宣传数据或功能清单直接当作学习效果改善的证据。
+  forbidden_leaks:
+    - 面向负责人的完整介绍与分角色确认事项。
+    - 对全部学校免费和必然提高学习效果的绝对承诺。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 学校负责人问是否所有学校、所有人都免费，材料能支持什么，哪里还要核实？
+  - level: 2
+    stage: 视角补充
+    question: 教师和管理员在制作内容与管理账号上承担的任务相同吗？
+  - level: 3
+    stage: 反例与风险
+    question: 公告讲的是注册学区，资格页面又要求哪些核实？
+  - level: 4
+    stage: 取舍权衡
+    question: 如果接入需要验证身份或配置团队，对学校有什么成本？
+  - level: 5
+    stage: 验证方式
+    question: 写出一段可直接发送的说明，再给两类角色各一个核实问题。
+materials:
+  core:
+    - title: Canva for Districts 介绍
+      source: Canva
+      url: https://www.canva.com/newsroom/news/canva-for-districts/
+      summary: 官方介绍学区免费产品、单点登录和集中管理；页面未显示明确发布日期。
+    - title: Canva for Education 发布资料
+      source: Canva
+      url: https://static-cse.canva.com/blob/148194/Canva-for-Education.pdf
+      summary: 2019 年官方资料介绍澳大利亚学校的教育产品 beta，以及教师与学生协作功能；本资料未明确 K–12 范围。
+  extended:
+    - title: 教育产品资格指引
+      source: Canva
+      url: https://www.canva.com/education/eligibility-guidelines/
+      summary: 现行资格和验证指引，适用对象与条件可能随时间、地区变化。
+    - title: 教育团队角色与权限
+      source: Canva
+      url: https://www.canva.com/en_gb/help/education-tiers-roles-access/
+      summary: 当前帮助文档区分学校团队中教师、学生和管理员的权限。
+    - title: Canva 十年产品时间线
+      source: Canva
+      url: https://www.canva.com/newsroom/news/canva-10-year-timeline/
+      summary: 公司时间线回顾教育产品在 2019 年上线，不证明学区产品当年上线。
+uncertainty:
+  - 学区公告页面未显示明确发布日期；不能把其发布年份等同于 2019 年教育产品上线年份。
+  - 现行资格和权限指引会变化；材料没有证明所有学校符合条件或学习成绩因此改善。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

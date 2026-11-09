@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 import type { HubCurrentCard, HubInProgressCard } from "./contract";
 import { formatScore } from "./feedback/[id]/view-model";
 import { abandonSession, fetchTodaySession, startExtraSession, ApiError } from "./session/api";
+import { abandonPackSession } from "./pack/api";
 import type { TodayView } from "./session/contract";
 import {
   actionNoteFor,
@@ -166,7 +167,8 @@ function InProgressCard({
     setAbandonPending(true);
     setAbandonError(null);
     try {
-      await abandonSession(current.sessionId);
+      if (current.sourceType === "pack") await abandonPackSession(current.sessionId);
+      else await abandonSession(current.sessionId);
       if (onChanged) {
         onChanged(); // 终止成功：卡片随父级重取回到未开始态（本地态随重渲染重置）
       } else {
@@ -177,7 +179,7 @@ function InProgressCard({
       setAbandonError(error instanceof Error ? error.message : "终止失败，请重试");
       setAbandonPending(false);
     }
-  }, [abandonPending, current.sessionId, onChanged]);
+  }, [abandonPending, current.sessionId, current.sourceType, onChanged]);
 
   return (
     <section className={`${CARD} p-8`}>
@@ -186,6 +188,7 @@ function InProgressCard({
         <Badge tone="blue">{currentBadgeText(current)}</Badge>
       </div>
       <h2 className="mb-4 text-2xl leading-snug font-bold">{current.caseTitle}</h2>
+      {current.sourceType === "pack" ? <p className="mb-3 text-xs font-semibold text-[#1D4ED8]">专项训练包</p> : null}
       <div className="mb-6 flex items-center gap-2 rounded-xl border border-[#D9E7FD] bg-[#EFF5FF] px-4 py-3 text-[13px] text-[#3D5A90]">
         <span className="shrink-0 text-xs text-[#2563EB]">◆</span>
         {progressLineFor(current.stage)}
@@ -209,7 +212,7 @@ function InProgressCard({
         ) : null}
         {canRestart && confirming ? (
           <span className="inline-flex flex-wrap items-center gap-3 rounded-xl border border-[#FDE2E2] bg-[#FFF8F8] px-4 py-2.5">
-            <span className="text-[13px] font-medium text-[#B91C1C]">丢弃当前作答并重启？</span>
+            <span className="text-[13px] font-medium text-[#B91C1C]">{current.sourceType === "pack" ? "终止本题会放弃整个训练包，已答内容与评分保留。确认重启？" : "丢弃当前作答并重启？"}</span>
             <button
               type="button"
               onClick={() => void onConfirmRestart()}
@@ -288,7 +291,7 @@ function CompletedCard({
     <section className={`${CARD} p-8`}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <span className="text-xs font-bold tracking-[0.16em] text-[#2563EB]">当前训练</span>
-        <Badge tone="green">今日训练已完成</Badge>
+        <Badge tone="green">{current.sourceType === "pack" ? "专项训练包已完成" : "今日训练已完成"}</Badge>
       </div>
       <h2 className="mb-4 text-2xl leading-snug font-bold">{current.caseTitle}</h2>
       {current.scores.length > 0 ? (

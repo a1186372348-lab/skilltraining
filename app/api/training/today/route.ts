@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import {
   jsonError,
   jsonOk,
@@ -34,6 +36,9 @@ export async function GET(request: Request) {
   const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
 
+  const mode = z.enum(["auto", "daily"]).safeParse(new URL(request.url).searchParams.get("mode") ?? "auto");
+  if (!mode.success) return jsonError(400, "VALIDATION_FAILED", "训练模式无效");
+
   try {
     const baselineStatus = await getBaselineStatus(prisma, user.id);
     // T36 / D38：全部已作答、评分进行中——先于一切日常分支检查（画像未齐，选题无依据）
@@ -61,9 +66,13 @@ export async function GET(request: Request) {
 
     // T21：加练进行中/全部完成时最近会话已在库，直接返回（不重复创建每日一题）
     const latest = await getLatestDailySession(prisma, user.id);
-    if (latest) return jsonOk(toTodayView(latest.session, latest.question));
+    if (latest && (mode.data === "daily" || latest.session.state !== "scored")) {
+      return jsonOk(toTodayView(latest.session, latest.question));
+    }
 
-    const { session, question } = await getOrCreateTodaySession(prisma, user.id);
+    const { session, question } = await getOrCreateTodaySession(prisma, user.id, {
+      mode: mode.data, completedFallbackId: latest?.session.id,
+    });
     return jsonOk(toTodayView(session, question));
   } catch (error) {
     if (error instanceof TrainingError || error instanceof BaselineError) {

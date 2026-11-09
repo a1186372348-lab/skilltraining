@@ -1,7 +1,9 @@
-import type { PrismaClient, TrainingSessionState } from "@prisma/client";
+import type { PrismaClient, TrainingSessionSource, TrainingSessionState } from "@prisma/client";
+import { z } from "zod";
 
 import { computeStreakDays, toDateKeyUtc } from "../dashboard/assemble";
 import { parseAbilityTags } from "../history/view";
+import { visibleTrainingResultsWhere } from "../baseline/result-visibility";
 
 import { todayUtc } from "./service";
 
@@ -12,8 +14,7 @@ import { todayUtc } from "./service";
  * - 当前卡状态机（优先级从上到下）：存在任何非基线未完成会话（取最新）→「进行中」；
  *   否则今日 daily 会话已 scored →「已完成」（附 ≤3 条维度有效分摘要）；
  *   否则今日无 daily 会话 →「未开始」；
- * - 历史列表：非基线会话 startedAt 倒序 ≤20 条（基线会话经 question.kind 排除，
- *   D26⑦/D27 同口径：基线有独立入口，不进大厅）；
+ * - 历史列表：日常会话及完成基线后有参与证据的基线会话，startedAt 倒序 ≤20 条；
  * - 连续训练天数：复用首页统计条同一口径与纯函数（有终答的会话日期，单一事实源）。
  *
  * FR-10 出口防线：rubric、hintTree 不查询、不出库（同历史模块查询纪律）。
@@ -37,9 +38,9 @@ export interface HubScoreSummary {
 
 /** 当前训练卡三态 */
 export type HubCurrentCard =
-  | { kind: "in_progress"; sessionId: string; caseTitle: string; stage: HubSessionStage }
+  | { kind: "in_progress"; sessionId: string; caseTitle: string; stage: HubSessionStage; sourceType: TrainingSessionSource }
   | { kind: "not_started"; dateKey: string }
-  | { kind: "completed"; sessionId: string; caseTitle: string; scores: HubScoreSummary[] };
+  | { kind: "completed"; sessionId: string; caseTitle: string; scores: HubScoreSummary[]; sourceType: TrainingSessionSource };
 
 /** 历史列表行 */
 export interface HubHistoryItem {
@@ -47,6 +48,10 @@ export interface HubHistoryItem {
   caseTitle: string;
   /** 是否加练（D27④：加练并入历史列表，以「加练」徽章区分） */
   isExtra: boolean;
+  isBaseline: boolean;
+  sourceType: TrainingSessionSource;
+  /** 仅本人日常包题的有效包编号可供重新进入包详情。 */
+  sourceId: string | null;
   state: TrainingSessionState;
   /** 已提交终答（前端据此区分「追问中 / 评分中」徽章） */
   hasFinalAnswer: boolean;
@@ -68,11 +73,16 @@ export interface TrainingHubView {
 export interface HubSessionRow {
   id: string;
   isExtra: boolean;
+  sourceType: TrainingSessionSource;
   state: TrainingSessionState;
   finalSubmittedAt: Date | null;
   startedAt: Date;
-  question: { caseTitle: string; abilityTags: unknown };
+  question: { kind: "baseline" | "daily"; caseTitle: string; abilityTags: unknown };
   scores: { dimension: string; effectiveScore: number }[];
+}
+
+export interface HubHistoryRow extends HubSessionRow {
+  sourceId: string | null;
 }
 
 /**
@@ -115,6 +125,7 @@ export function resolveCurrentCard(input: {
       sessionId: input.inProgress.id,
       caseTitle: input.inProgress.question.caseTitle,
       stage: hubSessionStage(input.inProgress.state, input.inProgress.finalSubmittedAt !== null),
+      sourceType: input.inProgress.sourceType,
     };
   }
   if (input.todayDailyCompleted) {
@@ -123,17 +134,21 @@ export function resolveCurrentCard(input: {
       sessionId: input.todayDailyCompleted.id,
       caseTitle: input.todayDailyCompleted.question.caseTitle,
       scores: toScoreSummaries(input.todayDailyCompleted.scores),
+      sourceType: input.todayDailyCompleted.sourceType,
     };
   }
   return { kind: "not_started", dateKey: input.todayKey };
 }
 
 /** 历史行映射：徽章字段、能力标签（防御解析）、≤3 条得分摘要、时间 ISO */
-export function toHubHistoryItem(row: HubSessionRow): HubHistoryItem {
+export function toHubHistoryItem(row: HubHistoryRow): HubHistoryItem {
   return {
     sessionId: row.id,
     caseTitle: row.question.caseTitle,
     isExtra: row.isExtra,
+    isBaseline: row.question.kind === "baseline",
+    sourceType: row.sourceType,
+    sourceId: row.question.kind === "daily" && (row.sourceType === "pack" || row.sourceType === "retest") && z.uuid().safeParse(row.sourceId).success ? row.sourceId : null,
     state: row.state,
     hasFinalAnswer: row.finalSubmittedAt !== null,
     abilityTags: parseAbilityTags(row.question.abilityTags),
@@ -146,12 +161,14 @@ export function toHubHistoryItem(row: HubSessionRow): HubHistoryItem {
 const HUB_SESSION_SELECT = {
   id: true,
   isExtra: true,
+  sourceType: true,
   state: true,
   finalSubmittedAt: true,
   startedAt: true,
-  question: { select: { caseTitle: true, abilityTags: true } },
+  question: { select: { kind: true, caseTitle: true, abilityTags: true } },
   scores: { select: { dimension: true, effectiveScore: true } },
 } as const;
+const HUB_HISTORY_SELECT = { ...HUB_SESSION_SELECT, sourceId: true } as const;
 
 /**
  * 当前训练卡数据源（T26 / D28②：首页与大厅共用同一查询 + 判定，单一事实源）：
@@ -165,7 +182,7 @@ export async function getCurrentTrainingCard(
 ): Promise<HubCurrentCard> {
   const [inProgress, todayDailyCompleted] = await Promise.all([
     db.trainingSession.findFirst({
-      where: { userId, state: { notIn: ["scored", "abandoned"] }, question: { kind: "daily" } },
+      where: { userId, sourceType: { not: "retest" }, state: { notIn: ["scored", "abandoned"] }, question: { kind: "daily" } },
       orderBy: [{ startedAt: "desc" }, { id: "desc" }],
       select: HUB_SESSION_SELECT,
     }),
@@ -174,6 +191,7 @@ export async function getCurrentTrainingCard(
         userId,
         date: todayUtc(),
         isExtra: false,
+        sourceType: { not: "retest" },
         state: "scored",
         question: { kind: "daily" },
       },
@@ -187,8 +205,7 @@ export async function getCurrentTrainingCard(
 /**
  * 装配大厅视图：当前训练卡（与首页共用 getCurrentTrainingCard，T26）+
  * 历史列表（≤20）+ 连续训练日期集，三路并行。
- * 历史与当前卡查询经 question.kind="daily" 排除基线会话（streak 日期集除外：
- * 与首页统计条同口径，基线作答同样计为训练日）。
+ * 当前卡继续排除基线；历史按结果可见性过滤；连续日期集仍包含基线作答。
  */
 export async function getTrainingHubView(
   db: DbClient,
@@ -197,10 +214,10 @@ export async function getTrainingHubView(
   const [current, historyRows, trainedDates] = await Promise.all([
     getCurrentTrainingCard(db, userId),
     db.trainingSession.findMany({
-      where: { userId, question: { kind: "daily" } },
+      where: visibleTrainingResultsWhere(userId),
       orderBy: [{ startedAt: "desc" }, { id: "desc" }],
       take: HUB_HISTORY_LIMIT,
-      select: HUB_SESSION_SELECT,
+      select: HUB_HISTORY_SELECT,
     }),
     db.trainingSession.findMany({
       where: { userId, finalAnswer: { not: null } },

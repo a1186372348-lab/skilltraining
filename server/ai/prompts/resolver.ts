@@ -14,8 +14,9 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { findActivePromptVersion } from "./repository.ts";
-import { computeContentHash, parsePromptContent, serializePromptContent } from "./registry.ts";
+import { computeContentHash, serializePromptContent } from "./registry.ts";
 import type { PromptTemplatePair } from "./template.ts";
+import { parseTrustedPrompt, PromptContractError } from "./output-contract.ts";
 
 /** 文件版 prompt 定义（prompts/scoring.v1.ts 等导出形状） */
 export interface PromptFileDefinition {
@@ -23,11 +24,12 @@ export interface PromptFileDefinition {
   version: string;
   system: string;
   user: string;
+  outputContract?: "gate-evidence-v1" | "gate-evidence-v2";
 }
 
 /** 文件版本的 DB canonical 内容与哈希（漂移比对基准） */
 export function filePromptContentOf(def: PromptFileDefinition): string {
-  return serializePromptContent({ system: def.system, user: def.user });
+  return serializePromptContent(def);
 }
 
 function filePromptHashOf(def: PromptFileDefinition): string {
@@ -50,17 +52,22 @@ export async function resolvePromptTemplates(
   const cached = templateCache.get(def.name);
   if (cached) return cached;
 
-  const filePair: PromptTemplatePair = { system: def.system, user: def.user };
-  let resolved = filePair;
+  const filePair = parseTrustedPrompt(def.name, def.version, filePromptContentOf(def));
+  if (!filePair) throw new PromptContractError();
+  let resolved: PromptTemplatePair = filePair.outputContract
+    ? { ...filePair, promptVersion: def.version, promptSource: "file" }
+    : filePair;
   const active = await findActivePromptVersion(db, def.name);
   if (active) {
-    const parsed = parsePromptContent(active.content);
+    const parsed = parseTrustedPrompt(def.name, active.version, active.content, active.contentHash);
     if (!parsed) {
       console.warn(
         `[prompt] ${def.name} 的 DB active 版本内容非法（非 JSON canonical），已回退文件版本 ${def.version}`,
       );
     } else {
-      resolved = parsed;
+      resolved = parsed.outputContract
+        ? { ...parsed, promptVersion: active.version, promptSource: "database" }
+        : parsed;
       const fileHash = filePromptHashOf(def);
       if (active.contentHash !== fileHash) {
         // 漂移观测（非硬门禁）：DB active 与 Git 文件内容不一致——通常是文件已演进但 DB 未登记新版本

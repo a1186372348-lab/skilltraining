@@ -1,0 +1,116 @@
+id: Q17
+title: Slack Huddles：哪些团队沟通需要轻量即时语音
+case_title: 不是每次沟通都值得开一场会
+case_background:
+  product:
+    text: Huddles 是 Slack 中发起即时交流的能力。
+    citations:
+      - 1
+  audience:
+    text: Slack 将其描述为供同事在频道或私信中开展临时讨论的方式；同一工作区可能同时存在需要异步回复的协作。
+    citations:
+      - 1
+      - 5
+  scenario:
+    text: 官方用办公室临时走到同事身边讨论作为类比，希望支持不必事先寻找会议时间的简短沟通。
+    citations:
+      - 1
+  features:
+    text: 2022 年介绍中，成员可以在频道或私信一键发起以音频为主的交流，参与者可进出，也可共享屏幕。
+    citations:
+      - 1
+  status:
+    text: 同年稍后的产品文章介绍了 Huddles 的进一步协作改进；当前功能与套餐限制应以最新帮助页为准。
+    citations:
+      - 2
+      - 3
+      - 4
+case_sources:
+  - id: 1
+    title: Slack 即时协作工具介绍
+    publisher: Slack
+    url: https://slack.com/intl/en-gb/blog/collaboration/new-tools-to-help-you-work-from-anywhere
+  - id: 2
+    title: Huddles 新协作空间
+    publisher: Slack
+    url: https://slack.com/blog/productivity/introducing-new-ways-to-work-in-slack-huddles
+  - id: 3
+    title: 如何使用 Huddles
+    publisher: Slack 帮助
+    url: https://slack.com/help/articles/4402059015315-Use-huddles-in-Slack
+  - id: 4
+    title: Slack 套餐与功能
+    publisher: Slack 帮助
+    url: https://slack.com/help/articles/115003205446-Slack-plans-and-features
+  - id: 5
+    title: 如何减少会议并保持团队同步
+    publisher: Slack
+    url: https://slack.com/blog/productivity/stay-informed-aligned-slack
+main_question: 如果你要决定在哪些协作场景优先推荐 Huddles，请按任务和沟通条件区分至少两类用户情境：什么情况下即时语音可能合适，什么情况下文字或正式会议可能更合适？为其中一种情境提出入口或提示方案，并说明你如何验证。
+ability_tags:
+  - 用户理解
+  - 问题定义
+  - 方案设计
+difficulty: 基础
+domain: 办公协同
+kind: daily
+rubric:
+  dimensions:
+    用户理解:
+      - 以任务紧急度、讨论复杂度、参与者可用性或记录需求等具体条件分场景，而非只按职位分类。
+      - 指出即时语音和异步文字可能各自适用的边界，并说明同一人会随任务切换。
+      - 不把官方描述的设计动机当作已证明的用户效率或满意度。
+    问题定义:
+      - 将宽泛的沟通低效转化为具体可观察问题与受影响任务。
+      - 区分等待回复、会议安排与决定未被记录等不同问题，避免预设只有一个原因。
+      - 说明在确定优先解决哪个问题前还需要核实什么。
+    方案设计:
+      - 为选定场景提出明确入口、用户动作和结束后交接方式。
+      - 考虑参与者不在线、听障需求或需要留下决定等至少一项例外。
+      - 给出可行的验证方式及不会被单一使用次数误导的体验指标。
+  forbidden_leaks:
+    - 完整的场景分层、入口设计与验证指标组合。
+    - 即时语音一定优于文字或正式会议的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 先想一个团队要完成的具体任务：它是否需要所有人同时在线？
+  - level: 2
+    stage: 视角补充
+    question: 同一名员工什么时候需要立即讨论，什么时候更适合留下文字？
+  - level: 3
+    stage: 反例与风险
+    question: 如果参与者没空或后来的人需要知道结论，轻量语音有哪些限制？
+  - level: 4
+    stage: 取舍权衡
+    question: 入口应放在哪个现有任务附近，才不会让所有讨论都变成语音？
+  - level: 5
+    stage: 验证方式
+    question: 除发起次数外，怎样判断团队是否真正完成了任务？
+materials:
+  core:
+    - title: Slack 即时协作工具介绍
+      source: Slack
+      url: https://slack.com/intl/en-gb/blog/collaboration/new-tools-to-help-you-work-from-anywhere
+      summary: 2022 年介绍 Huddles 的音频优先、频道发起和屏幕共享场景。
+    - title: Huddles 新协作空间
+      source: Slack
+      url: https://slack.com/blog/productivity/introducing-new-ways-to-work-in-slack-huddles
+      summary: Slack 后续介绍 Huddles 的协作空间与消息线程；时间晚于最初案例。
+  extended:
+    - title: 如何使用 Huddles
+      source: Slack 帮助
+      url: https://slack.com/help/articles/4402059015315-Use-huddles-in-Slack
+      summary: 当前帮助页说明在频道或私信发起 Huddle 的方式与限制。
+    - title: Slack 套餐与功能
+      source: Slack 帮助
+      url: https://slack.com/help/articles/115003205446-Slack-plans-and-features
+      summary: 当前套餐表展示不同方案的功能差异；不能倒推 2022 年套餐细节。
+    - title: 如何减少会议并保持团队同步
+      source: Slack
+      url: https://slack.com/blog/productivity/stay-informed-aligned-slack
+      summary: 2021 年文章讨论利用消息和反馈减少额外会议，属于 Slack 的产品建议。
+uncertainty:
+  - 材料主要为 Slack 的产品描述和建议，未证明 Huddles 一定减少会议或提高效率。
+  - 帮助文档及后续功能为不同时间的材料，不能将当前套餐或能力倒填 2022 年。
+status: published

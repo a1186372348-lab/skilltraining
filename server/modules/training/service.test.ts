@@ -5,6 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { TRAINING_ERROR_CODES as CODES, TrainingError } from "./errors";
 import { parseFollowupGateSkip } from "./today-view";
+import { weekStartUtc } from "@/server/modules/planning";
+
 import {
   getLatestDailySession,
   getOrCreateExtraSession,
@@ -924,5 +926,42 @@ describe("getLatestDailySession：当天最近非基线会话（T21）", () => {
   it("当天无任何会话：返回 null", async () => {
     const userId = await newUser();
     expect(await getLatestDailySession(prisma, userId)).toBeNull();
+  });
+});
+
+describe("sourceType/sourceId 透传落库（T29 切片 3 / BR-V2-1）", () => {
+  it("计划命中：今日会话落 sourceType=plan + sourceId=计划 id；无计划用户落 daily", async () => {
+    const userId = await newUser();
+    // 本周计划：主攻「用户理解」（共享种子题 a1 的 abilityTags 首位命中）
+    const plan = await prisma.trainingPlan.create({
+      data: {
+        userId,
+        weekStartDate: weekStartUtc(new Date()),
+        focusDimension: "用户理解",
+        startScore: 55,
+        targetScore: 65,
+        reason: "「用户理解」是你当前最弱的维度（当前 55 分），本周集中攻它，目标 65 分。",
+      },
+    });
+    const { session } = await getOrCreateTodaySession(prisma, userId);
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.sourceType).toBe("plan");
+    expect(row.sourceId).toBe(plan.id);
+
+    // 无计划用户：今日会话落 daily（向后兼容）
+    const other = await newUser();
+    const daily = await getOrCreateTodaySession(prisma, other);
+    const dailyRow = await prisma.trainingSession.findUniqueOrThrow({ where: { id: daily.session.id } });
+    expect(dailyRow.sourceType).toBe("daily");
+    expect(dailyRow.sourceId).toBeNull();
+  });
+
+  it("加练会话落 sourceType=extra（不透传选题结果的 plan）", async () => {
+    const userId = await newUser();
+    const { session } = await getOrCreateExtraSession(prisma, userId);
+    const row = await prisma.trainingSession.findUniqueOrThrow({ where: { id: session.id } });
+    expect(row.sourceType).toBe("extra");
+    expect(row.sourceId).toBeNull();
+    expect(row.isExtra).toBe(true); // 既有语义不变
   });
 });

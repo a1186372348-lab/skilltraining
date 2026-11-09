@@ -96,7 +96,9 @@ describe("aiClient.chatCompletion", () => {
     expect(body).toMatchObject({
       model: AI_MODEL,
       temperature: 0.2,
-      max_completion_tokens: 128,
+      max_tokens: 128,
+      thinking: { type: "enabled" },
+      reasoning_effort: "high",
       response_format: { type: "json_object" },
     });
   });

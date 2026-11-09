@@ -2,10 +2,15 @@ import type { PrismaClient, Question } from "@prisma/client";
 
 import { SCORING_PROMPT_V1 } from "@/server/ai/prompts/scoring.v1";
 import { resolvePromptTemplates } from "@/server/ai/prompts/resolver";
+import { withUserTransaction } from "@/server/lib/user-transaction";
 import { refreshAbilityProfile } from "@/server/modules/profile/ability";
+import { nextScoringMetadataInTransaction } from "@/server/modules/stages";
 import { independenceCoefficient } from "@/server/modules/training/coefficient";
 import { nextState } from "@/server/modules/training/state-machine";
 import { parseFollowupRecords } from "@/server/modules/training/today-view";
+import { safelyAdvancePack, type PackScoredHook } from "./pack-hook";
+import { assertRetestTarget } from "./retest-target";
+import { safelyReconcileStages, type StageScoredHook } from "./stage-hook";
 
 import { SCORING_ERROR_CODES as CODES, ScoringError } from "./errors.ts";
 import {
@@ -39,6 +44,7 @@ export interface DimensionScoreResult {
   coefficient: number;
   effectiveScore: number;
   diagnosisText: string | null;
+  confidence: number | null;
 }
 
 export interface ScoreSessionResult {
@@ -51,6 +57,10 @@ export interface ScoreSessionResult {
 export interface ScoreSessionDeps {
   /** AI 评分实现（测试注入 mock；缺省走 AI 网关真实调用，DeepSeek，D39） */
   scoreWithRubric?: (input: RubricScoringInput) => Promise<RubricScoringOutput>;
+  /** 评分提交后独立推进训练包，失败不影响评分。 */
+  afterPackScored?: PackScoredHook;
+  /** 评分提交后独立恢复阶段，失败不影响评分。 */
+  afterStagesScored?: StageScoredHook;
 }
 
 /** 并发评分冲突标记：事务内守卫未命中时抛出以回滚，外层捕获后按幂等返回 */
@@ -59,6 +69,13 @@ class ConcurrentScoringError extends Error {}
 /** 保留两位小数：避免 0.8 等系数带来的二进制浮点长尾落库 */
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** 历史异常值不应中断反馈，也不能伪装为有效置信度。 */
+function confidenceOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100
+    ? value
+    : null;
 }
 
 /** 提取该题能力标签覆盖维度的 Rubric（BR-1：只评这些维度；顺序与能力标签一致） */
@@ -104,6 +121,7 @@ async function readExistingResult(
       coefficient: row.coefficient,
       effectiveScore: row.effectiveScore,
       diagnosisText: row.diagnosisText,
+      confidence: confidenceOf(row.confidence),
     })),
     feedback: {
       topIssueText: feedback?.topIssueText ?? "",
@@ -149,11 +167,21 @@ export async function scoreSession(
     throw new ScoringError(CODES.SESSION_NOT_FOUND, 404, "训练会话不存在");
   }
 
-  const rubricDimensions = extractRubricDimensions(session.question);
-
   // 幂等：已有有效评分 → 返回既有结果，不重复调 AI、不重复落库
-  const existing = await readExistingResult(db, sessionId, Object.keys(rubricDimensions));
-  if (existing) return { sessionId, state: "scored", ...existing };
+  const savedDimensions = Array.isArray(session.scoredDimensions)
+    ? session.scoredDimensions.filter((value): value is string => typeof value === "string")
+    : [];
+  const tags = Array.isArray(session.question.abilityTags)
+    ? session.question.abilityTags.filter((value): value is string => typeof value === "string") : [];
+  const existing = await readExistingResult(db, sessionId, savedDimensions.length ? savedDimensions : tags);
+  if (existing) {
+    await safelyAdvancePack(db, userId, session, deps.afterPackScored);
+    await safelyReconcileStages(db, userId, deps.afterStagesScored);
+    return { sessionId, state: "scored", ...existing };
+  }
+
+  const rubricDimensions = extractRubricDimensions(session.question);
+  await assertRetestTarget(db, session, rubricDimensions);
 
   // 守卫：T05 约定终答落库后状态停留 followup；scored 前必须已提交终答
   if (session.state !== "followup") {
@@ -187,16 +215,18 @@ export async function scoreSession(
 
   // 有效分四元组（BR-1/BR-2 修订：系数复用 training 实现，含追问提示半价项，D22）
   const coefficient = independenceCoefficient(session.hintCount, session.followupHintCount);
-  const scoredAt = new Date();
-
   try {
-    return await db.$transaction(async (tx) => {
+    const result = await withUserTransaction(db, userId, async context => {
+      const { tx } = context;
+      const scoredAt = new Date();
       // 原子推进状态：守卫条件保证并发下只有一方完成落库
       const advanced = await tx.trainingSession.updateMany({
-        where: { id: sessionId, userId, state: "followup" },
+        where: { id: sessionId, userId, state: "followup", finalSubmittedAt: { not: null } },
         data: { state: "scored", scoredAt },
       });
       if (advanced.count === 0) throw new ConcurrentScoringError();
+      const metadata = await nextScoringMetadataInTransaction(context, Object.keys(rubricDimensions));
+      await tx.trainingSession.update({ where: { id: sessionId }, data: metadata });
 
       await tx.score.createMany({
         data: output.dimensions.map((d) => ({
@@ -207,6 +237,8 @@ export async function scoreSession(
           coefficient,
           effectiveScore: round2(d.rawScore * coefficient),
           diagnosisText: d.diagnosis,
+          // T28 / BR-V2-6：评分置信度（可空；null = 无置信度信息，T27 不触发加深判定）
+          confidence: output.confidence,
         })),
       });
       await tx.sessionFeedback.create({
@@ -221,7 +253,7 @@ export async function scoreSession(
 
       return {
         sessionId,
-        state: "scored",
+        state: "scored" as const,
         scores: output.dimensions.map((d) => ({
           dimension: d.dimension,
           rawScore: d.rawScore,
@@ -229,15 +261,23 @@ export async function scoreSession(
           coefficient,
           effectiveScore: round2(d.rawScore * coefficient),
           diagnosisText: d.diagnosis,
+          confidence: confidenceOf(output.confidence),
         })),
         feedback: { topIssueText: output.topIssue, nextFocusText: output.nextFocus },
       };
     });
+    await safelyAdvancePack(db, userId, session, deps.afterPackScored);
+    await safelyReconcileStages(db, userId, deps.afterStagesScored);
+    return result;
   } catch (error) {
     if (error instanceof ConcurrentScoringError) {
       // 并发另一方已完成评分：按幂等返回既有结果
       const fallback = await readExistingResult(db, sessionId, Object.keys(rubricDimensions));
-      if (fallback) return { sessionId, state: "scored", ...fallback };
+      if (fallback) {
+        await safelyAdvancePack(db, userId, session, deps.afterPackScored);
+        await safelyReconcileStages(db, userId, deps.afterStagesScored);
+        return { sessionId, state: "scored", ...fallback };
+      }
     }
     throw error;
   }

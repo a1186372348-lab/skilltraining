@@ -10,6 +10,9 @@
 export interface PromptTemplatePair {
   system: string;
   user: string;
+  outputContract?: "gate-evidence-v1" | "gate-evidence-v2";
+  promptVersion?: string;
+  promptSource?: "file" | "database";
 }
 
 const SLOT_PATTERN = /\{\{(\w+)\}\}/g;

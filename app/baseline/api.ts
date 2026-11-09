@@ -1,4 +1,5 @@
 import type { BaselineStatusView } from "./view-model";
+import { ApiError } from "../training/session/api";
 
 /**
  * /baseline 页 API 适配层（T17a / D19；T36 / D38）。
@@ -14,17 +15,15 @@ interface ApiEnvelope<T> {
   error?: { code: string; message: string };
 }
 
-/** 真实接口调用：解析统一响应封装，失败时抛出带服务端 message 的错误 */
-async function callApi<T>(path: string): Promise<T> {
-  const res = await fetch(path, { headers: { "content-type": "application/json" } });
-  const json = (await res.json()) as ApiEnvelope<T>;
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message ?? "请求失败，请稍后重试");
-  }
-  return json.data as T;
-}
-
 /** GET /api/training/baseline：基线状态（required=false 即无需基线，老用户直达日常） */
 export async function fetchBaselineStatus(): Promise<BaselineStatusView> {
-  return callApi<BaselineStatusView>("/api/training/baseline");
+  const res = await fetch("/api/training/baseline", { headers: { "content-type": "application/json" } });
+  if (res.status === 401) {
+    throw new ApiError("UNAUTHORIZED", "未登录或登录已过期");
+  }
+  const json = (await res.json().catch(() => null)) as ApiEnvelope<BaselineStatusView> | null;
+  if (!res.ok || !json?.success || !json.data) {
+    throw new ApiError(json?.error?.code ?? "UNKNOWN", json?.error?.message ?? "测评暂时无法加载，请重试");
+  }
+  return json.data;
 }

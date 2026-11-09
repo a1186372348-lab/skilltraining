@@ -1,0 +1,95 @@
+id: Q33
+title: "Steam 家庭共享：怎样取舍资源共享和游戏访问限制"
+case_title: "共享游戏库时，谁能先玩？"
+case_background:
+  product:
+    text: 2014 年 2 月 28 日，Valve 宣布 Steam Family Library Sharing 向 Steam 用户开放。
+    citations:
+      - 1
+  audience:
+    text: 该功能面向共用电脑、希望共享游戏库的玩家；各人可保留自己的成就和云存档。
+    citations:
+      - 1
+  scenario:
+    text: 2014 年报道说明，一个共享游戏库同一时间只能由一人使用，即使两人想玩不同游戏也有冲突。
+    citations:
+      - 2
+  features:
+    text: 玩家可授权共用电脑访问游戏库；2014 年报道说所有者开始使用时，借用者会收到提示并需退出。2013 年测试公告还提及购买游戏的选择。
+    citations:
+      - 1
+      - 2
+      - 3
+  status:
+    text: 这道题以 2014 年开放时的共享库限制为决策背景；资料未提供销售、并发需求或开发者反馈数据。
+    citations:
+      - 1
+      - 2
+case_sources:
+  - id: 1
+    title: Steam Family Library Sharing is Now Available
+    publisher: Valve
+    url: https://store.steampowered.com/oldnews/12543
+  - id: 2
+    title: Steam Family Sharing launches today
+    publisher: PCGamesN
+    url: https://www.pcgamesn.com/steam-family-sharing-launches-today
+  - id: 3
+    title: Steam Announces Family Sharing
+    publisher: Valve
+    url: https://store.steampowered.com/oldnews/11436
+main_question: 回到 2014 年开放时，假设你负责评估是否放宽‘一个共享库同时只能一人使用’的限制。可选方向包括保留现状、允许同一库中不同游戏并行，或允许同一份游戏同时多人玩。请选一个方向，比较借用者、所有者、游戏开发者与平台的价值和风险；说明访问冲突时的规则、如何向用户解释，以及在缺少销售和使用数据的情况下先验证什么。请区分已给事实与自己的假设。
+ability_tags: [产品取舍, 产品价值判断, 方案设计]
+difficulty: 挑战
+domain: 游戏/娱乐
+rubric:
+  dimensions:
+    产品取舍:
+      - 比较至少两个访问规则，明确选择及放弃的收益。
+      - 分别讨论借用者、库所有者、开发者和平台的潜在收益与风险。
+      - 考虑同一游戏并发与不同游戏并发的区别，不将未知收入影响当事实。
+      - 为所选规则提出调整或暂停的触发条件。
+    产品价值判断:
+      - 说明共享可能增加哪些使用机会，并区分体验改善与商业结果。
+      - 识别所有者随时访问、借用者不中断和内容权益之间的冲突。
+      - 承认没有实际使用、销售或开发者反馈数据，价值结论只是待验证判断。
+    方案设计:
+      - 写清谁可访问、何时冲突、被拒绝或中断时用户看到什么。
+      - 为资格或授权不明确的游戏提供处理方式，不承诺全部游戏都支持。
+      - 提出小范围验证以及至少一个用户体验与一个内容方风险观察指标。
+  forbidden_leaks:
+    - 在用户完成判断前替其选定某一访问规则并代写完整取舍。
+    - 代写访问冲突处理与验证方案；题目本身列出的备选方向和必要规则可以说明。
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "现行限制约束的是单个游戏，还是整个共享库？"}
+  - {level: 2, stage: 视角补充, question: "同一家庭中的所有者与借用者、游戏开发者和平台分别希望保护什么？"}
+  - {level: 3, stage: 反例与风险, question: "如果两人同时玩不同游戏，与同时玩同一游戏，风险一定相同吗？"}
+  - {level: 4, stage: 取舍权衡, question: "放宽访问能减少什么冲突，又可能让哪些权益或收入预期受到影响？"}
+  - {level: 5, stage: 验证方式, question: "在不知道销售影响时，你会先观察哪些冲突、体验和内容方信号来决定下一步？"}
+materials:
+  core:
+    - title: Steam Family Library Sharing is Now Available
+      source: Valve
+      url: https://store.steampowered.com/oldnews/12543
+      summary: 2014 年官方公告说明共享设备、独立成就和云存档。
+    - title: Steam Family Sharing launches today
+      source: PCGamesN
+      url: https://www.pcgamesn.com/steam-family-sharing-launches-today
+      summary: 2014 年 2 月同期报道说明共享库并发限制、所有者优先以及部分游戏不能共享。
+  extended:
+    - title: Steam Announces Family Sharing
+      source: Valve
+      url: https://store.steampowered.com/oldnews/11436
+      summary: 2013 年测试公告解释共享动机及所有者优先规则。
+    - title: Valve launches Steam Family Sharing for all users
+      source: TechSpot
+      url: https://www.techspot.com/news/55856-valve-launches-steam-family-sharing-for-all-users.html
+      summary: 2014 年同期报道说明共享库一次仅能一人访问及游戏所有者优先。
+    - title: Steam Family Sharing now requires a two-factor authorization process
+      source: GameSpot
+      url: https://www.gamespot.com/articles/steam-family-sharing-now-requires-a-two-factor-authorization-process/1100-6416934/
+      summary: 2014 年 1 月报道说明测试期授权设备与账户的安排。
+uncertainty:
+  - 这是 2014 年开放时的旧版规则练习，未掌握销售、并发需求和开发者反馈数据。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

@@ -1,4 +1,4 @@
-import type { Question, TrainingSession, TrainingSessionState } from "@prisma/client";
+import type { Question, TrainingSession, TrainingSessionSource, TrainingSessionState } from "@prisma/client";
 
 import { independenceCoefficient } from "./coefficient";
 
@@ -130,6 +130,8 @@ export interface FollowupView {
 
 export interface TodayView {
   sessionId: string;
+  sourceType: TrainingSessionSource;
+  sourceId: string | null;
   state: TrainingSessionState;
   date: string; // ISO 日期（每日一题归属日）
   /** 会话用途（T17a / D19）：基线未完成时 today 接口返回基线会话（kind=baseline） */
@@ -265,6 +267,8 @@ export function toTodayView(
   const { caseBackground, caseSources } = splitCaseBackground(question.caseBackground);
   return {
     sessionId: session.id,
+    sourceType: session.sourceType,
+    sourceId: session.sourceId,
     state: session.state,
     date: session.date.toISOString().slice(0, 10),
     kind: extras.kind ?? "daily",

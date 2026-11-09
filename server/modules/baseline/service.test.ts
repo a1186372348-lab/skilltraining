@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PrismaClient, Question, TrainingSession } from "@prisma/client";
 
+import { ABILITY_DIMENSIONS } from "@/server/modules/profile/schema";
 import { createPrismaSelectionRepository } from "@/server/modules/selection/repository";
 import { selectTodayQuestion } from "@/server/modules/selection/service";
 
@@ -87,6 +88,10 @@ function makeDb(config: StubConfig) {
         calls.updateManyArgs.push(args);
         return { count: config.updateManyCount ?? (config.profile ? 1 : 0) };
       },
+    },
+    abilityProfile: {
+      // T27 切片 3：完成后八维预览事实源；存量用例默认无记录（全部未知态）
+      findMany: async () => [],
     },
     trainingSession: {
       findMany: async (args: unknown) => {
@@ -287,7 +292,7 @@ describe("getBaselineStatus：门禁分支（D19 / BR-9）", () => {
 });
 
 describe("getOrCreateBaselineSession：会话复用训练闭环", () => {
-  it("创建指向 nextQuestion 的会话：isExtra=true（不占每日一题槽位）、状态 reading", async () => {
+  it("创建指向 nextQuestion 的会话：isExtra=true（不占每日一题槽位）、状态 reading、sourceType=baseline（T29 透传）", async () => {
     const { db, calls } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, sessions: [] });
     const result = await getOrCreateBaselineSession(db, "u-1");
     expect(result.question.id).toBe(Q1.id);
@@ -297,6 +302,7 @@ describe("getOrCreateBaselineSession：会话复用训练闭环", () => {
       questionId: Q1.id,
       isExtra: true, // 每日一题按 isExtra=false 唯一复用，基线会话不得占用该槽位
       state: "reading",
+      sourceType: "baseline", // T29：基线题会话透传落库（P3 公共前置）
     });
     expect(calls.sessionCreateData[0]?.date).toBeInstanceOf(Date);
   });
@@ -394,4 +400,383 @@ describe("选题引擎日常题池排除 kind=baseline（T17a / BR-9）", () => 
       expect(args).toMatchObject({ where: { status: "published", kind: "daily" } });
     }
   });
+});
+
+/* ============================== T27 切片 2：八维题序与加深（D30 / BR-V2-6） ============================== */
+
+/** 带主测维度标签的基线题（八维归位与加深判定的前提；abilityTags 首位即主测维度） */
+function makeTaggedQuestion(id: string, firstTag: string): Question {
+  return {
+    id,
+    caseTitle: `基线题 ${id}`,
+    status: "published",
+    kind: "baseline",
+    abilityTags: [firstTag, "辅测维度"],
+  } as unknown as Question;
+}
+
+/** 八维各 2 道候选的完整题库（id 形如 d<维序号>-<a 主题/b 加深>） */
+function taggedPool(): Question[] {
+  return ABILITY_DIMENSIONS.flatMap((dimension, index) => [
+    makeTaggedQuestion(`d${index}-a`, dimension),
+    makeTaggedQuestion(`d${index}-b`, dimension),
+  ]);
+}
+
+/** 已评分会话的置信度行（repository listBaselineConfidences 的返回形状） */
+function confOf(questionId: string, confidence: number | null) {
+  return { confidence, session: { questionId } };
+}
+
+/** 带置信度桩的配置（StubConfig 超集；新增字段不影响存量用例） */
+function makeTaggedDb(
+  config: StubConfig & { confidenceRows?: unknown[]; abilityScores?: { dimension: string; currentScore: number | null }[] },
+) {
+  const { db, calls } = makeDb(config);
+  const extra = db as unknown as {
+    score: { findMany: (args: unknown) => Promise<unknown> };
+    abilityProfile: { findMany: (args: unknown) => Promise<unknown> };
+  };
+  extra.score = { findMany: async () => config.confidenceRows ?? [] };
+  extra.abilityProfile = { findMany: async () => config.abilityScores ?? [] };
+  return { db, calls };
+}
+
+const P = (index: number, candidate: "a" | "b" = "a") => `d${index}-${candidate}`;
+
+describe("getBaselineStatus：八维固定题序（T27 / D30；V1 id 升序语义迁移）", () => {
+  it("新用户：题序按 ABILITY_DIMENSIONS 八维顺序（乱序题库归位），total=8（8 主题，非上架 16 道）", async () => {
+    const { db } = makeTaggedDb({
+      baselineQuestions: [...taggedPool()].reverse(),
+      profile: null,
+      sessions: [],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.total).toBe(8); // total 语义迁移：8 + 已触发加深数（原为实际上架数）
+    expect(status.required).toBe(true);
+    expect(status.nextQuestion?.id).toBe(P(0)); // 问题定义主题（八维首位，而非 id 最小题）
+  });
+
+  it("第 1 题仅作答未评分：nextQuestion 推进到第 2 维主题；未评分不触发加深（时序：首题评分完成后）", async () => {
+    const { db } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: null,
+      sessions: [answeredSession(P(0))],
+      confidenceRows: [], // 尚无评分落库
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.total).toBe(8); // 评分未落库 → 尚无加深
+    expect(status.nextQuestion?.id).toBe(P(1));
+  });
+
+  it("存量无八维标注的基线题（V1 综合题形态）→ 回退 id 升序语义（兼容桥，total=上架数）", async () => {
+    const { db } = makeDb({ baselineQuestions: [Q1, Q2], profile: null, sessions: [] });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.total).toBe(2);
+    expect(status.nextQuestion?.id).toBe(Q1.id);
+  });
+});
+
+describe("getBaselineStatus：confidence 加深触发与序列（BR-V2-6）", () => {
+  it("首题评分 confidence < 70 → 该维加深题插入同维主题之后；下一题为加深题（首题评分完成后出现）", async () => {
+    const { db } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: null,
+      sessions: [scoredSession(P(0))],
+      confidenceRows: [confOf(P(0), 60)],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.total).toBe(9); // 8 + 1 维加深
+    expect(status.nextQuestion?.id).toBe(P(0, "b")); // 加深题紧随同维主题
+  });
+
+  it("confidence 边界：= 70 不触发、NULL 不触发、69 触发", async () => {
+    const at70 = await getBaselineStatus(
+      makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: [scoredSession(P(0))], confidenceRows: [confOf(P(0), 70)] }).db,
+      "u-1",
+    );
+    expect(at70.total).toBe(8);
+    const nullConf = await getBaselineStatus(
+      makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: [scoredSession(P(0))], confidenceRows: [confOf(P(0), null)] }).db,
+      "u-1",
+    );
+    expect(nullConf.total).toBe(8);
+    const at69 = await getBaselineStatus(
+      makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: [scoredSession(P(0))], confidenceRows: [confOf(P(0), 69)] }).db,
+      "u-1",
+    );
+    expect(at69.total).toBe(9);
+  });
+
+  it("每维至多 1 次；>4 维低置信度按八维顺序至多 4 维加深（total=12 封顶）", async () => {
+    const allScored = ABILITY_DIMENSIONS.map((_, i) => scoredSession(P(i)));
+    const allLow = ABILITY_DIMENSIONS.map((_, i) => confOf(P(i), 0));
+    const { db } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: allScored, confidenceRows: allLow });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.total).toBe(12); // 8 + 4 维加深封顶（D30）
+    expect(status.required).toBe(true); // 加深题未作答，未完成
+    expect(status.nextQuestion?.id).toBe(P(0, "b")); // 第 1 道待答 = 八维首维加深题
+  });
+
+  it("阈值注入：deps.deepenThreshold=50 时 60 分不触发", async () => {
+    const { db } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: null,
+      sessions: [scoredSession(P(0))],
+      confidenceRows: [confOf(P(0), 60)],
+    });
+    const status = await getBaselineStatus(db, "u-1", { deepenThreshold: 50 });
+    expect(status.total).toBe(8);
+  });
+});
+
+describe("getBaselineStatus：含加深题的完成判定与断点续测（T27 切片 2）", () => {
+  it("8 主题全部评分（无加深）→ 守卫写入完成标记；重复调用不重复写（边界：8 题无加深）", async () => {
+    const allScored = ABILITY_DIMENSIONS.map((_, i) => scoredSession(P(i)));
+    const allHigh = ABILITY_DIMENSIONS.map((_, i) => confOf(P(i), 95));
+    const marker = new Date("2026-10-22T09:00:00Z");
+    const { db, calls } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: { baselineCompletedAt: null }, profileAfterWrite: { baselineCompletedAt: marker }, sessions: allScored, confidenceRows: allHigh });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.total).toBe(8);
+    expect(status.required).toBe(false);
+    expect(status.completedAt).not.toBeNull();
+    expect(calls.updateManyArgs).toHaveLength(1);
+    // 重复调用：标记已存在 → 不再写
+    const again = await getBaselineStatus(db, "u-1");
+    expect(again.required).toBe(false);
+    expect(again.completedAt?.getTime()).toBe(marker.getTime()); // 回读首次写入的标记（幂等）
+    expect(calls.updateManyArgs).toHaveLength(1);
+  });
+
+  it("含加深题未完成：加深题已作答未评分不写标记；加深题评完才守卫写入", async () => {
+    const primariesScored = ABILITY_DIMENSIONS.map((_, i) => scoredSession(P(i)));
+    const { db, calls } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: { baselineCompletedAt: null },
+      sessions: [...primariesScored, answeredSession(P(0, "b"))],
+      confidenceRows: [confOf(P(0), 60), ...ABILITY_DIMENSIONS.slice(1).map((_, i) => confOf(P(i + 1), 95))],
+    });
+    const pending = await getBaselineStatus(db, "u-1");
+    expect(pending.total).toBe(9);
+    expect(pending.required).toBe(true); // 加深题未评分 → 未完成
+    expect(calls.updateManyArgs).toHaveLength(0);
+
+    // 加深题评分落库 → 全部评完才写
+    const { db: db2, calls: calls2 } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: { baselineCompletedAt: null },
+      sessions: [...primariesScored, scoredSession(P(0, "b"))],
+      confidenceRows: [confOf(P(0), 60), ...ABILITY_DIMENSIONS.slice(1).map((_, i) => confOf(P(i + 1), 95))],
+    });
+    const done = await getBaselineStatus(db2, "u-1");
+    expect(done.required).toBe(false);
+    expect(done.completedAt).not.toBeNull();
+    expect(calls2.updateManyArgs).toHaveLength(1);
+  });
+
+  it("断点续测：已答前 3 维且首维触发加深 → getOrCreate 回到首维加深题；已评分题不重复作答；复用既有会话幂等", async () => {
+    const sessions = [scoredSession(P(0)), scoredSession(P(1)), scoredSession(P(2))];
+    const confidenceRows = [confOf(P(0), 60), confOf(P(1), 95), confOf(P(2), 95)];
+    const { db, calls } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions, confidenceRows });
+    const result = await getOrCreateBaselineSession(db, "u-1");
+    expect(result.question.id).toBe(P(0, "b")); // 当前应继续的题 = 首维加深题（非第 4 维）
+    expect(calls.sessionCreateData[0]).toMatchObject({ questionId: P(0, "b"), isExtra: true });
+
+    // 该题已存在会话 → 幂等复用不新建（断点恢复）
+    const existing = { id: "session-deepen", question: { id: P(0, "b") } } as unknown as TrainingSession;
+    const { db: db2, calls: calls2 } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: null,
+      sessions,
+      confidenceRows,
+      existingSession: existing,
+    });
+    const reused = await getOrCreateBaselineSession(db2, "u-1");
+    expect(reused.session.id).toBe("session-deepen");
+    expect(calls2.sessionCreateData).toHaveLength(0);
+  });
+
+  it("题库无基线题兜底保留：required=false（与本切片题序逻辑无关的既有语义）", async () => {
+    const { db } = makeTaggedDb({ baselineQuestions: [], profile: null, sessions: [] });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.required).toBe(false);
+    expect(status.total).toBe(0);
+  });
+});
+
+describe("getBaselineStatus：逐题进度 items 与 scoringPending（T27 切片 3）", () => {
+  it("新用户：items 按序列下发（orderIndex 位次、dimension、isDeepen=false），首题为 active 其余 pending", async () => {
+    const { db } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: [] });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.items).toHaveLength(8);
+    expect(status.items[0]).toEqual({
+      questionId: P(0),
+      dimension: "问题定义",
+      orderIndex: 0,
+      state: "active", // 当前应继续的题
+      isDeepen: false,
+    });
+    expect(status.items[1]).toMatchObject({ questionId: P(1), dimension: "用户理解", orderIndex: 1, state: "pending" });
+    expect(status.items.map((i) => i.dimension)).toEqual([...ABILITY_DIMENSIONS]);
+    expect(status.scoringPending).toBe(false);
+  });
+
+  it("state 迁移：已作答未评分 → active（评分/判定中）；已评分 → scored；触发后加深题入列 isDeepen=true，未触发不入列", async () => {
+    const { db } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: null,
+      sessions: [scoredSession(P(0)), answeredSession(P(1))],
+      confidenceRows: [confOf(P(0), 60)],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.items.map((i) => i.questionId)).toEqual([P(0), P(0, "b"), ...ABILITY_DIMENSIONS.slice(1).map((_, i) => P(i + 1))]);
+    const byId = new Map(status.items.map((i) => [i.questionId, i]));
+    expect(byId.get(P(0))).toMatchObject({ state: "scored", isDeepen: false });
+    expect(byId.get(P(0, "b"))).toMatchObject({ state: "active", isDeepen: true, orderIndex: 1 }); // 加深题紧随同维主题
+    expect(byId.get(P(1))).toMatchObject({ state: "active", isDeepen: false }); // 已作答未评分
+    expect(byId.get(P(2))).toMatchObject({ state: "pending" });
+    expect(status.scoringPending).toBe(true); // 有序列内已作答未评分会话
+    // 未触发的加深候选绝不出现在 items
+    expect(status.items.some((i) => i.isDeepen && i.questionId === P(1, "b"))).toBe(false);
+  });
+
+  it("scoringPending 语义：全部已作答且有未评分 → true；全部评完或全部未答 → false", async () => {
+    const allAnswered = ABILITY_DIMENSIONS.map((_, i) => answeredSession(P(i)));
+    const { db } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: allAnswered });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.scoringPending).toBe(true);
+    const allScored = ABILITY_DIMENSIONS.map((_, i) => scoredSession(P(i)));
+    const { db: db2 } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: allScored, confidenceRows: ABILITY_DIMENSIONS.map((_, i) => confOf(P(i), 95)) });
+    expect((await getBaselineStatus(db2, "u-1")).scoringPending).toBe(false);
+  });
+
+  it("兼容桥（存量无标注题）：items 照出、dimension 为 null、state 迁移一致", async () => {
+    const { db } = makeDb({
+      baselineQuestions: [Q1, Q2],
+      profile: null,
+      sessions: [answeredSession(Q1.id)],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.items).toHaveLength(2);
+    expect(status.items[0]).toMatchObject({ questionId: Q1.id, dimension: null, state: "active", isDeepen: false });
+    expect(status.items[1]).toMatchObject({ questionId: Q2.id, dimension: null, state: "active" }); // 当前待作答第一题
+  });
+});
+
+describe("getBaselineStatus：完成后八维点亮预览 dimensionPreview（BR-6 未知态口径）", () => {
+  it("未完成：dimensionPreview 为 null；完成：八维齐全、有分给付分、无分为 null（维度分=历史有效分简单平均，未知不落 0）", async () => {
+    const inProgress = await getBaselineStatus(
+      makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: [] }).db,
+      "u-1",
+    );
+    expect(inProgress.dimensionPreview).toBeNull();
+
+    const allScored = ABILITY_DIMENSIONS.map((_, i) => scoredSession(P(i)));
+    const { db } = makeTaggedDb({
+      baselineQuestions: taggedPool(),
+      profile: { baselineCompletedAt: null },
+      sessions: allScored,
+      confidenceRows: ABILITY_DIMENSIONS.map((_, i) => confOf(P(i), 95)),
+      abilityScores: [
+        { dimension: "问题定义", currentScore: 72.5 },
+        { dimension: "用户理解", currentScore: 60 },
+      ],
+    });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.required).toBe(false);
+    expect(status.dimensionPreview).toHaveLength(8);
+    expect(status.dimensionPreview?.[0]).toEqual({ dimension: "问题定义", effectiveScore: 72.5 });
+    expect(status.dimensionPreview?.[1]).toEqual({ dimension: "用户理解", effectiveScore: 60 });
+    // 未知维度：effectiveScore 为 null（BR-6 未知态，不落 0 分）
+    expect(status.dimensionPreview?.[2]).toEqual({ dimension: "根因分析", effectiveScore: null });
+    expect(status.dimensionPreview?.map((i) => i.dimension)).toEqual([...ABILITY_DIMENSIONS]);
+  });
+});
+
+describe("基线补测锁定与缺维", () => {
+  it("部分维度缺题时即使现有题均评分也不能完成", async () => {
+    const { db, calls } = makeTaggedDb({ baselineQuestions: taggedPool().slice(0, 2), profile: { baselineCompletedAt: null }, sessions: [scoredSession(P(0))], confidenceRows: [confOf(P(0), 90)] });
+    const status = await getBaselineStatus(db, "u-1");
+    expect(status.required).toBe(true);
+    expect(calls.updateManyArgs).toHaveLength(0);
+  });
+  it("晚到低置信度不会挤掉已经作答的补测题", async () => {
+    const sessions = [...ABILITY_DIMENSIONS.map((_, i) => scoredSession(P(i))), ...[4, 5, 6, 7].map((i) => answeredSession(P(i, "b")))];
+    const confidenceRows = ABILITY_DIMENSIONS.map((_, i) => confOf(P(i), 20));
+    const status = await getBaselineStatus(makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions, confidenceRows }).db, "u-1");
+    expect(status.total).toBe(12);
+    expect(status.items.filter((item) => item.isDeepen).map((item) => item.questionId)).toEqual([4, 5, 6, 7].map((i) => P(i, "b")));
+  });
+});
+  it("已创建但尚未作答的补测也保留", async () => {
+    const sessions = [4, 5, 6, 7].map((i) => ({ id: `reserved-${i}`, questionId: P(i, "b"), scoredAt: null, finalSubmittedAt: null }));
+    const confidenceRows = ABILITY_DIMENSIONS.map((_, i) => confOf(P(i), 20));
+    const status = await getBaselineStatus(makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions, confidenceRows }).db, "u-1");
+    expect(status.items.filter((item) => item.isDeepen).map((item) => item.questionId)).toEqual([4, 5, 6, 7].map((i) => P(i, "b")));
+  });
+
+it("序列化冲突后重新读取状态并重算题目", async () => {
+  const { db, calls } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: [], confidenceRows: [] });
+  let attempts = 0;
+  const transactionDb = Object.assign(db, {
+    $transaction: async (work: (tx: PrismaClient) => Promise<unknown>) => {
+      attempts += 1;
+      const result = await work(db);
+      if (attempts === 1) throw Object.assign(new Error("retry"), { code: "P2034" });
+      return result;
+    },
+  });
+  const status = await getBaselineStatus(transactionDb, "u-1");
+  expect(status.nextQuestion?.id).toBe(P(0));
+  expect(attempts).toBe(2);
+  expect(calls.questionFindManyArgs).toHaveLength(2);
+  expect(calls.sessionFindManyArgs).toHaveLength(2);
+});
+
+it("显示补测之前在事务中预建基线会话", async () => {
+  const { db, calls } = makeTaggedDb({ baselineQuestions: taggedPool(), profile: null, sessions: [scoredSession(P(0))], confidenceRows: [confOf(P(0), 30)] });
+  Object.assign(db, { $transaction: async (work: (tx: PrismaClient) => Promise<unknown>) => work(db) });
+  const status = await getBaselineStatus(db, "u-1");
+  expect(status.items.some((item) => item.questionId === P(0, "b"))).toBe(true);
+  expect(calls.sessionCreateData).toHaveLength(1);
+  expect(calls.sessionCreateData[0]).toMatchObject({ userId: "u-1", questionId: P(0, "b"), isExtra: true, sourceType: "baseline", state: "reading" });
+});
+
+it.each([
+  ["B3", "B4", "问题定义"], ["B5", "B6", "用户理解"], ["B17", "B18", "产品表达"],
+])("恢复备用题后旧主题 %s 保持主题并使用其置信度", async (oldId, restoredId, dimension) => {
+  const { questionUuid } = await import("@/server/modules/content/question-id");
+  const original = questionUuid(oldId);
+  const restored = questionUuid(restoredId);
+  const pool = [makeTaggedQuestion(original, dimension), makeTaggedQuestion(restored, dimension)];
+  const high = await getBaselineStatus(makeTaggedDb({ baselineQuestions: pool, profile: null, sessions: [scoredSession(original)], confidenceRows: [confOf(original, 90)] }).db, "u-1");
+  expect(high.items.map((item) => [item.questionId, item.isDeepen])).toEqual([[original, false]]);
+  const low = await getBaselineStatus(makeTaggedDb({ baselineQuestions: pool, profile: null, sessions: [scoredSession(original)], confidenceRows: [confOf(original, 30)] }).db, "u-1");
+  expect(low.items.map((item) => [item.questionId, item.isDeepen])).toEqual([[original, false], [restored, true]]);
+});
+
+it("预建无操作补测不应反向成为主题", async () => {
+  const pool = taggedPool();
+  const status = await getBaselineStatus(makeTaggedDb({ baselineQuestions: pool, profile: null, sessions: [scoredSession(P(0)), { id: "reserved", questionId: P(0, "b"), scoredAt: null, finalSubmittedAt: null }], confidenceRows: [confOf(P(0), 20)] }).db, "u-1");
+  expect(status.items.slice(0, 2).map((item) => [item.questionId, item.isDeepen])).toEqual([[P(0), false], [P(0, "b"), true]]);
+});
+
+it("恢复备用题时已激活旧主题继续作为主题并恢复作答", async () => {
+  const { questionUuid } = await import("@/server/modules/content/question-id");
+  const original = questionUuid("B3");
+  const restored = questionUuid("B4");
+  const active = { id: "old", questionId: original, scoredAt: null, finalSubmittedAt: null, baselineActivatedAt: STAMP, state: "reading" };
+  const status = await getBaselineStatus(makeTaggedDb({ baselineQuestions: [makeTaggedQuestion(restored, "问题定义"), makeTaggedQuestion(original, "问题定义")], profile: null, sessions: [active] }).db, "u-1");
+  expect(status.nextQuestion?.id).toBe(original);
+  expect(status.items.map((item) => [item.questionId, item.isDeepen])).toEqual([[original, false]]);
+});
+
+it("旧主题先评分、补测后预建及激活时仍保持旧主题", async () => {
+  const { questionUuid } = await import("@/server/modules/content/question-id");
+  const original = questionUuid("B3");
+  const restored = questionUuid("B4");
+  const activeDeepen = { id: "deep", questionId: restored, scoredAt: null, finalSubmittedAt: null, baselineActivatedAt: STAMP, state: "reading" };
+  const status = await getBaselineStatus(makeTaggedDb({ baselineQuestions: [makeTaggedQuestion(restored, "问题定义"), makeTaggedQuestion(original, "问题定义")], profile: null, sessions: [scoredSession(original), activeDeepen], confidenceRows: [confOf(original, 30)] }).db, "u-1");
+  expect(status.nextQuestion?.id).toBe(restored);
+  expect(status.items.map((item) => [item.questionId, item.isDeepen])).toEqual([[original, false], [restored, true]]);
 });

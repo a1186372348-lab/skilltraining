@@ -87,7 +87,7 @@ export function NodeDetailModal({
                 {dim.recentEvaluations.map((evaluation) => (
                   <li
                     key={evaluation.sessionId}
-                    className="flex items-center gap-2.5 rounded-xl bg-[#F8FAFC] px-3 py-2"
+                    className="flex flex-wrap items-center gap-2.5 rounded-xl bg-[#F8FAFC] px-3 py-2"
                   >
                     <span className="shrink-0 text-[11px] text-[#94A3B8]">
                       {evaluationDateText(evaluation.scoredAt)}
@@ -107,6 +107,11 @@ export function NodeDetailModal({
                     >
                       查看评估 →
                     </Link>
+                    {evaluation.confidence !== null && evaluation.confidence !== undefined ? (
+                      <span className="basis-full text-[11px] text-[#64748B]">
+                        {`本次评分信心：${evaluation.confidence}/100（AI 自评）`}
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -159,7 +164,7 @@ export function NodeDetailModal({
               {diagnosisLineOf(dim)}
               {isNextFocus ? (
                 <span className="ml-2 inline-block rounded-full bg-[#E3EEFF] px-2.5 py-0.5 align-[1px] text-[11.5px] font-semibold text-[#1D4ED8]">
-                  已列入下一题训练方向
+                  {nextFocus.mode === "explore" ? "建议先探索" : "建议重点练"}
                 </span>
               ) : null}
             </p>

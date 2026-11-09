@@ -1,0 +1,47 @@
+id: Q37
+title: "Signal 阅后即焚：默认保护与历史记录之间怎样取舍"
+case_title: "新会话的消息，到期后是否自动消失？"
+case_background:
+  product: {text: "Signal 在 2021 年介绍可为自己发起的新会话预设消失消息计时。", citations: [1]}
+  audience: {text: "消失消息影响会话参与者发送和接收的消息；其 2016 年说明将它描述为参与者共同管理消息历史的功能。", citations: [2]}
+  scenario: {text: "在消失消息会话中，发送和接收的消息按所选时间自动删除；Signal 将其描述为双方共同管理消息历史的方式。", citations: [1, 2]}
+  features: {text: "2021 年的公告称可为新发起会话设置默认计时，也能为会话自定义时长。", citations: [1]}
+  status: {text: "Signal 同时提醒接收者仍可用另一台相机记录屏幕，因此消失消息不是防止对方留存的绝对保证。", citations: [1]}
+case_sources:
+  - {id: 1, title: "Embrace ephemerality with default disappearing messages", publisher: "Signal", url: "https://signal.org/blog/disappearing-by-default/"}
+  - {id: 2, title: "Disappearing messages for Signal", publisher: "Signal", url: "https://signal.org/blog/disappearing-messages/"}
+main_question: "回到 2021 年，假设团队讨论新会话应默认长期保存，还是默认设置一个消失计时；有些用户可能需要日后查找信息，这一点尚待验证。请做出有条件选择，比较双方保护、事后查找与误解风险；说明新会话默认和单个会话的选择与告知方式，以及双方期望不同时如何处理。也可以让用户先设置未来会话的默认，但须说明用户尚未选择时采用什么规则，以及双方未协商一致时怎么办。题目没有提供用户调查，不要声称默认消失一定更安全或一定更受欢迎。"
+ability_tags: [产品取舍, 方案设计, 产品价值判断]
+difficulty: 挑战
+domain: 内容/社交
+rubric:
+  dimensions:
+    产品取舍:
+      - "比较至少两种默认方式及其对历史可查和自动清理的不同影响。"
+      - "考虑双方知情、意外丢失与无法阻止对方另行留存等边界。"
+      - "给出有条件的选择和可能改变选择的证据。"
+    方案设计:
+      - "说明用户何时选择默认、如何对单个会话调整及对方如何获知。"
+      - "说明双方期望不同时的处理与尚未协商一致时的规则，让双方知晓。"
+      - "避免假设删除可撤销或承诺对方无法保存。"
+    产品价值判断:
+      - "区分减少设备上保留历史与防止恶意接收者留存。"
+      - "说明记录对不同使用场景的价值，避免以隐私诉求代替用户研究。"
+      - "解释自动清理在哪些场景可能有价值，以及误删所需信息的代价。"
+  forbidden_leaks: ["由发起者先选默认并在每个会话可见计时与修改提示的具体流程"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "默认规则要影响的是哪些会话和哪些新消息？"}
+  - {level: 2, stage: 视角补充, question: "发起者和接收者对保存记录的需要可能怎样不同？"}
+  - {level: 3, stage: 反例与风险, question: "消息消失后，接收者是否一定没有留下副本？"}
+  - {level: 4, stage: 取舍权衡, question: "自动清理和日后查找分别保护了什么，又可能伤害什么？"}
+  - {level: 5, stage: 验证方式, question: "不读取聊天内容，你如何了解用户是否理解计时及其后果？"}
+materials:
+  core:
+    - {title: "Embrace ephemerality with default disappearing messages", source: "Signal", url: "https://signal.org/blog/disappearing-by-default/", summary: "2021 年公告介绍新会话默认计时、自定义时长与无法阻止对方拍照留存的限制。"}
+    - {title: "Disappearing messages for Signal", source: "Signal", url: "https://signal.org/blog/disappearing-messages/", summary: "2016 年原始功能介绍说明参与者共同使用与保留副本的边界。"}
+  extended:
+    - {title: "What Should I Know About Encryption?", source: "Electronic Frontier Foundation", url: "https://ssd.eff.org/module/what-should-i-know-about-encryption/", summary: "现行通用安全资料解释通信加密与接收方仍可能留存内容的区别；不描述 Signal 2021 年的默认规则。"}
+    - {title: "Disappearing Messages with a Linked Device", source: "Signal Support", url: "https://support.signal.org/hc/en-us/articles/5532268300186-Disappearing-Messages-with-a-Linked-Device", summary: "当前帮助解释离线关联设备的队列设计和元数据隐私取舍。"}
+    - {title: "Screen Security", source: "Signal Support", url: "https://support.signal.org/hc/en-us/articles/360043469312-Screen-Security", summary: "当前说明屏幕保护适用边界，不能阻止对方设备留存；与消失计时是不同功能。"}
+uncertainty: ["2021 年历史题不把当前帮助页面的新增能力视为当时事实；消息接收者仍可能另行留存。"]
+status: published

@@ -131,6 +131,21 @@ export function historyStatusFor(item: HubHistoryItem): { text: string; tone: Hi
   return { text: "作答中", tone: "doing" };
 }
 
+/** 基线在存储上是 isExtra，类型展示须优先识别基线。 */
+export function historyTypeText(item: HubHistoryItem): "基线" | "训练包" | "复测" | "加练" | "每日" {
+  if (item.isBaseline || item.sourceType === "baseline") return "基线";
+  if (item.sourceType === "pack") return "训练包";
+  if (item.sourceType === "retest") return "复测";
+  return item.isExtra ? "加练" : "每日";
+}
+
+/** 仅本人包来源且包编号完整时提供详情入口。 */
+export function historyPackHrefFor(item: HubHistoryItem): string | null {
+  if (item.sourceType !== "pack" || !item.sourceId) return null;
+  const valid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.sourceId);
+  return valid ? `/training/pack/${encodeURIComponent(item.sourceId)}` : null;
+}
+
 /**
  * 历史行跳转（D27②⑤）：
  * 未完成 → 工作台 /training/session/[id]（「作答中」的旧会话点回继续）；
@@ -138,7 +153,7 @@ export function historyStatusFor(item: HubHistoryItem): { text: string; tone: Hi
  * 已终止会话不可回工作台——工作台直达对其返回 409 SESSION_ABANDONED，T38）。
  */
 export function historyHrefFor(item: HubHistoryItem): string {
-  return item.state === "scored" || item.state === "abandoned"
+  return item.isBaseline || item.state === "scored" || item.state === "abandoned"
     ? `/training/history/${item.sessionId}`
     : `/training/session/${item.sessionId}`;
 }

@@ -48,6 +48,12 @@ function makeSession(overrides: Partial<TrainingSession> = {}): TrainingSession 
 }
 
 describe("toTodayView（FR-10：不下发 Rubric 与未释放提示层）", () => {
+  it("包会话向工作台提供来源与包编号，不泄露评分细则", () => {
+    const view = toTodayView(makeSession({ sourceType: "pack", sourceId: "pack-1" }), makeQuestion());
+    expect(view).toMatchObject({ sourceType: "pack", sourceId: "pack-1" });
+    expect(view).not.toHaveProperty("rubric");
+  });
+
   it("初始态：不含 rubric / hintTree 字段，releasedHints 为空，系数 1.0，可请求提示", () => {
     const view = toTodayView(makeSession(), makeQuestion());
     expect(view.sessionId).toBe("s-1");

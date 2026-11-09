@@ -10,7 +10,7 @@ import {
 import { fetchHistoryDetail } from "../api";
 import type { HistoryDetailView, HistoryMissingSection } from "../contract";
 import { HistoryShell } from "../shell";
-import { formatHistoryDate, sessionStateText } from "../view-model";
+import { formatHistoryDate, historyDetailStateText, historyDetailTypeText } from "../view-model";
 
 import {
   MISSING_BADGE_TEXT,
@@ -82,8 +82,8 @@ export function HistoryDetailFlow({ sessionId }: { sessionId: string }) {
           </Link>
           {view ? (
             <span className="rounded-full border border-[#E9EDF4] bg-white px-3 py-1 text-xs text-[#475569]">
-              {formatHistoryDate(view.date)} · {sessionStateText(view.state)}
-              {view.isExtra ? " · 加练" : ""}
+              {formatHistoryDate(view.date)} · {historyDetailStateText(view)}
+              {historyDetailTypeText(view) ? ` · ${historyDetailTypeText(view)}` : ""}
             </span>
           ) : null}
         </header>

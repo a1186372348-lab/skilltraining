@@ -10,6 +10,8 @@ import {
   formatReferenceAnswerReport,
   loadReferenceAnswerDirectory,
 } from "../server/modules/content/reference-answers.ts";
+import { loadStandardReferences } from "../server/modules/content/standard-references.ts";
+import { STANDARD_REFERENCE_IDS } from "./standard-reference-readiness.ts";
 
 const dir = path.resolve(process.argv[2] ?? "content/questions");
 const results = loadQuestionDirectory(dir);
@@ -28,6 +30,19 @@ const answerResults = loadReferenceAnswerDirectory(
 );
 console.log(`\n${formatReferenceAnswerReport(answerResults)}`);
 
-if (results.some((r) => !r.ok) || answerResults.some((r) => !r.ok)) {
+const standards = loadStandardReferences(
+  path.resolve("content/standard-references"),
+  path.resolve("task/evidence/standard-reference-approvals"),
+  STANDARD_REFERENCE_IDS,
+  knownQuestionIds,
+);
+console.log(standards.structuralIssues.length ? standards.structuralIssues.join("\n") : "标准参考答案结构有效");
+if (standards.readinessIssues.length) {
+  console.log(`尚未批准，标准角色未就绪或审批证据无效\n${standards.readinessIssues.join("\n")}`);
+} else if (!standards.structuralIssues.length) {
+  console.log("标准角色就绪");
+}
+
+if (results.some((r) => !r.ok) || answerResults.some((r) => !r.ok) || standards.structuralIssues.length) {
   process.exitCode = 1;
 }

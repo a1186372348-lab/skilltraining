@@ -1,0 +1,46 @@
+id: Q42
+title: "PayPal 四期付款：用户灵活付款与商家价值如何权衡"
+case_title: "免息分期对交易双方意味着什么？"
+case_background:
+  product: {text: "2020 年 8 月 31 日，PayPal 宣布面向美国的 Pay in 4 短期分期付款方案。", citations: [1]}
+  audience: {text: "方案面向符合条件的美国消费者，也面向使用 PayPal 收款的商家与合作伙伴。", citations: [1]}
+  scenario: {text: "消费者在符合条件的购买中可分期付款；公告称商家和合作伙伴可提前收到款项。", citations: [1]}
+  features: {text: "公告介绍消费者可在六周内分四期免息支付，适用购买金额为 30 至 600 美元；脚注称逾期可能收取费用，具体资格与条款仍须核对。", citations: [1]}
+  status: {text: "公告预计 2020 年第四季度初向符合条件的购买提供；商家转化提升属于公司预期，公告不能证明该新方案已产生提升。", citations: [1]}
+case_sources:
+  - {id: 1, title: "PayPal Introduces New Interest-Free Buy Now Pay Later Installment Solution", publisher: "PayPal", url: "https://newsroom.paypal-corp.com/2020-08-31-PayPal-Introduces-New-Interest-Free-Buy-Now-Pay-Later-Installment-Solution"}
+main_question: "回到 2020 年公告时，假设你是接入 PayPal 的美国商家产品经理，正判断是否在结账页提供该选项。请分析消费者的支付灵活性、还款负担和商家的潜在收益与成本，比较接入与不接入并给出暂定选择；说明如何展示、比较结果以及依据什么情况调整。考虑商家和支付方各自可能掌握的数据。没有该方案的真实转化或违约数据；说明哪些判断需验证，且不要把免息等同于没有任何风险或所有费用。"
+ability_tags: [产品价值判断, 产品取舍, 指标与验证]
+difficulty: 中等
+domain: 金融
+rubric:
+  dimensions:
+    产品价值判断:
+      - "区分消费者支付时间灵活性、实际购买能力与未来还款义务。"
+      - "分析商家提前收款、潜在交易变化及退款或运营成本；公告所述无额外接入费不等于没有其他成本。"
+      - "将免息与费用、退款争议和过度借贷风险分开。"
+    产品取舍:
+      - "比较新增分期入口与保持简单结账流程的收益和风险。"
+      - "说明展示分期期数、还款安排及适用条件的重要性，不诱导超出负担能力的购买。"
+      - "指出 2020 年美国资格与条款不代表现在或其他地区。"
+    指标与验证:
+      - "对商家可观察的结账完成、退款或争议提出比较口径，涉及比例时明确分母。"
+      - "说明后续还款风险需要支付方提供何种合规、汇总信息；无法获取时明确监测盲区和合作或调整条件。"
+      - "结合可得证据说明用户伤害或争议何时触发调整，并说明只能看到商家侧时的结论边界。"
+  forbidden_leaks: ["结账时完整展示还款计划并以转化和还款风险共同约束试点的具体方案"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "消费者付款时间变化与商家收到款项的时间有什么不同？"}
+  - {level: 2, stage: 视角补充, question: "对计划内购买和勉强负担的购买者，分期可能意味着什么？"}
+  - {level: 3, stage: 反例与风险, question: "免息是否排除了所有费用、退款争议或还款压力？"}
+  - {level: 4, stage: 取舍权衡, question: "让入口更显眼可能改变交易，也可能带来什么风险？"}
+  - {level: 5, stage: 验证方式, question: "如何同时观察完成购买、退款和后续风险，而不是只看点击？"}
+materials:
+  core:
+    - {title: "PayPal Introduces New Interest-Free Buy Now Pay Later Installment Solution", source: "PayPal", url: "https://newsroom.paypal-corp.com/2020-08-31-PayPal-Introduces-New-Interest-Free-Buy-Now-Pay-Later-Installment-Solution", summary: "2020 年美国方案公告，含金额、期数、商家收款与预计可用时间。"}
+    - {title: "CFPB Releases Making Ends Meet Survey", source: "美国消费者金融保护局", url: "https://www.consumerfinance.gov/archive/newsroom/cfpb-releases-making-ends-meet-survey/", summary: "2020 年 7 月调查说明部分消费者有支付账单困难；这是一般消费财务背景，不是本分期方案结果。"}
+  extended:
+    - {title: "Consumer Credit Card Market Report", source: "美国消费者金融保护局", url: "https://www.consumerfinance.gov/documents/7926/cfpb_consumer-credit-card-market-report_2019.pdf", summary: "2019 年信用卡市场报告讨论还款及费用；它不规定 PayPal 四期付款条款。"}
+    - {title: "2018 Consumer Response Annual Report", source: "美国消费者金融保护局", url: "https://files.consumerfinance.gov/f/documents/cfpb_consumer-response-annual-report_2018.pdf", summary: "2018 年消费者投诉报告描述信用卡交易争议和费用问题，不能外推为本产品投诉率。"}
+    - {title: "Dealing with Unexpected Expenses", source: "美国联邦储备委员会", url: "https://www.federalreserve.gov/publications/2020-economic-well-being-of-us-households-in-2019-dealing-with-unexpected-expenses.htm", summary: "2020 年 5 月家庭经济调查讨论应对意外支出的能力；不代表特定 PayPal 用户或本产品效果。"}
+uncertainty: ["方案适用范围和费用仅以 2020 美国公告及当时条款为准；未提供新产品真实转化、违约或消费者研究数据。"]
+status: published

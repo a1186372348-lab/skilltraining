@@ -40,6 +40,8 @@ export interface HistoryDetailView {
   sessionId: string;
   date: string;
   isExtra: boolean;
+  questionKind?: "baseline" | "daily";
+  sourceType?: "daily" | "extra" | "baseline" | "plan" | "pack" | "retest";
   state: HistorySessionState;
   // 案例区
   caseTitle: string;

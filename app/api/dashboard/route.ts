@@ -7,6 +7,7 @@ import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { dashboardViewSchema } from "@/server/modules/dashboard/contract";
 import { getDashboardView } from "@/server/modules/dashboard/service";
+import { BaselineRequiredError } from "@/server/modules/baseline/result-visibility";
 
 /**
  * GET /api/dashboard（T08 / US-002）：首页仪表盘装配。
@@ -16,7 +17,15 @@ export async function GET(request: Request) {
   const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
 
-  const view = await getDashboardView(prisma, user.id);
+  let view;
+  try {
+    view = await getDashboardView(prisma, user.id);
+  } catch (error) {
+    if (error instanceof BaselineRequiredError) {
+      return jsonError(409, "BASELINE_REQUIRED", error.message);
+    }
+    throw error;
+  }
   const parsed = dashboardViewSchema.safeParse(view);
   if (!parsed.success) {
     console.error(

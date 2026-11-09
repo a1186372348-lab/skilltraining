@@ -1,0 +1,71 @@
+{
+  "status": "PASS",
+  "schema": "t33_owner_20261104_3844072f34a0",
+  "database": "skilltraining_test",
+  "sourceDigest": "f10c752976c4d55d6fcdc68434ddb2dc0dc3b23ce4d7b78522db0d852969dc35",
+  "businessContentDigest": "064b454cae3a72c88d0f66d9f8de3b6e6089d42165cedefb2bb8a86e8a147585",
+  "questionSourceHash": "2cf8b7a4ae43b60ee2d4be7ec0c59ac2dfb0d5648e04d3bfc37ffa7a402d6b52",
+  "fullBankCount": 66,
+  "publishedDaily": 50,
+  "baselinePreset": true,
+  "syntheticHistory": true,
+  "specificUserEligibilityTested": true,
+  "browserFlowTested": false,
+  "result": {
+    "availability": [
+      {
+        "dimension": "问题定义",
+        "availableQuestions": 14,
+        "status": "available"
+      },
+      {
+        "dimension": "用户理解",
+        "availableQuestions": 20,
+        "status": "available"
+      },
+      {
+        "dimension": "根因分析",
+        "availableQuestions": 11,
+        "status": "available"
+      },
+      {
+        "dimension": "产品价值判断",
+        "availableQuestions": 22,
+        "status": "available"
+      },
+      {
+        "dimension": "方案设计",
+        "availableQuestions": 20,
+        "status": "available"
+      },
+      {
+        "dimension": "产品取舍",
+        "availableQuestions": 19,
+        "status": "available"
+      },
+      {
+        "dimension": "指标与验证",
+        "availableQuestions": 22,
+        "status": "available"
+      },
+      {
+        "dimension": "产品表达",
+        "availableQuestions": 12,
+        "status": "available"
+      }
+    ],
+    "selectedDimension": "用户理解",
+    "selectedCount": 5,
+    "practicedCount": 1,
+    "insufficient": {
+      "dimension": "用户理解",
+      "availableQuestions": 4,
+      "status": "insufficient_questions"
+    },
+    "insufficientPracticedCount": 17
+  },
+  "execution": {
+    "scriptHash": "d1ca14b83532c35bf4c9001a0dc2c57120052fe47012df6c68269fd66ffadea1",
+    "testHash": "085c6677dadf19830b56968ac72dca52966d43a0626dff1c6e1953fe501dbe3e"
+  }
+}

@@ -1,0 +1,115 @@
+id: Q24
+title: Trello 自动化：重复操作为什么会成为团队工作负担
+case_title: 看板上的重复动作从哪里来
+case_background:
+  product:
+    text: Trello 是团队使用看板和卡片组织工作的工具；Butler 为看板提供按规则执行动作的自动化能力。
+    citations:
+      - 1
+  audience:
+    text: 官方示例面向使用卡片跟踪工作、需要维护状态和到期信息的团队。
+    citations:
+      - 1
+  scenario:
+    text: 文章示例设想卡片被移动到完成列表后，还需要更新到期状态、加标签并发送评论。
+    citations:
+      - 1
+  features:
+    text: Butler 可以根据看板动作触发用户设定的规则，无须用户编写程序来表达该示例。
+    citations:
+      - 1
+  status:
+    text: 后续帮助文档说明自动化可查看执行日志并受使用配额约束；这些是当前资料，不能默认属于 2018 年全部规则。
+    citations:
+      - 3
+      - 4
+      - 5
+case_sources:
+  - id: 1
+    title: Trello 看板自动化介绍
+    publisher: Atlassian
+    url: https://www.atlassian.com/blog/trello/automation-magic-trello-boards
+  - id: 2
+    title: 多看板自动化工作流
+    publisher: Atlassian
+    url: https://www.atlassian.com/blog/trello/multi-board-workflows-trello-butler
+  - id: 3
+    title: 自动化概览
+    publisher: Atlassian Support
+    url: https://support.atlassian.com/trello/docs/automation-overview/
+  - id: 4
+    title: 自动化配额与限制
+    publisher: Atlassian Support
+    url: https://support.atlassian.com/trello/docs/butler-quotas-and-limits/
+  - id: 5
+    title: 查看自动化日志
+    publisher: Atlassian Support
+    url: https://support.atlassian.com/trello/docs/opening-the-command-log/
+main_question: 假设一个团队想知道是否值得把看板维护自动化。请以材料中的卡片完成流程为例，拆解重复劳动可能来自哪些不同环节，以及如何判断真正的主要问题。再选一处提出最小改进，并说明出现错误时如何发现。不要假设该团队已经发生延误。
+ability_tags:
+  - 根因分析
+  - 问题定义
+  - 方案设计
+difficulty: 基础
+domain: 办公协同
+kind: daily
+rubric:
+  dimensions:
+    根因分析:
+      - 将卡片移动、状态更新和通知等动作分开，提出可区分的负担来源。
+      - 说明重复动作与任务延误不必然相同，不编造现有故障或时间损失。
+      - 提出能区分规则不清、操作繁琐或协作交接问题的证据。
+    问题定义:
+      - 界定具体团队、触发情境与需要改善的结果，而非笼统自动化一切。
+      - 指出哪些步骤可能有意保留人工判断和为什么。
+      - 给出优先验证一个问题的理由与边界。
+    方案设计:
+      - 设计与所选问题对应的最小规则及人工确认或例外处理。
+      - 说明触发、动作和错误提示或日志，避免自动化失败被忽视。
+      - 提出验证节省时间与错误率的方法，不把配额视为 2018 年既定规则。
+  forbidden_leaks:
+    - 完整的根因拆解、自动规则与异常验证方案。
+    - 重复动作必然导致项目延误或自动化一定更省时的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 一次卡片完成后，团队成员分别需要做哪些动作？
+  - level: 2
+    stage: 视角补充
+    question: 哪些动作是重复录入，哪些动作可能需要人为判断？
+  - level: 3
+    stage: 反例与风险
+    question: 如果规则触发时状态并不适合自动完成，会发生什么？
+  - level: 4
+    stage: 取舍权衡
+    question: 你会先自动化一个步骤还是整个流程，为什么？
+  - level: 5
+    stage: 验证方式
+    question: 怎样知道规则没有触发或执行了错误动作？
+materials:
+  core:
+    - title: Trello 看板自动化介绍
+      source: Atlassian
+      url: https://www.atlassian.com/blog/trello/automation-magic-trello-boards
+      summary: 2018 年文章通过卡片移动后的动作示例介绍 Butler。
+    - title: 多看板自动化工作流
+      source: Atlassian
+      url: https://www.atlassian.com/blog/trello/multi-board-workflows-trello-butler
+      summary: 2019 年介绍跨看板工作流的自动化示例。
+  extended:
+    - title: 自动化概览
+      source: Atlassian Support
+      url: https://support.atlassian.com/trello/docs/automation-overview/
+      summary: 当前帮助页介绍基于条件触发自动动作的机制。
+    - title: 自动化配额与限制
+      source: Atlassian Support
+      url: https://support.atlassian.com/trello/docs/butler-quotas-and-limits/
+      summary: 当前帮助页解释工作区的自动化使用配额。
+    - title: 查看自动化日志
+      source: Atlassian Support
+      url: https://support.atlassian.com/trello/docs/opening-the-command-log/
+      summary: 当前帮助页介绍触发、动作以及错误和警告日志。
+uncertainty:
+  - 示例描述的是可自动化的流程，不是对某团队延误的真实观察。
+  - 当前帮助文档的日志与配额不能直接倒填至 2018 年。
+status: published

@@ -15,7 +15,17 @@ import { prisma } from "../server/lib/prisma.ts";
 import { FOLLOWUP_PROMPT_V1 } from "../server/ai/prompts/followup.v1.ts";
 import { FOLLOWUP_PROMPT_V2 } from "../server/ai/prompts/followup.v2.ts";
 import { FOLLOWUP_PROMPT_V3 } from "../server/ai/prompts/followup.v3.ts";
+import { FOLLOWUP_PROMPT_V4 } from "../server/ai/prompts/followup.v4.ts";
+import { FOLLOWUP_PROMPT_V5 } from "../server/ai/prompts/followup.v5.ts";
+import { FOLLOWUP_PROMPT_V6 } from "../server/ai/prompts/followup.v6.ts";
+import { FOLLOWUP_PROMPT_V10 } from "../server/ai/prompts/followup.v10.ts";
+import { FOLLOWUP_PROMPT_V9 } from "../server/ai/prompts/followup.v9.ts";
+import { FOLLOWUP_PROMPT_V8 } from "../server/ai/prompts/followup.v8.ts";
+import { parseTrustedPrompt, PromptContractError } from "../server/ai/prompts/output-contract.ts";
+import { FOLLOWUP_PROMPT_V7 } from "../server/ai/prompts/followup.v7.ts";
 import { SCORING_PROMPT_V1 } from "../server/ai/prompts/scoring.v1.ts";
+import { SCORING_PROMPT_V2 } from "../server/ai/prompts/scoring.v2.ts";
+import { SCORING_PROMPT_V3 } from "../server/ai/prompts/scoring.v3.ts";
 import type { PromptFileDefinition } from "../server/ai/prompts/resolver.ts";
 import { computeContentHash, serializePromptContent } from "../server/ai/prompts/registry.ts";
 import {
@@ -27,8 +37,8 @@ import {
 
 /** 可登记的 prompt 文件清单（新增版本文件时在此挂接） */
 const PROMPT_FILES: Record<string, Record<string, PromptFileDefinition>> = {
-  scoring: { v1: SCORING_PROMPT_V1 },
-  followup: { v1: FOLLOWUP_PROMPT_V1, v2: FOLLOWUP_PROMPT_V2, v3: FOLLOWUP_PROMPT_V3 },
+  scoring: { v1: SCORING_PROMPT_V1, v2: SCORING_PROMPT_V2, v3: SCORING_PROMPT_V3 },
+  followup: { v1: FOLLOWUP_PROMPT_V1, v2: FOLLOWUP_PROMPT_V2, v3: FOLLOWUP_PROMPT_V3, v4: FOLLOWUP_PROMPT_V4, v5: FOLLOWUP_PROMPT_V5, v6: FOLLOWUP_PROMPT_V6, v7: FOLLOWUP_PROMPT_V7, v8: FOLLOWUP_PROMPT_V8, v9: FOLLOWUP_PROMPT_V9, v10: FOLLOWUP_PROMPT_V10 },
 };
 
 const name = process.argv[2]?.trim();
@@ -57,7 +67,8 @@ if (markIndex >= 0 && !markPassed) {
   process.exit(1);
 }
 
-const content = serializePromptContent({ system: def.system, user: def.user });
+const content = serializePromptContent(def);
+if (!parseTrustedPrompt(name, version, content)) throw new PromptContractError();
 const contentHash = computeContentHash(content);
 
 let versions;

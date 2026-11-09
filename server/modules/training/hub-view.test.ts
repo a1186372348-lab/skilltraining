@@ -1,12 +1,14 @@
 import type { PrismaClient } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   getCurrentTrainingCard,
+  getTrainingHubView,
   HUB_SCORE_SUMMARY_LIMIT,
   hubSessionStage,
   resolveCurrentCard,
   toHubHistoryItem,
+  type HubHistoryRow,
   type HubSessionRow,
 } from "./hub-view";
 
@@ -14,14 +16,16 @@ import {
 // 当前卡三态判定优先级（进行中 > 已完成 > 未开始）、进行中阶段映射（作答/追问/评分）、
 // 历史行徽章字段与得分摘要映射（≤3 截断）、能力标签脏数据防御解析。
 
-function row(overrides: Partial<HubSessionRow> = {}): HubSessionRow {
+function row(overrides: Partial<HubHistoryRow> = {}): HubHistoryRow {
   return {
     id: "session-1",
     isExtra: false,
+    sourceType: "daily",
+    sourceId: null,
     state: "reading",
     finalSubmittedAt: null,
     startedAt: new Date(Date.UTC(2026, 9, 7, 8, 0)),
-    question: { caseTitle: "案例一", abilityTags: ["用户理解", "根因分析"] },
+    question: { kind: "daily", caseTitle: "案例一", abilityTags: ["用户理解", "根因分析"] },
     scores: [],
     ...overrides,
   };
@@ -42,6 +46,25 @@ describe("hubSessionStage：进行中会话的阶段映射（D27 状态机）", 
   });
 });
 
+describe("训练大厅组合视图", () => {
+  it("历史保留来源和基线可见条件，排序及数量限制不变", async () => {
+    const sourceId = "cbd954ea-52f7-492a-bc20-d7084cc6b961";
+    const findMany = vi.fn(async (args: { take?: number }) => args.take
+      ? [row({ id: "pack-session", isExtra: true, sourceType: "pack", sourceId })]
+      : [{ date: new Date() }]);
+    const findFirst = vi.fn(async () => null);
+    const db = { trainingSession: { findMany, findFirst } } as unknown as PrismaClient;
+    const view = await getTrainingHubView(db, "user-1");
+    expect(view.history[0]).toMatchObject({ sessionId: "pack-session", sourceType: "pack", sourceId, isBaseline: false });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 20, orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+      where: expect.objectContaining({ userId: "user-1", OR: expect.any(Array) }),
+      select: expect.objectContaining({ sourceType: true, sourceId: true }),
+    }));
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-1", finalAnswer: { not: null } } }));
+  });
+});
+
 describe("resolveCurrentCard：当前训练卡三态判定优先级", () => {
   it("存在未完成会话即「进行中」（即使今日 daily 已评分，进行中仍优先）", () => {
     const inProgress = row({ id: "s-doing", state: "followup", finalSubmittedAt: null });
@@ -57,6 +80,7 @@ describe("resolveCurrentCard：当前训练卡三态判定优先级", () => {
       sessionId: "s-doing",
       caseTitle: "案例一",
       stage: "followup",
+      sourceType: "daily",
     });
   });
 
@@ -97,6 +121,24 @@ describe("resolveCurrentCard：当前训练卡三态判定优先级", () => {
 });
 
 describe("toHubHistoryItem：历史行映射", () => {
+  it("只对日常包题和复测暴露有效来源 ID，其他来源、基线、缺失或损坏均为空", () => {
+    const id = "cbd954ea-52f7-492a-bc20-d7084cc6b961";
+    const pack = row({ sourceType: "pack", sourceId: id });
+    expect(toHubHistoryItem(pack)).toMatchObject({ sourceType: "pack", sourceId: id });
+    expect(toHubHistoryItem(row({ sourceType: "retest", sourceId: id }))).toMatchObject({ sourceType: "retest", sourceId: id });
+    for (const candidate of [
+      row({ sourceType: "plan", sourceId: id }),
+      row({ sourceType: "pack", sourceId: null }),
+      row({ sourceType: "pack", sourceId: "broken" }),
+      row({ sourceType: "pack", sourceId: id, question: { kind: "baseline", caseTitle: "基线", abilityTags: [] } }),
+    ]) expect(toHubHistoryItem(candidate)).toMatchObject({ sourceId: null });
+  });
+
+  it("包会话即使 isExtra=true 也显式携带 pack 来源，基线标识仍按题目用途判断", () => {
+    const item = toHubHistoryItem(row({ isExtra: true, sourceType: "pack" }));
+    expect(item).toMatchObject({ isExtra: true, isBaseline: false, sourceType: "pack" });
+  });
+
   it("每日/加练徽章字段、能力标签、终答标记与开始时间 ISO", () => {
     const item = toHubHistoryItem(
       row({ isExtra: true, state: "scored", finalSubmittedAt: new Date() }),
@@ -116,10 +158,19 @@ describe("toHubHistoryItem：历史行映射", () => {
     expect(toHubHistoryItem(row({ state: "followup" })).hasFinalAnswer).toBe(false);
   });
 
+  it("基线同时以 isExtra 落库时，明确标识为基线", () => {
+    const item = toHubHistoryItem(row({
+      isExtra: true,
+      question: { kind: "baseline", caseTitle: "基线案例", abilityTags: [] },
+    }));
+    expect(item).toMatchObject({ isBaseline: true, isExtra: true });
+    expect(toHubHistoryItem(row()).isBaseline).toBe(false);
+  });
+
   it("得分摘要 ≤3 条截断；能力标签脏数据仅保留字符串", () => {
     const item = toHubHistoryItem(
       row({
-        question: { caseTitle: "案例一", abilityTags: ["用户理解", 42, null, "根因分析"] },
+        question: { kind: "daily", caseTitle: "案例一", abilityTags: ["用户理解", 42, null, "根因分析"] },
         scores: [
           { dimension: "甲", effectiveScore: 60 },
           { dimension: "乙", effectiveScore: 70 },
@@ -170,6 +221,7 @@ describe("getCurrentTrainingCard：查询层与三态装配（T26）", () => {
       sessionId: "s-doing",
       caseTitle: "案例一",
       stage: "answering",
+      sourceType: "daily",
     });
     // 查询层基线排除（D19/D26⑦ 同口径）：两个查询都带 question.kind="daily"
     expect(whereClauses).toHaveLength(2);
@@ -194,6 +246,7 @@ describe("getCurrentTrainingCard：查询层与三态装配（T26）", () => {
       sessionId: "s-done",
       caseTitle: "案例一",
       scores: [{ dimension: "用户理解", effectiveScore: 82 }],
+      sourceType: "daily",
     });
   });
 

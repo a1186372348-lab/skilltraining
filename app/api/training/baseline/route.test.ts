@@ -57,6 +57,9 @@ describe("GET /api/training/baseline（T17a / D19）", () => {
       nextQuestion: { id: "bq-2", caseTitle: "基线题二", rubric: "绝不外发" },
       completedAt: null,
       pendingScoringSessionIds: ["session-pending-1"],
+      scoringPending: true,
+      dimensionPreview: null,
+      items: [],
     } as never);
 
     const email = `t17a-status-${randomUUID()}@example.com`;
@@ -64,6 +67,7 @@ describe("GET /api/training/baseline（T17a / D19）", () => {
     const json = await res.json();
 
     expect(json.success).toBe(true);
+    // T27 切片 3 契约扩展（加法）：items/resume/dimensionPreview 随逐题进度视图下发
     expect(json.data).toEqual({
       required: true,
       total: 2,
@@ -71,6 +75,9 @@ describe("GET /api/training/baseline（T17a / D19）", () => {
       doneCount: 0,
       nextQuestion: { id: "bq-2", caseTitle: "基线题二" },
       completedAt: null,
+      items: [],
+      resume: { hasInProgress: true, questionId: "bq-2", dimension: null, scoringPending: true },
+      dimensionPreview: null,
     });
     const raw = JSON.stringify(json);
     expect(raw).not.toContain("绝不外发");
@@ -86,6 +93,9 @@ describe("GET /api/training/baseline（T17a / D19）", () => {
       nextQuestion: null,
       completedAt: new Date("2026-10-04T00:00:00Z"),
       pendingScoringSessionIds: [],
+      scoringPending: false,
+      dimensionPreview: null,
+      items: [],
     } as never);
 
     const email = `t17a-status-${randomUUID()}@example.com`;
@@ -115,6 +125,9 @@ describe("GET /api/training/baseline：已作答未评分会话补触发评分�
       nextQuestion: null,
       completedAt: null,
       pendingScoringSessionIds: ["session-p-1", "session-p-2", "session-p-3"],
+      scoringPending: true,
+      dimensionPreview: null,
+      items: [],
     } as never);
 
     const email = `t36-status-${randomUUID()}@example.com`;
@@ -143,11 +156,118 @@ describe("GET /api/training/baseline：已作答未评分会话补触发评分�
       nextQuestion: { id: "bq-1", caseTitle: "基线题一" },
       completedAt: null,
       pendingScoringSessionIds: [],
+      scoringPending: false,
+      dimensionPreview: null,
+      items: [],
     } as never);
 
     const email = `t36-status-${randomUUID()}@example.com`;
     const res = await GET(await buildRequest(email));
     expect(res.status).toBe(200);
     expect(mockedTrigger).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/training/baseline：逐题进度视图（T27 切片 3）", () => {
+  it("items/resume/dimensionPreview 按契约下发；白名单防线（rubric/hintTree/forbiddenLeaks 绝不下发）", async () => {
+    mockedGetBaselineStatus.mockResolvedValue({
+      required: true,
+      total: 9,
+      answeredCount: 3,
+      doneCount: 2,
+      nextQuestion: { id: "d0-b", caseTitle: "基线题", rubric: { dimensions: { 问题定义: ["绝密要点"] } } },
+      completedAt: null,
+      pendingScoringSessionIds: ["session-pending-9"],
+      scoringPending: true,
+      dimensionPreview: null,
+      items: [
+        { questionId: "d0-a", dimension: "问题定义", orderIndex: 0, state: "scored", isDeepen: false, rubric: "绝不外发", hintTree: ["绝密提示"], forbidden_leaks: ["绝密结论"] },
+        { questionId: "d0-b", dimension: "问题定义", orderIndex: 1, state: "active", isDeepen: true },
+        { questionId: "d1-a", dimension: "用户理解", orderIndex: 2, state: "pending", isDeepen: false },
+      ],
+    } as never);
+
+    const email = `t27-progress-${randomUUID()}@example.com`;
+    const res = await GET(await buildRequest(email));
+    const json = await res.json();
+
+    expect(json.success).toBe(true);
+    expect(json.data.items).toEqual([
+      { questionId: "d0-a", dimension: "问题定义", orderIndex: 0, state: "scored", isDeepen: false },
+      { questionId: "d0-b", dimension: "问题定义", orderIndex: 1, state: "active", isDeepen: true },
+      { questionId: "d1-a", dimension: "用户理解", orderIndex: 2, state: "pending", isDeepen: false },
+    ]);
+    expect(json.data.resume).toEqual({
+      hasInProgress: true,
+      questionId: "d0-b",
+      dimension: "问题定义",
+      scoringPending: true,
+    });
+    expect(json.data.dimensionPreview).toBeNull();
+    // 兼容字段不破
+    expect(json.data.required).toBe(true);
+    expect(json.data.total).toBe(9);
+    expect(json.data.doneCount).toBe(2);
+    const raw = JSON.stringify(json);
+    expect(raw).not.toContain("绝密要点");
+    expect(raw).not.toContain("绝密提示");
+    expect(raw).not.toContain("绝密结论");
+    expect(raw).not.toContain("session-pending-9");
+  });
+
+  it("空题库：required=false、items 为空、resume 无进行中、dimensionPreview 为 null", async () => {
+    mockedGetBaselineStatus.mockResolvedValue({
+      required: false,
+      total: 0,
+      answeredCount: 0,
+      doneCount: 0,
+      nextQuestion: null,
+      completedAt: null,
+      pendingScoringSessionIds: [],
+      scoringPending: false,
+      dimensionPreview: null,
+      items: [],
+    } as never);
+
+    const email = `t27-empty-${randomUUID()}@example.com`;
+    const res = await GET(await buildRequest(email));
+    const json = await res.json();
+    expect(json.data.required).toBe(false);
+    expect(json.data.items).toEqual([]);
+    expect(json.data.resume).toEqual({
+      hasInProgress: false,
+      questionId: null,
+      dimension: null,
+      scoringPending: false,
+    });
+    expect(json.data.dimensionPreview).toBeNull();
+  });
+
+  it("完成后：dimensionPreview 八维下发（含未知 null 态）", async () => {
+    mockedGetBaselineStatus.mockResolvedValue({
+      required: false,
+      total: 8,
+      answeredCount: 8,
+      doneCount: 8,
+      nextQuestion: null,
+      completedAt: new Date("2026-10-22T08:00:00Z"),
+      pendingScoringSessionIds: [],
+      scoringPending: false,
+      dimensionPreview: [
+        { dimension: "问题定义", effectiveScore: 72.5 },
+        { dimension: "用户理解", effectiveScore: null },
+      ],
+      items: [],
+    } as never);
+
+    const email = `t27-preview-${randomUUID()}@example.com`;
+    const res = await GET(await buildRequest(email));
+    const json = await res.json();
+    expect(json.data.required).toBe(false);
+    expect(json.data.dimensionPreview).toEqual([
+      { dimension: "问题定义", effectiveScore: 72.5 },
+      { dimension: "用户理解", effectiveScore: null },
+    ]);
+    expect(json.data.resume.hasInProgress).toBe(false);
   });
 });

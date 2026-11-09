@@ -1,0 +1,48 @@
+id: Q38
+title: "Firefox Cookie 隔离：如何验证隐私保护而不忽视网站兼容性"
+case_title: "阻止跨站追踪时，登录还能正常工作吗？"
+case_background:
+  product: {text: "Mozilla 在 2022 年介绍 Firefox 的 Total Cookie Protection，宣布向桌面版用户逐步默认推广。", citations: [1]}
+  audience: {text: "该能力面向使用 Firefox 浏览网站的用户；网站也会使用 Cookie 保存登录状态等信息。", citations: [1, 2]}
+  scenario: {text: "同一第三方内容可能嵌在多个网站中，跨站共享 Cookie 可被用于关联用户的浏览活动。", citations: [2]}
+  features: {text: "Mozilla 将不同网站的 Cookie 分隔，并描述了为部分跨站登录等用途设置的有限例外。", citations: [2]}
+  status: {text: "相关保护可减少基于 Cookie 的跨站追踪，不等于阻止所有追踪方式；2022 年文章后来在 2024 年更新，平台范围须按历史时点区分。", citations: [1, 2]}
+case_sources:
+  - {id: 1, title: "Firefox Rolls Out Total Cookie Protection By Default", publisher: "Mozilla", url: "https://blog.mozilla.org/en/mozilla/firefox-rolls-out-total-cookie-protection-by-default-to-all-users-worldwide/"}
+  - {id: 2, title: "Firefox 86 Introduces Total Cookie Protection", publisher: "Mozilla Security Blog", url: "https://blog.mozilla.org/security/2021/02/23/total-cookie-protection/"}
+main_question: "假设你在 2022 年负责默认推广验证。请设计一项兼顾隐私和兼容性的评估：怎样确认跨站 Cookie 隔离生效，又怎样观察第三方登录、购物等关键任务是否受影响？说明对照、指标、样本与数据收集边界、灰度和停止条件。不要声称已消除所有追踪，也不要将任何网站故障当作已知事实。"
+ability_tags: [指标与验证, 产品价值判断, 方案设计]
+difficulty: 挑战
+domain: 工具/效率
+rubric:
+  dimensions:
+    指标与验证:
+      - "同时设计可复现的跨站 Cookie 测试和关键网站任务成功率对照。"
+      - "说明测试样本、浏览环境、分母及区分版本和网站差异的办法。"
+      - "给出误报、兼容失败与隐私暴露的保护指标及灰度停止条件。"
+      - "说明不收集完整浏览历史或用户 Cookie 的最小化原则。"
+    产品价值判断:
+      - "区分 Cookie 隔离、全部追踪防护和用户感知之间的关系。"
+      - "解释登录、购物等正常功能可能依赖的跨站状态和保护价值的冲突。"
+      - "不把 Mozilla 宣传或实验室通过当作普遍用户收益。"
+    方案设计:
+      - "提出分阶段推广和发现兼容问题后的回退或有限例外机制。"
+      - "解释例外授权范围与风险，避免为修复单站点无条件关闭全部保护。"
+      - "设计可复现的问题反馈或用户理解路径。"
+  forbidden_leaks: ["采用合成跨站账户测试和分层站点任务对照并设置网站级例外的完整验证方案"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "你要验证的保护对象是全部追踪，还是特定跨站状态共享？"}
+  - {level: 2, stage: 视角补充, question: "第三方登录和购物过程中，用户希望保留哪些正常功能？"}
+  - {level: 3, stage: 反例与风险, question: "如果追踪减少但登录失败，或者登录成功却发生跨站识别，分别说明什么？"}
+  - {level: 4, stage: 取舍权衡, question: "例外可以修复功能，但范围过大会产生什么代价？"}
+  - {level: 5, stage: 验证方式, question: "你怎样比较版本、覆盖不同网站，并在不收集浏览历史的情况下监测问题？"}
+materials:
+  core:
+    - {title: "Firefox Rolls Out Total Cookie Protection By Default", source: "Mozilla", url: "https://blog.mozilla.org/en/mozilla/firefox-rolls-out-total-cookie-protection-by-default-to-all-users-worldwide/", summary: "2022 年发布并于 2024 年更新；原文后段说明桌面版默认推广，不将后续平台范围套回 2022 年。"}
+    - {title: "Firefox 86 Introduces Total Cookie Protection", source: "Mozilla Security Blog", url: "https://blog.mozilla.org/security/2021/02/23/total-cookie-protection/", summary: "2021 年技术说明介绍隔离及针对登录等跨站功能的有限例外。"}
+  extended:
+    - {title: "Total Cookie Protection in Private Browsing", source: "Mozilla Security Blog", url: "https://blog.mozilla.org/security/2021/06/01/total-cookie-protection-in-private-browsing/", summary: "说明 2021 年隐私浏览中的默认保护及兼容例外。"}
+    - {title: "Firefox 87 introduces SmartBlock", source: "Mozilla Security Blog", url: "https://blog.mozilla.org/security/2021/03/23/introducing-smartblock/", summary: "讨论拦截追踪组件可能影响网站功能，以及另一项兼容性处理机制；不等同 Cookie 隔离。"}
+    - {title: "Firefox 91 Introduces Enhanced Cookie Clearing", source: "Mozilla Security Blog", url: "https://blog.mozilla.org/security/2021/08/10/firefox-91-introduces-enhanced-cookie-clearing/", summary: "说明按网站清理状态与网站数据的关系，帮助理解正常功能依赖。"}
+uncertainty: ["2022 年桌面版推广与后续平台范围、具体版本及例外应分开核对；原公告 2024 年更新，没有本题网站实际故障率。"]
+status: published

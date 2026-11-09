@@ -55,12 +55,14 @@ describe("statusLabelOf：维度状态标签", () => {
   });
 });
 
-describe("nextFocusOf：下一题优先方向（固定规则，T11 接入点）", () => {
+describe("nextFocusOf：基于画像的可行动建议", () => {
   it("全部未知：探索期，优先探索维度序第一个（问题定义）", () => {
     const focus = nextFocusOf(allUnknown());
     expect(focus.mode).toBe("explore");
     expect(focus.dimension).toBe("问题定义");
-    expect(focus.text).toBe("下一题将优先探索「问题定义」");
+    expect(focus.text).toContain("建议");
+    expect(focus.text).toContain("探索「问题定义」");
+    expect(focus.text).not.toContain("下一题将");
   });
 
   it("部分观测：优先探索维度序上的第一个未观测维度", () => {
@@ -70,7 +72,7 @@ describe("nextFocusOf：下一题优先方向（固定规则，T11 接入点）"
     const focus = nextFocusOf(dims);
     expect(focus.mode).toBe("explore");
     expect(focus.dimension).toBe("根因分析");
-    expect(focus.text).toBe("下一题将优先探索「根因分析」");
+    expect(focus.text).toContain("探索「根因分析」");
   });
 
   it("全部观测：强化期，优先强化当前分最低的维度", () => {
@@ -84,7 +86,11 @@ describe("nextFocusOf：下一题优先方向（固定规则，T11 接入点）"
     const focus = nextFocusOf(dims);
     expect(focus.mode).toBe("strengthen");
     expect(focus.dimension).toBe("产品表达");
-    expect(focus.text).toBe("下一题将优先强化「产品表达」");
+    expect(focus.text).toContain("建议重点练「产品表达」");
+    expect(focus.text).toContain("83 分");
+    expect(focus.text).toContain("提示依赖资料不足");
+    expect(focus.text).toContain("结论");
+    expect(focus.text).not.toContain("下一题将");
   });
 
   it("全部观测且同分：取观察次数较少者；仍相同取维度序前者", () => {
@@ -99,6 +105,56 @@ describe("nextFocusOf：下一题优先方向（固定规则，T11 接入点）"
     expect(nextFocusOf(dims.map((d) => ({ ...d, observationCount: 4 }))).dimension).toBe(
       "问题定义",
     );
+    const reversed = dims.map((d) => ({ ...d, observationCount: 4 })).reverse();
+    const before = structuredClone(reversed);
+    expect(nextFocusOf(reversed).dimension).toBe("问题定义");
+    expect(reversed).toEqual(before);
+  });
+
+  it("未知维度不受输入排列影响，按固定维度顺序先探索", () => {
+    expect(nextFocusOf(allUnknown().reverse()).dimension).toBe("问题定义");
+  });
+
+  it.each([
+    ["高", 3, "提示依赖较高", "先独立"],
+    ["中", 1.5, "提示依赖适中", "需要时再看提示"],
+    ["低", 0.5, "提示依赖较低", "保持独立"],
+    [null, null, "提示依赖资料不足", "记录提示使用"],
+  ] as const)("按最低分维度自身提示依赖 %s 给出动作", (band, dependency, label, action) => {
+    const dims = ABILITY_DIMENSIONS.map((dimension, index) =>
+      dimView(dimension, {
+        observed: true,
+        currentScore: index === 0 ? 0 : 70,
+        observationCount: 3,
+        hintDependency: index === 0 ? dependency : 4,
+        hintDependencyBand: index === 0 ? band : "高",
+      }),
+    );
+    const original = structuredClone(dims);
+    const focus = nextFocusOf(dims);
+    expect(focus.dimension).toBe("问题定义");
+    expect(focus.text).toContain("0 分");
+    expect(focus.text).toContain(label);
+    expect(focus.text).toContain("目标用户");
+    expect(focus.text).toContain(action);
+    expect(dims).toEqual(original);
+  });
+
+  it("分数按画像页保留一位小数展示，且建议与最低分维度有关", () => {
+    const dims = ABILITY_DIMENSIONS.map((dimension, index) =>
+      dimView(dimension, {
+        observed: true,
+        currentScore: index === 6 ? 62.26 : 80,
+        observationCount: 3,
+        hintDependency: 0.5,
+        hintDependencyBand: "低",
+      }),
+    );
+    const focus = nextFocusOf(dims);
+    expect(focus.text).toContain("指标与验证");
+    expect(focus.text).toContain("62.3 分");
+    expect(focus.text).toContain("指标");
+    expect(focus.text).toContain("验证");
   });
 });
 

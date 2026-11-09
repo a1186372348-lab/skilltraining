@@ -78,51 +78,51 @@ export async function findActivePromptVersion(
   return db.promptVersion.findFirst({ where: { name, status: "active" } });
 }
 
-/** 状态跃迁：registry 状态机校验；激活时事务内降级同 name 现役 active */
+/** 对可序列化冲突有限重试，每次重读状态并重新制定计划。 */
+async function serializable<T>(db: DbClient, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await db.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (attempt >= 2 || typeof error !== "object" || error === null || !("code" in error) || error.code !== "P2034") throw error;
+    }
+  }
+}
+
+/** 状态跃迁及激活计划在同一可序列化事务中完成。 */
 export async function transitionPromptStatus(
   db: DbClient,
   id: string,
   to: PromptStatus,
 ): Promise<PromptVersion> {
-  const row = await db.promptVersion.findUnique({ where: { id } });
-  if (!row) throw new Error(`prompt 版本不存在：${id}`);
-  const view = toView(row);
-  assertTransition(view.status, to);
-
-  if (to === "active") {
-    const siblings = (await listPromptVersions(db, view.name)).filter((v) => v.id !== id);
-    const plan = planActivation([...siblings, view], view.name, id);
-    return db.$transaction(async (tx) => {
+  return serializable(db, async (tx) => {
+    const row = await tx.promptVersion.findUnique({ where: { id } });
+    if (!row) throw new Error(`prompt 版本不存在：${id}`);
+    const view = toView(row);
+    assertTransition(view.status, to);
+    if (to === "active") {
+      const rows = await tx.promptVersion.findMany({ where: { name: view.name }, orderBy: { createdAt: "asc" } });
+      const plan = planActivation(rows.map(toView), view.name, id);
       if (plan.deactivateId) {
-        await tx.promptVersion.update({
-          where: { id: plan.deactivateId },
-          data: { status: "rolled_back" },
-        });
+        await tx.promptVersion.update({ where: { id: plan.deactivateId }, data: { status: "rolled_back" } });
       }
-      return tx.promptVersion.update({ where: { id }, data: { status: "active" } });
-    });
-  }
-  return db.promptVersion.update({ where: { id }, data: { status: to } });
+    }
+    return tx.promptVersion.update({ where: { id }, data: { status: to } });
+  });
 }
 
-/** 回滚：当前 active 降级 rolled_back，最近非 active 版本重新激活（D31 / 蓝图 §4：无需发版） */
+/** 回滚计划在同一可序列化事务中读取与执行。 */
 export async function rollbackPrompt(
   db: DbClient,
   name: string,
 ): Promise<{ activateId: string; deactivateId: string }> {
-  const versions = await listPromptVersions(db, name);
-  const plan = planRollback(versions, name);
-  await db.$transaction(async (tx) => {
-    await tx.promptVersion.update({
-      where: { id: plan.deactivateId },
-      data: { status: "rolled_back" },
-    });
-    await tx.promptVersion.update({
-      where: { id: plan.activateId },
-      data: { status: "active" },
-    });
+  return serializable(db, async (tx) => {
+    const rows = await tx.promptVersion.findMany({ where: { name }, orderBy: { createdAt: "asc" } });
+    const plan = planRollback(rows.map(toView), name);
+    await tx.promptVersion.update({ where: { id: plan.deactivateId }, data: { status: "rolled_back" } });
+    await tx.promptVersion.update({ where: { id: plan.activateId }, data: { status: "active" } });
+    return plan;
   });
-  return plan;
 }
 
 /**

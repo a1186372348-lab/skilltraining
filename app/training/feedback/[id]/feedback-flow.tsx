@@ -250,7 +250,7 @@ function ScoreRow({ score }: { score: FeedbackDimensionScore }) {
         <span className="text-3xl leading-none font-bold text-[#2563EB]">
           {formatScore(score.effectiveScore)}
         </span>
-        <span className="min-w-0 flex-1 text-xs text-[#64748B]">
+        <span className="order-last min-w-0 basis-full text-xs text-[#64748B] sm:order-none sm:flex-1">
           {scoreBreakdownText(score)}
         </span>
         <button
@@ -262,6 +262,11 @@ function ScoreRow({ score }: { score: FeedbackDimensionScore }) {
           {expanded ? "收起计算过程" : "查看计算过程"}
         </button>
       </div>
+      {score.confidence !== null && score.confidence !== undefined ? (
+        <p className="mt-2 text-xs text-[#64748B]">
+          {`本次评分信心：${score.confidence}/100（AI 自评）`}
+        </p>
+      ) : null}
       {expanded ? (
         <div className="mt-3 rounded-xl bg-[#F8FAFD] px-4 py-3 text-xs leading-6 text-[#475569]">
           {calculationDetailLines(score).map((line) => (
@@ -295,7 +300,7 @@ function NextStepCard({ text }: { text: string }) {
       <span className="text-[11px] font-bold tracking-[0.14em] text-[#7C8AA5]">下一步</span>
       <p className="mt-3 text-[15px] leading-7 font-semibold text-[#12233F]">{text}</p>
       <p className="mt-3 text-xs leading-5 text-[#94A3B8]">
-        理由：总监依据本次作答诊断给出，与上面「最需要优化的问题」同源，下一题将优先覆盖该方向。
+        理由：总监依据本次作答诊断给出，与上面「最需要优化的问题」同源，可据此安排后续练习。
       </p>
     </section>
   );

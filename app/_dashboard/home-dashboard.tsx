@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { CurrentTrainingCard } from "@/app/training/current-training-card";
 import { sidebarStageText } from "@/app/training/view-model";
 import type { DashboardView } from "@/server/modules/dashboard/contract";
 
-import { fetchDashboard } from "./api";
+import { DashboardApiError, fetchDashboard } from "./api";
 import { HomeShell } from "./home-shell";
+import { CampaignMap } from "./campaign-map";
 import {
   greetingByHour,
   greetingSubline,
@@ -35,6 +37,7 @@ const PRIMARY_BTN =
   "inline-flex items-center gap-2 rounded-xl bg-[#2563EB] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(37,99,235,0.65)] transition-all hover:-translate-y-px hover:bg-[#1D4ED8]";
 
 export function HomeDashboard() {
+  const router = useRouter();
   const [view, setView] = useState<DashboardView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -47,11 +50,16 @@ export function HomeDashboard() {
     try {
       setView(await fetchDashboard());
     } catch (error) {
+      if (error instanceof DashboardApiError && (error.status === 401 || error.code === "BASELINE_REQUIRED")) {
+        setView(null);
+        router.replace(error.status === 401 ? "/login" : "/baseline");
+        return;
+      }
       setLoadError(error instanceof Error ? error.message : "加载失败，请稍后重试");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     // 首屏加载延迟到 effect 同步阶段之后执行，避免同步 setState 引发级联渲染
@@ -132,6 +140,8 @@ export function HomeDashboard() {
               )}
             </header>
 
+            <CampaignMap />
+            <div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">今日任务与阶段进度</h2><Link href="/training?mode=daily" className="text-xs font-semibold text-[#1D4ED8] underline">先做日常训练</Link></div>
             <div className="grid items-stretch gap-6 xl:grid-cols-[1.55fr_1fr]">
               <div className="flex min-w-0 flex-col gap-6">
                 <CurrentTrainingSlot view={view} onRetry={() => void load()} onChanged={() => void load()} />

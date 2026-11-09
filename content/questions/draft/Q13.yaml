@@ -1,0 +1,117 @@
+id: Q13
+title: Spotify 发现周歌单：怎样判断用户是否发现了新音乐
+case_title: 个性化歌单播放很多，是否真的帮助了发现
+case_background:
+  product:
+    text: Discover Weekly 是 Spotify 提供的个性化音乐推荐歌单，不是热门歌曲排行榜。
+    citations:
+      - 1
+      - 2
+  audience:
+    text: 歌单面向 Spotify 听众；官方介绍指出，用户的收听和互动会影响个性化推荐。
+    citations:
+      - 2
+      - 4
+  scenario:
+    text: Spotify 为希望发现音乐的听众每周一更新一份推荐歌单；官方将发现不熟悉的歌曲作为这项体验的目的。
+    citations:
+      - 1
+      - 2
+  features:
+    text: 2025 年 Spotify 介绍歌单新增风格选项，移动端当时正向 Premium 用户逐步推送；选项依据个人收听历史生成。
+    citations:
+      - 1
+  status:
+    text: 2025 年十周年公告称 Discover Weekly 累计播放超过 1000 亿次；累计量为公司口径，并未直接说明多少人真正发现了喜欢的新音乐。
+    citations:
+      - 1
+case_sources:
+  - id: 1
+    title: Discover Weekly 十周年与个性化控制
+    publisher: Spotify
+    url: https://newsroom.spotify.com/2025-06-30/discover-weekly-turns-10-celebrating-100-billion-tracks-streamed-and-a-decade-of-personalized-discovery/
+  - id: 2
+    title: 让 Discover Weekly 更个性化
+    publisher: Spotify
+    url: https://newsroom.spotify.com/2019-05-02/five-ways-to-make-your-discover-weekly-playlists-even-more-personalized/
+  - id: 3
+    title: Discover Weekly 五周年收听时长
+    publisher: Spotify
+    url: https://newsroom.spotify.com/2020-07-09/spotify-users-have-spent-over-2-3-billion-hours-streaming-discover-weekly-playlists-since-2015/
+  - id: 4
+    title: Spotify 个性化负责人谈音乐发现
+    publisher: Spotify
+    url: https://newsroom.spotify.com/2021-10-13/adding-that-extra-you-to-your-discovery-oskar-stal-spotify-vice-president-of-personalization-explains-how-it-works/
+  - id: 5
+    title: Release Radar 五周年
+    publisher: Spotify
+    url: https://newsroom.spotify.com/2021-09-08/spotifys-release-radar-personalized-playlist-celebrates-five-years-and-16-billion-streams/
+main_question: 以 2025 年公告为讨论时点，假设你负责评估 Discover Weekly：累计播放量很大，能证明听众获得了多少发现新音乐的价值吗？请定义要验证的用户价值，设计可计算的主要指标、必要的体验护栏和对照方法，解释指标在实际收听情境中可能有何不同含义，并说明相对于原本找歌方式价值成立的条件或局限，以及什么结果会让你调整判断。可以提出合理假设，但不要把未提供的实验数据当成事实。
+ability_tags:
+  - 指标与验证
+  - 用户理解
+  - 产品价值判断
+difficulty: 中等
+domain: 内容/社交
+kind: daily
+rubric:
+  dimensions:
+    指标与验证:
+      - 将发现转为可操作定义，写明观察对象、分子分母和时间窗口，说明如何近似判断此前是否熟悉。
+      - 区分播放、完整收听、收藏和稍后回听的含义，指出单一播放量无法证明喜欢或因功能产生增量。
+      - 提出可执行的对照方法及观察单位，考虑用户历史、曲目可获得性和其他入口造成的干扰。
+      - 给出体验护栏和改变结论的条件；试验阈值不能伪装成已知业务基准。
+    用户理解:
+      - 结合所选价值定义，解释熟悉程度、探索意愿或收听情境如何影响指标含义，不要求固定分层数量。
+      - 解释跳过、重复收听或收藏可能有不同目的，不把单次行为直接等同于满意或不满意。
+      - 指出所选听众情境中至少一种可能被行为数据误读的情况，并说明如何核查，不以新老用户分组为必答。
+    产品价值判断:
+      - 比较推荐歌单与听众原本找歌方式，说明潜在价值的成立条件或局限；不要求同时展开完整机会成本分析。
+      - 价值显著、有限或证据不足等结论均可，但判断须与证据和反例相连。
+      - 准确区分公司累计播放口径与用户价值，不当作留存或满意度因果证明。
+  forbidden_leaks:
+    - 完整的发现价值指标、实验分组与护栏组合。
+    - 累计播放量足以或不足以单独决定产品成败的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 先说清你要评价的是有人播放，还是有人发现并愿意继续听；统计对象可能有什么不同？
+  - level: 2
+    stage: 视角补充
+    question: 新用户、已有固定歌单的人和主动找新歌的人，同一种行为可能有不同含义吗？
+  - level: 3
+    stage: 反例与风险
+    question: 一首歌被自动播放一次，就一定代表它对这位用户是新发现且用户喜欢吗？
+  - level: 4
+    stage: 取舍权衡
+    question: 如果推荐更陌生的歌曲会降低部分人的即时体验，你会保留哪些边界？
+  - level: 5
+    stage: 验证方式
+    question: 选择一种可比较的方法，写出观察窗口及可能污染对比结果的因素。
+materials:
+  core:
+    - title: Discover Weekly 十周年与个性化控制
+      source: Spotify
+      url: https://newsroom.spotify.com/2025-06-30/discover-weekly-turns-10-celebrating-100-billion-tracks-streamed-and-a-decade-of-personalized-discovery/
+      summary: Spotify 介绍每周更新、累计播放与 2025 年风格选项；数字属于公司自报的累计口径。
+    - title: 让 Discover Weekly 更个性化
+      source: Spotify
+      url: https://newsroom.spotify.com/2019-05-02/five-ways-to-make-your-discover-weekly-playlists-even-more-personalized/
+      summary: 2019 年说明每周推荐与用户互动、收藏等行为的关系；界面与机制以该时点为准。
+  extended:
+    - title: Discover Weekly 五周年收听时长
+      source: Spotify
+      url: https://newsroom.spotify.com/2020-07-09/spotify-users-have-spent-over-2-3-billion-hours-streaming-discover-weekly-playlists-since-2015/
+      summary: 2020 年公司回顾歌单起源与累计收听时长，可比较不同累计指标的解释边界。
+    - title: Spotify 个性化负责人谈音乐发现
+      source: Spotify
+      url: https://newsroom.spotify.com/2021-10-13/adding-that-extra-you-to-your-discovery-oskar-stal-spotify-vice-president-of-personalization-explains-how-it-works/
+      summary: 负责人讨论个性化与音乐发现的设计意图；访谈属于公司观点。
+    - title: Release Radar 五周年
+      source: Spotify
+      url: https://newsroom.spotify.com/2021-09-08/spotifys-release-radar-personalized-playlist-celebrates-five-years-and-16-billion-streams/
+      summary: 介绍另一份面向新发行音乐的个性化歌单，可比较推荐目标，不能当严格对照实验。
+uncertainty:
+  - 累计播放、公司访谈与用户调查不是同一指标；材料未给出可归因的留存或满意度结果。
+  - 2025 年风格选项逐步推出，不推定此前已存在或全部用户已获得。
+status: published

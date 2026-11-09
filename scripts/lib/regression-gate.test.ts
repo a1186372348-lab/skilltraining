@@ -794,3 +794,10 @@ describe("formatRegressionReport：样本级确认与边界抖动区块", () => 
     expect(markdown).not.toContain("边界抖动清单");
   });
 });
+
+it("硬门槛失败时后续通过不可放行，普通评分仍可抖动放行", () => {
+  expect(aggregateConfirmRuns([{ passed: false }, { passed: true }], { hardGateFailed: true })).toEqual({ passKind: "blocked", passed: false });
+  expect(aggregateConfirmRuns([{ passed: false }, { passed: true }])).toEqual({ passKind: "flaky-pass", passed: true });
+  expect(aggregateConfirmRuns([{ passed: true }], { hardGateFailed: true })).toEqual({ passKind: "blocked", passed: false });
+  expect(aggregateConfirmRuns([{ passed: false }, { passed: false }], { hardGateFailed: true, sampleConfirmedPassed: true })).toEqual({ passKind: "blocked", passed: false });
+});

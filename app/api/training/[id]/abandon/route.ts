@@ -12,6 +12,7 @@ import { aiEndpointRateLimiter } from "@/server/modules/training/rate-limit";
 import { abandonSession } from "@/server/modules/training/service";
 
 const sessionIdSchema = z.uuid();
+const bodySchema = z.strictObject({ confirmAbandonPack: z.boolean().optional() });
 
 /**
  * POST /api/training/:id/abandon（T38 / D40：训练终止与重启）。
@@ -42,8 +43,18 @@ export async function POST(
     return jsonError(400, "INVALID_SESSION_ID", "会话 id 不合法");
   }
 
+  let body: unknown;
   try {
-    const result = await abandonSession(prisma, id, user.id);
+    const raw = await request.text();
+    body = raw.trim() ? JSON.parse(raw) : {};
+  } catch {
+    return jsonError(400, "INVALID_JSON", "请求体不是合法 JSON");
+  }
+  const confirmation = bodySchema.safeParse(body);
+  if (!confirmation.success) return jsonError(400, "VALIDATION_FAILED", "确认参数无效");
+
+  try {
+    const result = await abandonSession(prisma, id, user.id, { confirmAbandonPack: confirmation.data.confirmAbandonPack === true });
     return jsonOk({ sessionId: id, state: result.state });
   } catch (error) {
     if (error instanceof TrainingError) {

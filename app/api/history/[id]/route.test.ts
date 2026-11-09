@@ -18,6 +18,7 @@ const createdUserIds: string[] = [];
 // 注：b2 是四个基线门禁测试文件共用的基线题 id（kind=baseline 互相 upsert），
 // 本文件断言 caseTitle，必须用不共享的 id（T38 排查：b2 撞 id 导致全套件并行时偶发失败）
 const SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000f1";
+const BASELINE_QUESTION_ID = "00000000-0000-4000-8000-0000000000f2";
 
 async function ensureSeedQuestion(): Promise<void> {
   const data = {
@@ -46,6 +47,11 @@ async function ensureSeedQuestion(): Promise<void> {
       where: { id: SEED_QUESTION_ID },
       create: { id: SEED_QUESTION_ID, ...data },
       update: data,
+    });
+    await prisma.question.upsert({
+      where: { id: BASELINE_QUESTION_ID },
+      create: { id: BASELINE_QUESTION_ID, ...data, kind: "baseline", status: "draft" },
+      update: { ...data, kind: "baseline", status: "draft" },
     });
   } catch {
     // 并发播种冲突：忽略
@@ -126,6 +132,29 @@ afterAll(async () => {
 });
 
 describe("GET /api/history/:id（详情回放）", () => {
+  it("基线详情仅本人完成基线且有参与证据后可回放；预留和他人记录均 404", async () => {
+    const owner = await newUser("baseline-owner");
+    const stranger = await newUser("baseline-stranger");
+    const profile = { userId: owner.id, position: "产品经理", yearsExperience: "1-3年", industry: "软件", familiarProducts: [], interestAreas: [], selfAssessment: [] };
+    await prisma.userProfile.create({ data: profile });
+    const active = await prisma.trainingSession.create({ data: {
+      userId: owner.id, questionId: BASELINE_QUESTION_ID, date: new Date(), isExtra: true,
+      state: "followup", firstAnswer: "旧版首答", finalAnswer: "终答", finalSubmittedAt: new Date(),
+    } });
+    const reserve = await prisma.trainingSession.create({ data: {
+      userId: owner.id, questionId: BASELINE_QUESTION_ID, date: new Date(), isExtra: true,
+    } });
+    expect((await callDetail(owner.email, active.id)).status).toBe(404);
+    await prisma.userProfile.update({ where: { userId: owner.id }, data: { baselineCompletedAt: new Date() } });
+    expect((await callDetail(owner.email, reserve.id)).status).toBe(404);
+    expect((await callDetail(stranger.email, active.id)).status).toBe(404);
+    const result = await callDetail(owner.email, active.id);
+    expect(result.status).toBe(200);
+    const payload = await result.json();
+    expect(payload.data).toMatchObject({ sessionId: active.id, questionKind: "baseline", firstAnswer: "旧版首答", isExtra: true });
+    expect(JSON.stringify(payload)).not.toContain("hintTree");
+    expect(JSON.stringify(payload)).not.toContain("rubric");
+  });
   it("完整回放：案例/两版答案/提示层数+时间/追问/评分四元组/反馈一次装配", async () => {
     const user = await newUser("t10-detail-full");
     const session = await newScoredSession(user.id);

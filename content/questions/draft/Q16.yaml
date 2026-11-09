@@ -1,0 +1,116 @@
+id: Q16
+title: Google Maps 离线导航：怎样帮助弱网用户顺利完成出行
+case_title: 出发后没信号，导航还怎么接续
+case_background:
+  product:
+    text: Google Maps 是提供地图和路线信息的产品；2015 年 Google 宣布扩展离线地图能力。
+    citations:
+      - 1
+  audience:
+    text: 功能面向需要在网络不稳定或无连接时查找地点、规划驾车路线的用户。
+    citations:
+      - 1
+  scenario:
+    text: 官方举例，用户可能在乡间道路或地下停车场遇到连接中断；事先下载地图区域后仍可使用部分功能。
+    citations:
+      - 1
+  features:
+    text: 2015 年公告介绍离线驾车逐路口导航、地点搜索及部分地点信息，并可在网络恢复时切回在线模式。
+    citations:
+      - 1
+  status:
+    text: 2015 年这批改进先在 Android 逐步推出，iOS 版本计划随后推出。
+    citations:
+      - 1
+case_sources:
+  - id: 1
+    title: Google Maps 离线搜索与导航
+    publisher: Google
+    url: https://blog.google/products-and-platforms/products/maps/navigate-and-search-real-world-online/
+  - id: 2
+    title: Google I/O 2015 移动产品预览
+    publisher: Google
+    url: https://blog.google/products-and-platforms/platforms/android/io-2015-mobile-revolution/
+  - id: 3
+    title: 2013 年移动版 Google Maps 更新
+    publisher: Google
+    url: https://blog.google/products-and-platforms/products/maps/a-new-google-maps-app-for-smartphones/
+  - id: 4
+    title: 2015 年美国智能手机使用研究
+    publisher: Pew Research Center
+    url: https://www.pewresearch.org/internet/2015/04/01/us-smartphone-use-in-2015/
+  - id: 5
+    title: Google Maps 十五年回顾
+    publisher: Google
+    url: https://blog.google/products-and-platforms/products/maps/look-back-15-years-mapping-world/
+main_question: 假设你负责 2015 年离线出行体验，要让用户在出发前准备、失去网络和恢复连接三个环节都知道下一步怎么做。请选择一种目标用户和具体路线场景，提出一条可行方案，说明信息与操作如何呈现，以及功能受限或地图可能过期时如何提醒。
+ability_tags:
+  - 方案设计
+  - 用户理解
+  - 产品表达
+difficulty: 基础
+domain: 出行
+kind: daily
+rubric:
+  dimensions:
+    方案设计:
+      - 覆盖出发前准备、断网中使用和恢复连接三个阶段，方案与所选用户场景对应。
+      - 根据所选情境说明功能受限或地图可能过期时的可理解反馈和可行下一步。
+      - 考虑数据用量、设备空间或地图覆盖至少一项约束，不承诺离线能力与在线完全一致。
+    用户理解:
+      - 明确目标用户与路线场景，解释其在网络变化前后要完成的任务。
+      - 结合所选场景考虑出行前的准备条件，不假定所有人都已有完整离线地图。
+      - 说明所选用户可能遇到的一个障碍或使用条件，不把官方设计意图当成用户行为事实。
+    产品表达:
+      - 给出面向用户的关键提示或状态表达，使其知道当前是否可用和如何处理。
+      - 清楚交代离线驾车、地点信息与在线实时信息的边界，不使用模糊保证。
+      - 按时间顺序解释方案，区分已存在功能与自己提出的设计。
+  forbidden_leaks:
+    - 覆盖准备、断网和恢复三个阶段的完整交互与提示方案。
+    - 任何离线体验必然与在线等价或必然无法使用的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 先选一个人和一段路：他何时可能有网，何时可能没有网？
+  - level: 2
+    stage: 视角补充
+    question: 出发前不知道会断网的人，与提前下载好区域的人，处境一样吗？
+  - level: 3
+    stage: 反例与风险
+    question: 如果下载不完整或路线超出已保存区域，用户可能看到什么？
+  - level: 4
+    stage: 取舍权衡
+    question: 数据费用、存储空间和提醒频率之间你会如何取舍？
+  - level: 5
+    stage: 验证方式
+    question: 把三个环节分别写成用户动作、系统状态和下一步提示。
+materials:
+  core:
+    - title: Google Maps 离线搜索与导航
+      source: Google
+      url: https://blog.google/products-and-platforms/products/maps/navigate-and-search-real-world-online/
+      summary: 2015 年发布说明介绍区域下载、离线驾车导航和搜索；适用平台按当时公告理解。
+    - title: Google I/O 2015 移动产品预览
+      source: Google
+      url: https://blog.google/products-and-platforms/platforms/android/io-2015-mobile-revolution/
+      summary: Google 在 2015 年 5 月预览弱网环境下的离线地图与逐路口指引，不代表所有地区均可用。
+  extended:
+    - title: 2013 年移动版 Google Maps 更新
+      source: Google
+      url: https://blog.google/products-and-platforms/products/maps/a-new-google-maps-app-for-smartphones/
+      summary: 2013 年公告展示当时移动地图和保存地图区域的历史背景，不代表 2015 年完整能力。
+    - title: 2015 年美国智能手机使用研究
+      source: Pew Research Center
+      url: https://www.pewresearch.org/internet/2015/04/01/us-smartphone-use-in-2015/
+      summary: 2015 年美国调查讨论手机上网、导航和连接约束；不能直接推断本产品的弱网成功率。
+    - title: Google Maps 十五年回顾
+      source: Google
+      url: https://blog.google/products-and-platforms/products/maps/look-back-15-years-mapping-world/
+      summary: Google 2020 年回顾 2015 年的离线导航和地点搜索，须与当年发布说明交叉理解。
+uncertainty:
+  - 案例以 2015 年公告为历史基线；2013 年界面和 2020 年回顾不得代替当时具体操作规则。
+  - 离线使用受区域和已下载数据等条件影响；材料没有提供弱网用户成功率。
+status: published
+reveal_after_first_answer:
+  text: 编辑复盘资料（当前不入库或展示）：现行 iOS 帮助 https://support.google.com/maps/answer/6291838?co=GENIE_PLATFORM%3AiOS&hl=en-419 ；2016 年新增选项 https://blog.google/products-and-platforms/products/maps/get-around-town-little-easier-with-new/ ；2023 年下载操作说明 https://blog.google/products-and-platforms/products/maps/google-maps-offline/ 。这些不能倒填为 2015 年规则。
+  citations: []

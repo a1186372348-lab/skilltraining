@@ -1,0 +1,120 @@
+id: Q28
+title: Wikipedia 桌面改版：如何向读者与志愿者解释变更
+case_title: 同一项界面调整，怎样让不同使用者知道变化与参与方式
+case_background:
+  product:
+    text: Wikipedia 是由志愿者参与编辑的在线百科；2023 年 1 月的报道介绍了桌面界面更新。
+    citations:
+      - 1
+      - 2
+  audience:
+    text: 桌面界面需要同时服务阅读内容的读者和创建、维护内容的志愿编辑者。
+    citations:
+      - 2
+      - 3
+  scenario:
+    text: 桌面改进项目经历多年设计与社区参与，2022 年项目团队介绍过向不同语言站点逐步部署的计划。
+    citations:
+      - 3
+      - 4
+  features:
+    text: 同期材料介绍更新后的目录、搜索和导航，以及登录用户滚动时可见的固定页头等功能。
+    citations:
+      - 1
+      - 2
+  status:
+    text: 团队将提高可用性作为改版目标，并介绍了用户测试和社区参与；材料不证明每一位读者或编辑者都赞同改版。
+    citations:
+      - 3
+      - 4
+case_sources:
+  - id: 1
+    title: Wikipedia gets its first makeover in over a decade
+    publisher: TechCrunch
+    url: https://techcrunch.com/2023/01/18/wikipedia-gets-its-first-makeover-in-over-a-decade-and-its-fairly-subtle/
+  - id: 2
+    title: Explore Wikipedia's New Look
+    publisher: Wikimedia Foundation
+    url: https://wikimediafoundation.org/news/2022/06/21/wikipedia-desktop/
+  - id: 3
+    title: Our improved desktop Wikipedia experience is almost here
+    publisher: Wikimedia Foundation / Diff
+    url: https://diff.wikimedia.org/2022/06/27/our-improved-desktop-wikipedia-experience-is-almost-here-get-the-latest-updates/
+  - id: 4
+    title: Prioritizing equity within Wikipedia’s new desktop
+    publisher: Wikimedia Foundation / Diff
+    url: https://diff.wikimedia.org/2022/08/18/prioritizing-equity-within-wikipedias-new-desktop/
+  - id: 5
+    title: Wikipedia is getting a new look for the first time in 10 years
+    publisher: Wikimedia Foundation / Diff
+    url: https://diff.wikimedia.org/2020/09/23/wikipedia-is-getting-a-new-look-for-the-first-time-in-10-years-heres-why/
+main_question: 把讨论时点放在 2023 年桌面改版公告时。请为读者和志愿编辑者分别写一段简短说明，解释为什么改、哪些变化可能影响他们、如何了解或反馈；再给出一项上线沟通方案。请说明未确认的信息与可能的分歧，不要假设所有人反对或支持。
+ability_tags:
+  - 产品表达
+  - 用户理解
+  - 方案设计
+difficulty: 中等
+domain: 内容/社交
+kind: daily
+rubric:
+  dimensions:
+    产品表达:
+      - 以不同角色能理解的语言解释目标和至少一项具体变化，不把设计意图写成已证明的普遍收益。
+      - 分别说明读者和编辑者关心的信息、可能受影响的操作及了解或反馈途径。
+      - 对未经材料确认的可用范围、选项或后果明确保留，沟通口径一致。
+      - 用简短示例实际展示可发送的表达，而不是只说应加强沟通。
+    用户理解:
+      - 区分偶尔阅读者和频繁编辑者可能的任务、熟悉成本及不同诉求。
+      - 考虑既有使用习惯和不同站点的差异，不以机构宣传推断所有人的感受。
+      - 提出收集不同角色反馈和验证理解的办法，避免只听取最活跃群体。
+    方案设计:
+      - 提出包含沟通触点及反馈由谁、何时处理的可执行安排。
+      - 说明如何从读者或编辑者的反馈判断沟通是否清楚。
+      - 针对可能找不到入口或不理解变化的情况，给出一项提示或反馈处理办法。
+  forbidden_leaks:
+    - 针对两类角色的完整公告文案与沟通反馈流程。
+    - 全体社区一致赞同或反对的无证据结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 一位偶尔查资料的读者和一位每天编辑条目的志愿者，会先问什么？
+  - level: 2
+    stage: 视角补充
+    question: 目录与导航改变具体影响哪些动作，材料又有哪些尚未证实？
+  - level: 3
+    stage: 反例与风险
+    question: 如何避免把团队希望改善体验说成每个人都已经受益？
+  - level: 4
+    stage: 取舍权衡
+    question: 除公告外，还可以在哪里让读者和编辑者获得帮助或反馈？
+  - level: 5
+    stage: 验证方式
+    question: 写出两段短文，并说明收集反馈后由谁在什么时点处理。
+materials:
+  core:
+    - title: Explore Wikipedia's New Look
+      source: Wikimedia Foundation
+      url: https://wikimediafoundation.org/news/2022/06/21/wikipedia-desktop/
+      summary: 2022 年官方说明目录、语言切换、搜索与固定页头等设计目标。
+    - title: Wikipedia gets its first makeover in over a decade
+      source: TechCrunch
+      url: https://techcrunch.com/2023/01/18/wikipedia-gets-its-first-makeover-in-over-a-decade-and-its-fairly-subtle/
+      summary: 2023 年 1 月 18 日同期报道介绍桌面改版，功能可用范围应按条件理解。
+  extended:
+    - title: Our improved desktop Wikipedia experience is almost here
+      source: Wikimedia Foundation / Diff
+      url: https://diff.wikimedia.org/2022/06/27/our-improved-desktop-wikipedia-experience-is-almost-here-get-the-latest-updates/
+      summary: 2022 年项目团队说明既有社区协作、试点和工具变化。
+    - title: Prioritizing equity within Wikipedia’s new desktop
+      source: Wikimedia Foundation / Diff
+      url: https://diff.wikimedia.org/2022/08/18/prioritizing-equity-within-wikipedias-new-desktop/
+      summary: 2022 年项目团队说明如何收集不同语言社区和读者的需求。
+    - title: Wikipedia is getting a new look for the first time in 10 years
+      source: Wikimedia Foundation / Diff
+      url: https://diff.wikimedia.org/2020/09/23/wikipedia-is-getting-a-new-look-for-the-first-time-in-10-years-heres-why/
+      summary: 2020 年项目介绍桌面导航的改进动机，页面最后更新于 2021 年。
+uncertainty:
+  - 机构公告、项目文档和同期报道不代表每位社区成员的意见；效果与功能范围需看具体站点和用户。
+  - 2022 年试点与计划不能当作 2023 年所有站点均已完成部署的证明。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

@@ -178,6 +178,18 @@ describe("parseScoringOutput：结构化输出解析与兜底", () => {
     });
   });
 
+  it("顶层 JSON 为 null 时返回评分输出校验错误", () => {
+    const error = catchError(() => parseScoringOutput("null", requested));
+    expect(error).toBeInstanceOf(ScoringError);
+    expect(error).toMatchObject({ code: CODES.SCORING_OUTPUT_INVALID });
+  });
+
+  it.each(["[]", "42", '"文本"', "true"])("顶层 JSON %s 不是对象时返回评分输出校验错误", (content) => {
+    const error = catchError(() => parseScoringOutput(content, requested));
+    expect(error).toBeInstanceOf(ScoringError);
+    expect(error).toMatchObject({ code: CODES.SCORING_OUTPUT_INVALID });
+  });
+
   it("分数越界（<0 或 >100）或不是数字：抛 ScoringError", () => {
     const build = (score: unknown) =>
       JSON.stringify({
@@ -258,12 +270,47 @@ describe("scoreWithRubric：AI 网关调用参数", () => {
     };
     expect(params.temperature).toBeLessThanOrEqual(0.3);
     expect(params.responseFormat).toEqual({ type: "json_object" });
-    expect(params.maxCompletionTokens).toBeGreaterThanOrEqual(2048);
+    expect(params.maxCompletionTokens).toBeUndefined(); // 由共享运行契约提供默认预算
   });
 
   it("模型输出无法解析：抛 ScoringError（服务层据此安全重试）", async () => {
     await expect(scoreWithRubric(input, { client: fakeClient("乱码输出") })).rejects.toMatchObject(
       { code: CODES.SCORING_OUTPUT_INVALID },
     );
+  });
+});
+
+describe("confidence 输出契约解析（T28 切片 3；蓝图 §4 R6：降级 NULL 不阻断评分）", () => {
+  const requested = ["用户理解", "产品取舍"];
+  const withConfidence = (confidence: unknown) =>
+    JSON.stringify({ ...JSON.parse(validOutput), ...(confidence === undefined ? {} : { confidence }) });
+
+  it("合法 confidence（0~100 数值）进入解析结果", () => {
+    expect(parseScoringOutput(withConfidence(85), requested).confidence).toBe(85);
+    expect(parseScoringOutput(withConfidence(0), requested).confidence).toBe(0);
+    expect(parseScoringOutput(withConfidence(100), requested).confidence).toBe(100);
+    // 小数数值按整数收整（落库列 Int）
+    expect(parseScoringOutput(withConfidence(87.6), requested).confidence).toBe(88);
+  });
+
+  it("缺失 confidence（v1 输出形态）→ 降级 NULL 并记日志，不抛错、其余字段照常", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const output = parseScoringOutput(withConfidence(undefined), requested);
+    expect(output.confidence).toBeNull();
+    expect(output.dimensions).toHaveLength(2);
+    expect(output.topIssue).toContain("具体环节的证据");
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("越界（<0 或 >100）与非数字：降级 NULL 并记日志，不抛 SCORING_OUTPUT_INVALID", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const bad of [-1, 101, "高", null, NaN]) {
+      const output = parseScoringOutput(withConfidence(bad), requested);
+      expect(output.confidence).toBeNull();
+      expect(output.dimensions).toHaveLength(2);
+    }
+    expect(warnSpy).toHaveBeenCalledTimes(5);
+    warnSpy.mockRestore();
   });
 });

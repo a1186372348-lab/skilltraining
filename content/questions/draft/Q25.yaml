@@ -1,0 +1,121 @@
+id: Q25
+title: GitHub 依赖提醒：收到漏洞提示后为什么仍可能无法完成修复
+case_title: 有提醒与真正完成安全更新之间的距离
+case_background:
+  product:
+    text: GitHub 提供 Dependabot 依赖漏洞提醒，以及在适用时生成修复拉取请求的自动安全更新。
+    citations:
+      - 1
+      - 2
+  audience:
+    text: 相关对象包括维护仓库依赖、接收提醒并决定是否合并更新的开发者或项目团队。
+    citations:
+      - 1
+      - 3
+  scenario:
+    text: 当仓库中依赖存在已知漏洞时，团队可能先收到提醒，再评估是否及如何应用修复。
+    citations:
+      - 1
+      - 3
+  features:
+    text: GitHub 2020 年介绍可在能够建议修复时生成更新依赖的拉取请求；后续文档列出自动更新可能遇到的错误。
+    citations:
+      - 1
+      - 4
+  status:
+    text: 自动化安全更新曾于 2019 年向公开仓库正式提供；当前文档的具体能力和权限应按其所述版本理解。
+    citations:
+      - 2
+      - 3
+      - 4
+case_sources:
+  - id: 1
+    title: Dependabot 更新依赖介绍
+    publisher: GitHub
+    url: https://github.blog/news-insights/product-news/keep-all-your-packages-up-to-date-with-dependabot/
+  - id: 2
+    title: 自动安全更新正式提供
+    publisher: GitHub Changelog
+    url: https://github.blog/changelog/2019-11-14-automated-updates/
+  - id: 3
+    title: Dependabot 安全更新
+    publisher: GitHub Docs
+    url: https://docs.github.com/en/code-security/concepts/supply-chain-security/dependabot-security-updates?learn=dependabot_security_updates&learnproduct=code-security
+  - id: 4
+    title: 排查 Dependabot 错误
+    publisher: GitHub Docs
+    url: https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-errors
+  - id: 5
+    title: 减少 Dependabot 通知干扰
+    publisher: GitHub Changelog
+    url: https://github.blog/changelog/2020-10-27-a-quieter-dependabot/
+main_question: 依据 GitHub 2020 年介绍的漏洞提醒与修复建议机制，开展一次假设性的链路调查。依赖是项目使用的外部软件包；补丁是针对问题的修复；拉取请求（PR）是提交给团队评审、测试并决定是否合入的改动建议。提醒出现、生成改动建议和实际完成修复是不同状态。请拆开从发现漏洞到完成修复的链路，提出至少三种可能的阻碍，说明现有证据能否支持原因排序；不足时说明优先调查顺序和能区分解释的证据。最后设计一项可验证的小改进，并给出一项指标及观察范围，不要假设项目已普遍忽视漏洞。
+ability_tags:
+  - 根因分析
+  - 方案设计
+  - 指标与验证
+difficulty: 挑战
+domain: 工具/效率
+kind: daily
+rubric:
+  dimensions:
+    根因分析:
+      - 拆分提醒产生、修复建议、拉取请求、评审测试和合并后的验证等阶段。
+      - 提出可区分的阻碍假设，如无补丁、自动化错误、兼容性或团队优先级，并说明哪些为假设。
+      - 区分已知机制、待验证假设和需要收集的证据；可用官方文档中的具体限制或错误举例，不将当前文档的能力机械倒填为 2020 年事实。
+      - 说明现有证据能否支持原因排序；不足时可提出优先调查顺序及能区分解释的证据，不把未合并直接等同于忽视安全。
+    方案设计:
+      - 针对优先环节设计小改进、负责人或状态提示，并保留团队评审与测试。
+      - 考虑无法自动修复、权限不足或建议破坏兼容性的例外。
+      - 不把自动合并作为默认安全方案，也不泄露仓库敏感信息。
+    指标与验证:
+      - 定义与所选改进或调查环节相关的一项指标，说明观察对象与时间窗口。
+      - 比较时考虑漏洞严重性、补丁可用性或仓库差异，避免把不同情况混为一谈。
+      - 说明什么结果会支持或改变改进判断，并识别一项安全风险；不编造团队真实失败率。
+  forbidden_leaks:
+    - 完整的依赖修复漏斗、各阶段根因及干预验证组合。
+    - 所有提醒均可自动修复或未合并均是人为疏忽的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 从提醒出现到依赖真正更新，中间有哪些必须发生的动作？
+  - level: 2
+    stage: 视角补充
+    question: 没有可用补丁、工具报错和团队未完成评审，能用同一个原因解释吗？
+  - level: 3
+    stage: 反例与风险
+    question: 自动建议如果使测试失败，是否应该直接合并？
+  - level: 4
+    stage: 取舍权衡
+    question: 没有足够数据时，你会先调查哪个环节？如果证据不同，改进会怎样变化？
+  - level: 5
+    stage: 验证方式
+    question: 不同严重性和仓库规模会怎样影响处理时长的比较？
+materials:
+  core:
+    - title: Dependabot 更新依赖介绍
+      source: GitHub
+      url: https://github.blog/news-insights/product-news/keep-all-your-packages-up-to-date-with-dependabot/
+      summary: 2020 年介绍漏洞提醒、安全更新与依赖版本更新。
+    - title: 自动安全更新正式提供
+      source: GitHub Changelog
+      url: https://github.blog/changelog/2019-11-14-automated-updates/
+      summary: 2019 年公告说明公开仓库中的自动安全更新。
+  extended:
+    - title: Dependabot 安全更新
+      source: GitHub Docs
+      url: https://docs.github.com/en/code-security/concepts/supply-chain-security/dependabot-security-updates?learn=dependabot_security_updates&learnproduct=code-security
+      summary: 当前文档介绍启用后针对有可用补丁的提醒尝试创建拉取请求。
+    - title: 排查 Dependabot 错误
+      source: GitHub Docs
+      url: https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-errors
+      summary: 当前文档说明自动更新受阻时可能出现的错误及排查入口。
+    - title: 减少 Dependabot 通知干扰
+      source: GitHub Changelog
+      url: https://github.blog/changelog/2020-10-27-a-quieter-dependabot/
+      summary: 2020 年后续变更讨论提醒通知可能带来的干扰；不证明某个仓库的状态。
+uncertainty:
+  - 题目仅设想需要调查的处理链路，没有给出任何团队的真实未修复比例。
+  - 2020 年发布文章与当前文档和后续变更应按各自时间理解。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

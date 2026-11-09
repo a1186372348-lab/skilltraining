@@ -1,0 +1,113 @@
+id: Q21
+title: IKEA 家具回购：怎样把参与条件讲清楚
+case_title: 旧家具交回门店前，顾客需要知道什么
+case_background:
+  product:
+    text: IKEA 美国的 Buyback & Resell 服务回购符合条件的 IKEA 家具，并提供退款卡。
+    citations:
+      - 1
+  audience:
+    text: 美国条款说明服务目前仅向 IKEA Family 会员提供；参与门店及家具资格均有条件。
+    citations:
+      - 1
+      - 3
+      - 4
+  scenario:
+    text: 顾客可以先在线取得估价，再于当前流程所示的 30 天内携带家具到参与门店接受检查和最终估价。
+    citations:
+      - 2
+  features:
+    text: 帮助页说明，合资格家具须清洁、功能正常并完整组装；门店确认后提供的退款卡可用于 IKEA 线上或门店购物。
+    citations:
+      - 2
+      - 3
+  status:
+    text: 所引美国帮助页与条款为 2026 年 11 月核验时的公开说明，具体店铺和产品条件可能变化。
+    citations:
+      - 1
+      - 3
+      - 4
+case_sources:
+  - id: 1
+    title: IKEA 美国回购与转售简介
+    publisher: IKEA 美国
+    url: https://www.ikea.com/us/en/customer-service/knowledge/articles/c4b6b875-ecd0-4048-bc1d-2e2f475ecb81.html
+  - id: 2
+    title: IKEA 回购流程
+    publisher: IKEA 美国
+    url: https://www.ikea.com/us/en/customer-service/knowledge/articles/ff5aae61-0984-4167-a0a0-0e033b8eea6a.html
+  - id: 3
+    title: 哪些商品符合回购条件
+    publisher: IKEA 美国
+    url: https://www.ikea.com/us/en/customer-service/knowledge/articles/e4147bdc-6cae-4148-b73b-2558cb4788f2.html
+  - id: 4
+    title: 回购与转售条款
+    publisher: IKEA 美国
+    url: https://www.ikea.com/us/en/customer-service/terms-conditions/buyback-resell-terms-and-conditions-pub74fd26f0/
+  - id: 5
+    title: 美国回购服务推出公告
+    publisher: IKEA 美国
+    url: https://www.ikea.com/us/en/newsroom/corporate-news/ikea-us-launches-national-buy-back-and-resell-service-as-part-of-global-green-friday-campaign-pub26d45227/
+main_question: 假设你要为第一次使用该服务的顾客写一段简短说明：怎样在用户出门前让他知道家具是否可能符合条件、线上估价与门店最终报价有什么区别、最后得到什么？请给出说明文案，并解释你为什么这样排序和如何验证用户是否理解。
+ability_tags:
+  - 产品表达
+  - 用户理解
+difficulty: 基础
+domain: 本地生活
+kind: daily
+rubric:
+  dimensions:
+    产品表达:
+      - 清楚说明资格检查、线上估价、到店检查和退款卡，区分估价与最终报价。
+      - 文案面向首次使用者，用明确步骤和限制降低误解，不承诺所有家具必定可回购。
+      - 解释信息排序并指出关键未知或应查看的具体条款。
+    用户理解:
+      - 围绕第一次使用者出门前的实际决定，解释哪些资格和门店信息需要先确认。
+      - 考虑搬运及到店检查的成本，使文案帮助用户避免因误解条件而白跑。
+      - 解释退款卡与现金的区别如何影响顾客预期，不要求额外完成人群对比或环境收益评估。
+  forbidden_leaks:
+    - 完整的资格、估价、到店与退款卡说明及验证思路。
+    - 回购对所有顾客一定划算的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 出门前、到店时和完成后，顾客各需要知道什么？
+  - level: 2
+    stage: 视角补充
+    question: 在线估价和门店检查后的价格是同一回事吗？
+  - level: 3
+    stage: 反例与风险
+    question: 家具不符合条件时，怎样避免让顾客白跑？
+  - level: 4
+    stage: 取舍权衡
+    question: 退款卡与现金对用户价值有什么区别？
+  - level: 5
+    stage: 验证方式
+    question: 让一位没用过服务的人复述流程，你会检查哪几项？
+materials:
+  core:
+    - title: IKEA 美国回购与转售简介
+      source: IKEA 美国
+      url: https://www.ikea.com/us/en/customer-service/knowledge/articles/c4b6b875-ecd0-4048-bc1d-2e2f475ecb81.html
+      summary: 介绍回购、退款卡和旧家具再售的基本机制。
+    - title: IKEA 回购流程
+      source: IKEA 美国
+      url: https://www.ikea.com/us/en/customer-service/knowledge/articles/ff5aae61-0984-4167-a0a0-0e033b8eea6a.html
+      summary: 说明估价、携带家具到店检查及最终报价的步骤。
+  extended:
+    - title: 哪些商品符合回购条件
+      source: IKEA 美国
+      url: https://www.ikea.com/us/en/customer-service/knowledge/articles/e4147bdc-6cae-4148-b73b-2558cb4788f2.html
+      summary: 列出家具状态、组装和资格方面的条件与限制。
+    - title: 回购与转售条款
+      source: IKEA 美国
+      url: https://www.ikea.com/us/en/customer-service/terms-conditions/buyback-resell-terms-and-conditions-pub74fd26f0/
+      summary: 说明参与门店和退款卡等服务条款。
+    - title: 美国回购服务推出公告
+      source: IKEA 美国
+      url: https://www.ikea.com/us/en/newsroom/corporate-news/ikea-us-launches-national-buy-back-and-resell-service-as-part-of-global-green-friday-campaign-pub26d45227/
+      summary: 2021 年公告介绍美国回购服务，历史发布范围不等于当前每家门店均参加。
+uncertainty:
+  - 本题仅采用美国页面核验时的说明；资格、参与门店和条款可能变化。
+  - 材料不提供顾客搬运成本、回购比例或实际环境收益。
+status: published

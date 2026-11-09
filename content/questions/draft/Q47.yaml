@@ -1,0 +1,42 @@
+id: Q47
+title: "首都图书馆手机借阅：怎样向读者讲清操作路径"
+case_title: "手机变借书机，读者从哪里开始？"
+case_background:
+  product: {text: "北京市文化和旅游局 2023 年 4 月 22 日介绍，首都图书馆计划在 4 月 23 日启动手机借阅服务。", citations: [1]}
+  audience: {text: "这项服务面向使用首都图书馆微信小程序、持有读者卡并借阅可外借图书的读者。", citations: [1]}
+  scenario: {text: "读者到馆选择可外借图书后，可通过手机办理借阅；官方介绍将其作为提高公共阅读服务便利性的方式。", citations: [1]}
+  features: {text: "计划中的路径是登录首都图书馆微信小程序、绑定读者卡，并用手机扫描可借阅图书。", citations: [1]}
+  status: {text: "这篇介绍发布在计划启动前一天，单凭它不能证明服务按时上线，也不能说明所有馆藏均可外借。", citations: [1]}
+case_sources:
+  - {id: 1, title: "最美京城四月天 正是读书好时节", publisher: "北京市文化和旅游局", url: "https://whlyj.beijing.gov.cn/zwgk/xwzx/gzdt/202304/t20230422_3063551.html"}
+main_question: "假设你在 2023 年 4 月 22 日为即将启动的服务写馆内说明；读者已有符合条件的读者卡，所选图书也经馆员确认可外借。请用面向读者的语言写出操作顺序、怎样确认已借成功以及遇到绑定或扫码问题如何求助；说明提示放在哪里及为什么适合。未公开的成功反馈、按钮名称或页面请作为待与馆方核实的设计建议，不要写成已经上线的事实。"
+ability_tags: [产品表达, 方案设计]
+difficulty: 基础
+domain: 教育
+rubric:
+  dimensions:
+    产品表达:
+      - "按打开小程序、绑定读者卡、扫描图书的顺序解释，不混淆扫码对象。"
+      - "说明需确认借阅成功并在失败时求助，不把扫描动作本身等同成功。"
+      - "可直接沿用题设中读者卡合格和图书可外借的前提，不因未重复两项条件扣分；未知界面细节标记待核实。"
+    方案设计:
+      - "选择入口、书架或服务台等适合放置提示的触点，说明为什么与读者的操作相符。"
+      - "为绑定或扫码失败提供可执行的馆员协助路径。"
+      - "提出可供核实的成功反馈或确认方式，不把未知界面写成既有事实。"
+  forbidden_leaks: ["登录绑定、扫码、确认成功、失败询问馆员的完整馆内指引"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "读者拿到书后，手机借阅前必须先准备什么？"}
+  - {level: 2, stage: 视角补充, question: "第一次使用小程序的读者可能不知道卡和图书分别怎样处理吗？"}
+  - {level: 3, stage: 反例与风险, question: "扫了图书却没有看到成功结果，能直接认为借阅完成吗？"}
+  - {level: 4, stage: 取舍权衡, question: "简短海报应包含哪些关键步骤，哪些细节可交给馆员？"}
+  - {level: 5, stage: 验证方式, question: "让读者按说明操作，你如何观察其是否找对扫码对象并确认成功？"}
+materials:
+  core:
+    - {title: "最美京城四月天 正是读书好时节", source: "北京市文化和旅游局", url: "https://whlyj.beijing.gov.cn/zwgk/xwzx/gzdt/202304/t20230422_3063551.html", summary: "2023 年 4 月 22 日介绍次日计划启动的手机借阅与基本路径。"}
+    - {title: "首都图书馆邀您体验二维码读者证", source: "北京市公共图书馆计算机服务信息网", url: "https://www.bplisn.net.cn/announcement/1219.html", summary: "2020 年说明另一种在自助设备出示读者证二维码的方式；不要与手机扫描图书混同。"}
+  extended:
+    - {title: "指尖借阅贴心送书到人", source: "首都图书馆 / 北京日报客户端", url: "https://xinwen.bjd.com.cn/content/s63bbab3be4b0fb99eeb31734.html", summary: "2023 年介绍网借配送服务，与馆内手机扫码借阅是不同路径。"}
+    - {title: "掌上图书馆", source: "首都图书馆", url: "https://www.clcn.net.cn/special/mlibrary/", summary: "介绍移动端馆藏检索和读者卡绑定；ISBN 识别查询不同于借阅登记。"}
+    - {title: "关于开通扫码借书服务的通知", source: "西南大学", url: "https://www.swu.edu.cn/info/1066/3281.htm", summary: "2023 年 9 月另一图书馆的借阅操作说明，可比较成功反馈设计，不代表首图界面。"}
+uncertainty: ["2023 年 4 月 22 日为计划时点；按钮、扫码标识和成功反馈须馆方核实，不把后续资料当作当日已上线证明。"]
+status: published

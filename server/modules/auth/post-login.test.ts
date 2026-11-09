@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { PrismaClient, Question } from "@prisma/client";
 
@@ -41,11 +41,33 @@ function makeDb(config: StubConfig) {
     trainingSession: {
       findMany: async () => config.scoredQuestionIds.map((questionId) => ({ questionId })),
     },
+    // T27 切片 2/3：完成态路径会查各维置信度（加深判定）与当前画像分（点亮预览）
+    score: {
+      findMany: async () => [],
+    },
+    abilityProfile: {
+      findMany: async () => [],
+    },
   } as unknown as PrismaClient;
   return { db, calls };
 }
 
 describe("resolvePostLoginPath：登录后按状态分发（首登链路：问卷 → 基线 → 首页）", () => {
+  it("仅画像存在性查询失败回首页，日志不含异常详情", async () => {
+    const { db } = makeDb({ profile: null, baselineQuestions: [], scoredQuestionIds: [] });
+    db.userProfile.findUnique = vi.fn().mockRejectedValue(new Error("secret-profile-detail"));
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(resolvePostLoginPath(db, "u-1")).resolves.toBe("/");
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain("secret-profile-detail");
+    } finally { errorLog.mockRestore(); }
+  });
+
+  it("基线状态查询失败不得吞掉", async () => {
+    const { db } = makeDb({ profile: { baselineCompletedAt: null }, baselineQuestions: [Q1], scoredQuestionIds: [] });
+    db.question.findMany = vi.fn().mockRejectedValue(new Error("baseline unavailable"));
+    await expect(resolvePostLoginPath(db, "u-1")).rejects.toThrow("baseline unavailable");
+  });
   it("无画像行（问卷未完成）→ /onboarding，且短路不查基线状态", async () => {
     const { db, calls } = makeDb({ profile: null, baselineQuestions: [Q1, Q2], scoredQuestionIds: [] });
     await expect(resolvePostLoginPath(db, "u-1")).resolves.toBe("/onboarding");

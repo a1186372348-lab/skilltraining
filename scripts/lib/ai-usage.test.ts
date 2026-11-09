@@ -1,9 +1,12 @@
 // AI 网关用量汇总纯函数单测（T23；T37 / D39 起 provider 中立命名）：容错解析 + 汇总计算 + 中文报告格式化
 import { describe, expect, it } from "vitest";
 
+import { buildRuntimeContract } from "../../server/ai/runtime-contract";
 import { formatAiUsageReport, summarizeAiUsage } from "./ai-usage.ts";
 
 const EVENT = "ai.deepseek.chat_completion";
+const profile = buildRuntimeContract("deepseek-flash", 0.2);
+const contractFields = { requestModel: profile.model, requestTemperature: profile.temperature, requestTemperatureApplicability: profile.temperatureApplicability, requestTokenLimitField: profile.maxTokensField, requestTokenLimit: profile.maxTokens, requestThinking: profile.thinking, requestEffort: profile.effort, requestContractHash: profile.hash };
 
 /** 成功审计事件（默认带 usage，无 error 字段） */
 function okEvent(overrides: Record<string, unknown> = {}): string {
@@ -197,16 +200,16 @@ describe("formatAiUsageReport", () => {
 
   it("completion 峰值余量 ≥2 倍：判定健康", () => {
     const report = formatAiUsageReport(
-      summarizeAiUsage(okEvent({ completionTokens: 623 })),
+      summarizeAiUsage(okEvent({ ...contractFields, completionTokens: 623 })),
     );
-    // 4096 / 623 ≈ 6.6 倍
-    expect(report).toContain("6.6 倍");
+    // 24576 / 623 ≈ 39.4 倍
+    expect(report).toContain("39.4 倍");
     expect(report).toContain("健康");
   });
 
   it("completion 峰值余量 <2 倍：给出告警提示", () => {
     const report = formatAiUsageReport(
-      summarizeAiUsage(okEvent({ completionTokens: 3900 })),
+      summarizeAiUsage(okEvent({ ...contractFields, completionTokens: 13000 })),
     );
     expect(report).toContain("低于 2 倍健康线");
   });
@@ -236,4 +239,25 @@ describe("formatAiUsageReport", () => {
     const report = formatAiUsageReport(summarizeAiUsage(""));
     expect(report).toContain("未找到 ai.deepseek.chat_completion 事件");
   });
+});
+
+it("新增审计元数据不改变原用量汇总", () => {
+  expect(summarizeAiUsage(okEvent({ responseFinishReason: "stop", responseReasoningTokens: 4, requestThinking: "unspecified" }))).toEqual(summarizeAiUsage(okEvent()));
+});
+
+it("历史或混合契约不得推断预算余量", () => {
+  const old = formatAiUsageReport(summarizeAiUsage(okEvent()));
+  expect(old).toContain("运行契约未知");
+  const mixed = formatAiUsageReport(summarizeAiUsage(lines(okEvent(), okEvent({ requestTokenLimitField: "max_tokens", requestTokenLimit: 24576, requestThinking: "enabled", requestEffort: "high" }))));
+  expect(mixed).toContain("运行契约未知");
+});
+
+it("不同有效预算混合时不推断余量，单一较小契约可核对请求目标", () => {
+  const small = buildRuntimeContract("deepseek-flash", 0.2, 1024);
+  const smallFields = { requestModel: small.model, requestTemperature: small.temperature, requestTemperatureApplicability: small.temperatureApplicability, requestTokenLimitField: small.maxTokensField, requestTokenLimit: small.maxTokens, requestThinking: small.thinking, requestEffort: small.effort, requestContractHash: small.hash };
+  const smallReport = formatAiUsageReport(summarizeAiUsage(okEvent({ ...smallFields, completionTokens: 600 })));
+  expect(smallReport).toContain("请求上限 1024");
+  expect(smallReport).toContain("不证明服务端实际生效");
+  const mixed = formatAiUsageReport(summarizeAiUsage(lines(okEvent({ ...smallFields }), okEvent({ ...contractFields }))));
+  expect(mixed).toContain("运行契约未知");
 });

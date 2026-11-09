@@ -1,0 +1,46 @@
+id: Q43
+title: "京东自动价保：谁会在什么情境下需要主动退差"
+case_title: "买完降价时，谁需要替自己盯价格？"
+case_background:
+  product: {text: "京东帮助中心介绍自营商品的 30 天自动价保服务。", citations: [1]}
+  audience: {text: "服务只适用于商品页带有相应自动价保标识的商品购买者，具体期限按订单规则确定。", citations: [1]}
+  scenario: {text: "符合规则的商品在适用周期内降价时，系统定期监控前台京东价，无需消费者手动申请即可按规则处理差价。", citations: [1]}
+  features: {text: "帮助页说明差额可按规则以款项、京券或京豆等形式返还；消费者也可在规则范围内主动申请价保。", citations: [1]}
+  status: {text: "本题依据 2026 年 11 月 3 日查阅的帮助页；页面未给出服务首次上线时间。", citations: [1]}
+case_sources:
+  - {id: 1, title: "什么是30天自动价保？（自营）", publisher: "京东帮助中心", url: "https://help.jd.com/user/issue/292-4272.html"}
+main_question: "假设你负责了解自动价保的用户价值。请描述至少两类购买者各自在什么购买情境下可能需要这项服务、会担心什么或怎样误解规则，并提出访谈和观察方式区分需求。再指出谁可能不适用、怎样避免把自动退差描述为所有商品或所有降价都适用。题目未给出真实用户比例。"
+ability_tags: [用户理解, 问题定义, 产品取舍]
+difficulty: 基础
+domain: 电商
+rubric:
+  dimensions:
+    用户理解:
+      - "提出至少两类在购买频率、价格关注或时间成本上不同的用户与具体情境。"
+      - "说明用户对规则、差额返还方式或是否生效可能存在的不同疑问。"
+      - "通过开放式访谈和实际查找行为验证假设，不编造人群比例。"
+    问题定义:
+      - "将需求表述为特定购买后情境中的价格关注或申请成本，而非所有人都怕降价。"
+      - "区分未带标识、超出周期或不符合规则与服务故障。"
+      - "说明现有材料不证明该功能带来复购或满意度提升。"
+    产品取舍:
+      - "讨论自动处理便利与规则透明、误期望之间的权衡。"
+      - "说明如何优先向适用用户解释资格和返还形式。"
+      - "不承诺所有降价均能现金退差。"
+  forbidden_leaks: ["按价格关注程度与监控成本划分人群并检验规则理解的完整研究设计"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "哪类商品和哪个时间范围才可能适用？"}
+  - {level: 2, stage: 视角补充, question: "经常比较价格的人和没有时间关注价格的人可能有什么不同？"}
+  - {level: 3, stage: 反例与风险, question: "顾客看见降价却未自动收到现金，是否一定是功能故障？"}
+  - {level: 4, stage: 取舍权衡, question: "规则解释越详细和购物过程越简单之间如何平衡？"}
+  - {level: 5, stage: 验证方式, question: "让用户实际查看一个订单，你会观察哪些理解与操作？"}
+materials:
+  core:
+    - {title: "什么是30天自动价保？（自营）", source: "京东帮助中心", url: "https://help.jd.com/user/issue/292-4272.html", summary: "说明带标商品、定期监控、适用期限及差额返还形式。"}
+    - {title: "什么是价格保护服务？", source: "京东帮助中心", url: "https://help.jd.com/user/issue/291-4537.html", summary: "说明普通价格保护及商品标识、申请等规则，帮助与自动服务区分。"}
+  extended:
+    - {title: "什么是自动价保？（自营）", source: "京东帮助中心", url: "https://help.jd.com/user/issue/292-4425.html", summary: "2024 年特定活动自动价保规则，不能当成当前所有商品规则。"}
+    - {title: "商品降价可以价保吗？", source: "京东帮助中心", url: "https://help.jd.com/user/issue/293-120.html", summary: "说明商品价格变动和申请价保的相关条件。"}
+    - {title: "如何查看自己申请的价格保护记录？", source: "京东帮助中心", url: "https://help.jd.com/user/issue/292-553.html", summary: "说明查询手动申请记录的入口，供比较用户查找成本。"}
+uncertainty: ["观察日不等于上线日；具体价格、返还形式、周期与适用商品以订单当时规则为准。"]
+status: published

@@ -1,0 +1,117 @@
+id: Q29
+title: Google Pay 电子车票：怎样检验手机乘车是否真的省时
+case_title: 车票保存到手机后，乘客从进站到通行是否更顺畅
+case_background:
+  product:
+    text: Google 在 2018 年介绍了将拉斯维加斯单轨车票保存到 Google Pay 的体验。
+    citations:
+      - 1
+  audience:
+    text: 该方案面向购买拉斯维加斯单轨车票、使用兼容手机的乘客；官方同时描述了无 Google Pay 用户的其他电子票方式。
+    citations:
+      - 1
+      - 2
+  scenario:
+    text: Google 介绍乘客可在线购买车票并保存到手机，再将手机靠近单轨交通闸机通行。
+    citations:
+      - 1
+  features:
+    text: 2018 年 Google 公告称乘客无需打开应用即可持手机靠近闸机通行；运营方所载公告另列通过邮件或短信接收二维码电子票并扫码通行的选择。
+    citations:
+      - 1
+      - 2
+  status:
+    text: 2018 年发布说明描述了手机票入口，但没有提供可比较的进站耗时数据。
+    citations:
+      - 1
+      - 2
+case_sources:
+  - id: 1
+    title: Google Pay 推出交通票功能
+    publisher: Google
+    url: https://blog.google/products-and-platforms/platforms/google-pay/google-pays-got-your-transit-ticket/
+  - id: 2
+    title: 拉斯维加斯单轨手机票说明
+    publisher: Las Vegas Monorail
+    url: https://www.lvmonorail.com/launches-mobile-ticketing-with-google-pay/
+  - id: 3
+    title: Google Pay adds transit tickets
+    publisher: 9to5Google
+    url: https://9to5google.com/2018/03/19/google-pay-android-transit-tickets/
+  - id: 4
+    title: Las Vegas Monorail unveils Google Pay mobile ticketing
+    publisher: Metro Magazine
+    url: https://www.metro-magazine.com/news/las-vegas-monorail-unveils-google-pay-mobile-ticketing
+  - id: 5
+    title: Las Vegas Monorail Offers Mobile Ticketing with Google Pay
+    publisher: Travel Agent Central
+    url: https://www.travelagentcentral.com/transportation/las-vegas-monorail-offers-mobile-ticketing-google-pay
+main_question: 假设你要判断手机票是否让乘客更快进站。请定义一个能计算的时间指标，设计一个简单而公平的比较，结合所选计时范围说明必要步骤及失败时可用的替代方式。说明什么方向的结果支持省时判断，什么情况会让你保留或改变判断；再说出这项功能对谁可能有价值，材料里哪些结论还不能直接得出。
+ability_tags:
+  - 指标与验证
+  - 方案设计
+  - 产品价值判断
+difficulty: 基础
+domain: 出行
+kind: daily
+rubric:
+  dimensions:
+    指标与验证:
+      - 明确计时起点、终点、观察单位与统计方法，并说明比较的人群和时间窗口。
+      - 把失败、未完成和极端等待纳入报告，不只统计成功且顺利的乘客。
+      - 区分公告描述的流程与省时效果，说明有无随机或可比对照对结论的影响。
+    方案设计:
+      - 结合所选计时范围说明完成进站所需的关键步骤，不要求画完整购票流程。
+      - 识别兼容设备、电量或票证等一种可能例外，说明失败时可用的替代方式。
+      - 比较安排与所选步骤相匹配；若提出改进动作，可作为补充而非必答。
+    产品价值判断:
+      - 说明对已有兼容手机且熟悉电子票的乘客可能产生的便利及其成立条件。
+      - 考虑不具备兼容设备或遇到故障的乘客，说明价值可能受限。
+      - 不把使用手机或公司宣传自动等同于每个人都更省时。
+  forbidden_leaks:
+    - 带完整计时口径、对照、失败处理与价值判断的方案。
+    - 电子票必然比所有替代方式省时的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 乘客从哪里开始排队，到什么时候算通过闸机？
+  - level: 2
+    stage: 视角补充
+    question: 只计算顺利通过的人，会遗漏哪些情况？
+  - level: 3
+    stage: 反例与风险
+    question: 使用手机票的人可能和使用其他票的人原本就不同吗？
+  - level: 4
+    stage: 取舍权衡
+    question: 手机没电或票未保存时，怎么让乘客继续完成行程？
+  - level: 5
+    stage: 验证方式
+    question: 怎样的结果支持进站省时？如果失败率或购票保存时间增加，你会怎样调整结论？
+materials:
+  core:
+    - title: Google Pay 推出交通票功能
+      source: Google
+      url: https://blog.google/products-and-platforms/platforms/google-pay/google-pays-got-your-transit-ticket/
+      summary: 2018 年介绍拉斯维加斯单轨在线购票、保存车票并以手机靠近闸机通行。
+    - title: 拉斯维加斯单轨手机票说明
+      source: Las Vegas Monorail
+      url: https://www.lvmonorail.com/launches-mobile-ticketing-with-google-pay/
+      summary: 运营方网页正文标记 2018 年公告，另介绍邮件或短信电子票与二维码；页面日期显示 2026 年。
+  extended:
+    - title: Google Pay adds transit tickets
+      source: 9to5Google
+      url: https://9to5google.com/2018/03/19/google-pay-android-transit-tickets/
+      summary: 2018 年同期报道介绍购票保存与非接触进站流程。
+    - title: Las Vegas Monorail unveils Google Pay mobile ticketing
+      source: Metro Magazine
+      url: https://www.metro-magazine.com/news/las-vegas-monorail-unveils-google-pay-mobile-ticketing
+      summary: 2018 年 3 月同期报道介绍手机进站及二维码电子票的替代方式。
+    - title: Las Vegas Monorail Offers Mobile Ticketing with Google Pay
+      source: Travel Agent Central
+      url: https://www.travelagentcentral.com/transportation/las-vegas-monorail-offers-mobile-ticketing-google-pay
+      summary: 2018 年 3 月同期报道介绍手机购票、保存及二维码电子票选择。
+uncertainty:
+  - 公告没有提供经过对照的进站时间，因此不能证明手机票省时或给出时间节省数值。
+  - 运营方网页日期显示 2026 年而正文标记 2018 年公告；其历史描述与现行服务应区分。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

@@ -1,0 +1,43 @@
+id: Q40
+title: "WhatsApp Communities：如何组织大型社区中的多个群"
+case_title: "一所学校的公告与班级讨论怎样共存？"
+case_background:
+  product: {text: "2022 年 4 月，WhatsApp 测试 Communities 方案，把多个群组织在更大的社区结构下。", citations: [1]}
+  audience: {text: "同期报道以学校和工作场所为可能使用场景。", citations: [1]}
+  scenario: {text: "报道介绍这一方案可用于学校等组织；本题假设校方需要区分全校通知与班级或活动讨论。", citations: [1]}
+  features: {text: "当时的方案把多个群联系起来，并允许管理员向社区发送通知。", citations: [1]}
+  status: {text: "同期报道描述方案正进行小范围测试，未提供学校实际试用效果。", citations: [1]}
+case_sources:
+  - {id: 1, title: "WhatsApp tests new feature to organize groups for work, school", publisher: "Reuters / Investing.com", url: "https://www.investing.com/news/stock-market-news/whatsapp-tests-new-feature-to-organize-groups-for-work-school-2804181"}
+main_question: "回到 2022 年 4 月，假设你为一所学校设计社区内的信息组织：校方需要发布全校通知，家长只想参与相关班级或活动讨论。请设计管理员、成员与群的关系、加入和退出路径、公告与讨论的区别，并写一段用户能看懂的首次使用说明。考虑误加入、通知过多和群内容的可见范围。人数、冲突或现有痛点均未给出，请说明需验证的假设，并各举一个校方和家长的试用任务来检验。"
+ability_tags: [方案设计, 产品表达]
+difficulty: 中等
+domain: 内容/社交
+rubric:
+  dimensions:
+    方案设计:
+      - "区分社区、公告与具体群的关系及管理员和成员权限。"
+      - "说明成员加入、退出、查看相关群和接收公告的路径。"
+      - "考虑误加入、信息过载及成员可见范围，说明待验证边界。"
+      - "提出针对学校管理员与家长的试用任务。"
+    产品表达:
+      - "写出面向家长的简短说明，解释公告和群讨论的区别。"
+      - "明确谁能发布公告、成员如何找到或退出相关群。"
+      - "区分设计提案与 2022 年官方愿景，避免假称现成体验。"
+  forbidden_leaks: ["全校公告与按班级自愿加入群组合的完整流程及对应用户提示"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "全校都需要的信息和只与某个班级有关的信息，应如何区分？"}
+  - {level: 2, stage: 视角补充, question: "校方管理员、班级管理员和家长分别需要什么权限？"}
+  - {level: 3, stage: 反例与风险, question: "家长被加入不相关的群，或不想继续接收讨论时怎么办？"}
+  - {level: 4, stage: 取舍权衡, question: "公告覆盖范围越大与通知越少之间如何权衡？"}
+  - {level: 5, stage: 验证方式, question: "请让家长用自己的话说明去哪里看全校通知和如何退出某个群，你会观察什么？"}
+materials:
+  core:
+    - {title: "WhatsApp tests new feature to organize groups for work, school", source: "Reuters / Investing.com", url: "https://www.investing.com/news/stock-market-news/whatsapp-tests-new-feature-to-organize-groups-for-work-school-2804181", summary: "2022 年 4 月路透采访介绍社区聚合群组、管理员公告与学校等使用场景；未证明学校试用效果。"}
+    - {title: "Communication Plans", source: "Louisiana Department of Education", url: "https://doe.louisiana.gov/docs/default-source/covid-19-resources/communication-plan-recommendations.pdf?sfvrsn=981f9b1f_2", summary: "2020 年学校沟通计划说明家庭与学校人员需要的信息和沟通频率；不是 WhatsApp 功能说明。"}
+  extended:
+    - {title: "Building trusting relationships with families and the community through effective communication", source: "Institute of Education Sciences / U.S. Department of Education", url: "https://files.eric.ed.gov/fulltext/ED569112.pdf", summary: "2016 年家校沟通工具包讨论跨文化和双向沟通；不代表本题学校的调查结果。"}
+    - {title: "Texting Parents: Evaluation Report and Executive Summary", source: "Institute of Education Sciences", url: "https://ies.ed.gov/ncee/wwc/Study/84224", summary: "2017 年研究评审说明学校向家长发送不同类型信息的做法；不能推断社区产品效果。"}
+    - {title: "Exploring Implementation of Attendance Supports", source: "Institute of Education Sciences", url: "https://ies.ed.gov/use-work/resource-library/report/descriptive-study/exploring-implementation-attendance-supports-reduce-chronic-absenteeism-providence-public-school", summary: "2021 年学校考勤研究介绍按家庭语言沟通的观察；不能证明本题方案产生效果。"}
+uncertainty: ["2022 年 4 月处于小范围测试阶段；学校需求、可见范围、加入与退出规则均须验证。同期报道及教育参考不提供这所学校的实际效果数据。"]
+status: published

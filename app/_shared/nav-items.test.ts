@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { navItemsFor, type NavLabel } from "./nav-items";
 
-// T25 / D27①：导航 4 项（首页/产品训练/能力画像/我的），「产品训练」合并原今日训练与训练历史
+// 成长阶段作为固定入口，所有页面保持相同导航顺序。
 const FIXED_ORDER: ReadonlyArray<readonly [NavLabel, string]> = [
   ["首页", "/"],
   ["产品训练", "/training"],
   ["能力画像", "/profile"],
+  ["成长阶段" as NavLabel, "/stages"],
   ["我的", "/settings"],
 ];
 

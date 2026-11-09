@@ -1,6 +1,6 @@
 # T37 模型切换 DeepSeek 与追问失败重试
 
-- 状态：IN_PROGRESS
+- 状态：DONE（2026-11-08，负责人确认验收通过）
 - 决策来源：D39（maps/changelog.md 决策记录）；D25④ 的用户侧重试入口暂缓决定被本任务取代
 - 背景：试测中 MiMo 追问生成失败（「总监暂时离开」）+ 长时段评分抖动；产品负责人裁定全量切换 DeepSeek（`deepseek-flash`，当前即 V4.1-Flash-1017）。失败态 UX 同步修复。
 
@@ -54,3 +54,4 @@
 - 实测证据：真实首答 → DeepSeek 追问生成成功；制造一次失败（如临时错误 key）→ 失败态无输入框 + 重试按钮 → 恢复后重试成功。
 - 切换后由主代理执行 31 份校准集复跑（`scripts/eval-baseline-samples.ts --live`），对照人审结论出报告（`docs/v2/calibration-report-baseline-8-deepseek.md`）。
 - 全程通过 `npm run lint`、`npm run typecheck`、`npm test`。
+- 完成证据：[T37 实测与验收记录](../docs/v2/t37-closeout-review-20261104.md)记录正常首答生成追问、同一会话失败后重试恢复和全量测试结果。

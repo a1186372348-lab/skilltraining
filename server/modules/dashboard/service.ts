@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 
+import { assertAbilityResultsVisible } from "@/server/modules/baseline/result-visibility";
 import { getAbilityProfileView } from "@/server/modules/profile/ability";
 import { getCurrentTrainingCard } from "@/server/modules/training/hub-view";
 import { todayUtc } from "@/server/modules/training/service";
@@ -88,6 +89,7 @@ async function safeCard<T>(card: string, load: () => Promise<T>): Promise<T | nu
 
 /** 装配首页仪表盘视图：四卡并行、各自独立降级 */
 export async function getDashboardView(db: DbClient, userId: string): Promise<DashboardView> {
+  await assertAbilityResultsVisible(db, userId);
   const [stats, currentTraining, ability, latestDiagnosis] = await Promise.all([
     safeCard("stats", () => loadStats(db, userId)),
     safeCard("currentTraining", () => getCurrentTrainingCard(db, userId)),

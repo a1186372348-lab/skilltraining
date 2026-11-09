@@ -1,4 +1,4 @@
-import type { PrismaClient, TrainingSessionState } from "@prisma/client";
+import type { PrismaClient, TrainingSessionSource, TrainingSessionState } from "@prisma/client";
 
 import { parseFollowupRecords } from "@/server/modules/training/today-view";
 
@@ -45,6 +45,8 @@ export interface HistoryDetailView {
   sessionId: string;
   date: string;
   isExtra: boolean;
+  sourceType: TrainingSessionSource;
+  questionKind: "baseline" | "daily";
   state: TrainingSessionState;
   // 案例区
   caseTitle: string;
@@ -77,6 +79,7 @@ export interface HistorySessionDetailRow {
   userId: string;
   date: Date;
   isExtra: boolean;
+  sourceType: TrainingSessionSource;
   state: TrainingSessionState;
   firstAnswer: string | null;
   firstSubmittedAt: Date | null;
@@ -85,6 +88,7 @@ export interface HistorySessionDetailRow {
   hintCount: number;
   followups: unknown;
   question: {
+    kind: "baseline" | "daily";
     caseTitle: string;
     caseBackground: unknown;
     mainQuestion: string;
@@ -138,6 +142,8 @@ export function toHistoryDetailView(row: HistorySessionDetailRow): HistoryDetail
     sessionId: row.id,
     date: row.date.toISOString().slice(0, 10),
     isExtra: row.isExtra,
+    sourceType: row.sourceType,
+    questionKind: row.question.kind,
     state: row.state,
     caseTitle: row.question.caseTitle,
     caseBackground: row.question.caseBackground,
@@ -180,7 +186,7 @@ export async function getHistoryDetail(
   sessionId: string,
   userId: string,
 ): Promise<HistoryDetailView> {
-  const row = await findHistorySessionDetail(db, sessionId);
+  const row = await findHistorySessionDetail(db, sessionId, userId);
   if (!row || row.userId !== userId) {
     throw new HistoryError(CODES.SESSION_NOT_FOUND, 404, "训练记录不存在");
   }

@@ -1,0 +1,120 @@
+id: Q18
+title: iOS 追踪授权：用户隐私与应用生态之间怎样取舍
+case_title: 让用户选择追踪权限，会改变哪些关系
+case_background:
+  product:
+    text: App Tracking Transparency 是 Apple 为应用请求跨其他公司应用或网站追踪许可提供的框架。
+    citations:
+      - 1
+      - 4
+  audience:
+    text: 涉及使用应用的个人、需要请求许可的开发者，以及依赖广告触达的相关参与方。Apple 将这项设计描述为给予用户选择。
+    citations:
+      - 1
+      - 4
+  scenario:
+    text: 2021 年 4 月，Apple 在 iOS 14.5 等系统即将发布时向开发者重申追踪许可要求。
+    citations:
+      - 1
+  features:
+    text: Apple 说明应用需请求用户许可才能追踪或访问设备广告标识符；未获许可时不得追踪，广告标识符值为零。
+    citations:
+      - 1
+  status:
+    text: Apple 称相关要求从 2021 年 4 月 26 日适用；此前曾推迟该要求以给予开发者准备时间。
+    citations:
+      - 1
+      - 2
+case_sources:
+  - id: 1
+    title: 即将实施的追踪透明度要求
+    publisher: Apple Developer
+    url: https://developer.apple.com/news/?id=ecvrtzt2
+  - id: 2
+    title: 追踪透明度要求更新
+    publisher: Apple Developer
+    url: https://developer.apple.com/news/?id=8rm6injj
+  - id: 3
+    title: 数据的一天与追踪透明度
+    publisher: Apple
+    url: https://www.apple.com/la/privacy/docs/A_Day_in_the_Life_of_Your_Data-Jan_2021.pdf
+  - id: 4
+    title: 2020 年开发者会议：通过隐私建立信任
+    publisher: Apple Developer
+    url: https://developer.apple.com/videos/play/wwdc2020/10676/
+  - id: 5
+    title: App 隐私信息问题说明
+    publisher: Apple Developer
+    url: https://developer.apple.com/news/?id=hx9s63c5
+main_question: 站在 2021 年规则即将实施时，假设你负责一个依赖广告的应用：你会怎样调整用户告知、授权请求时机和未授权后的体验？请比较至少两种符合规则的请求时机或告知安排，选定一种，说明它相对另一种保护了什么、可能损失什么，并结合假定的数据用途写出一段拟议用途说明。请比较用户、开发者及广告相关方可能得到的价值与承担的代价，并说明哪些结论还需要证据。不要设计绕过用户选择的方案。
+ability_tags:
+  - 产品取舍
+  - 产品价值判断
+  - 产品表达
+difficulty: 挑战
+domain: 工具/效率
+kind: daily
+rubric:
+  dimensions:
+    产品取舍:
+      - 比较至少两种符合规则的告知或请求时机方案，选择一种并解释相对收益与代价。
+      - 遵守用户拒绝追踪的选择，不提出通过指纹或其他方式规避规则。
+      - 讨论不同授权结果下的可用体验及至少一种潜在商业代价，不将拒绝率或损失视为已知。
+      - 给出可接受边界和必要的审查或复核条件。
+    产品价值判断:
+      - 分别分析用户控制、开发者运营和广告触达的潜在价值，说明成立前提。
+      - 区分规则本身、用户是否理解以及实际广告效果，不把公司立场当作独立效果证明。
+      - 允许不同合理方案，但需明确证据不足与可能改变判断的条件。
+    产品表达:
+      - 提供简洁、真实的权限说明，能让用户理解用途、选择及拒绝后的基本体验。
+      - 引用材料时准确交代规则适用时点，不把其他时间或地区的规定自动当作 2021 年事实。
+      - 以面向相关方的结构说明决定和代价，不使用恐吓或误导性按钮文案。
+  forbidden_leaks:
+    - 完整授权说明、请求时机和未授权分支组成的方案。
+    - 隐私保护必然导致或不会导致商业损失的定性结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 先界定规则涉及什么追踪，哪些数据使用并不能直接从公告推断？
+  - level: 2
+    stage: 视角补充
+    question: 用户、应用开发者和广告相关方分别希望得到什么？
+  - level: 3
+    stage: 反例与风险
+    question: 拒绝追踪后，如果应用通过其他手段继续追踪，会发生什么规则问题？
+  - level: 4
+    stage: 取舍权衡
+    question: 更早提示和在用途明确时提示，各可能付出什么代价？
+  - level: 5
+    stage: 验证方式
+    question: 用用户能理解的文字解释用途和选择，并指出哪些商业效果尚需测量。
+materials:
+  core:
+    - title: 即将实施的追踪透明度要求
+      source: Apple Developer
+      url: https://developer.apple.com/news/?id=ecvrtzt2
+      summary: 2021 年 4 月开发者通知说明许可与实施时间。
+    - title: 追踪透明度要求更新
+      source: Apple Developer
+      url: https://developer.apple.com/news/?id=8rm6injj
+      summary: 2021 年 1 月说明要求曾延期以及未授权时的处理。
+  extended:
+    - title: 数据的一天与追踪透明度
+      source: Apple
+      url: https://www.apple.com/la/privacy/docs/A_Day_in_the_Life_of_Your_Data-Jan_2021.pdf
+      summary: Apple 的 2021 年材料阐述其对数据追踪和用户选择的观点；为公司立场。
+    - title: 2020 年开发者会议：通过隐私建立信任
+      source: Apple Developer
+      url: https://developer.apple.com/videos/play/wwdc2020/10676/
+      summary: Apple 在 2020 年开发者会议介绍跨公司追踪、权限请求与用途说明；作为当时的公司规则说明。
+    - title: App 隐私信息问题说明
+      source: Apple Developer
+      url: https://developer.apple.com/news/?id=hx9s63c5
+      summary: 2020 年开发者通知介绍 App Store 隐私信息披露以及当时规划的追踪许可要求。
+uncertainty:
+  - 案例固定在 2021 年；当前地区政策和开发者文档可能发生变化。
+  - 材料未提供应用的实际拒绝率、广告收入损失或授权提示效果。
+status: published
+reveal_after_first_answer:
+  text: 编辑对照资料（当前不入库或展示）：Apple 现行隐私与数据使用页面 https://developer.apple.com/app-store/user-privacy-and-data-use/ 包含后续地区和系统变化，不得倒填到 2021 年。
+  citations: []

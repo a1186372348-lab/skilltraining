@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: skilltraining
-      POSTGRES_PASSWORD: skilltraining_local_only
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
       POSTGRES_DB: skilltraining
     ports:
       - "5433:5432"

@@ -1,0 +1,115 @@
+id: Q30
+title: Fitbit 睡眠画像：哪些能力适合放进付费服务
+case_title: 睡眠信息既要有基本价值，也要有清楚的付费理由
+case_background:
+  product:
+    text: Fitbit 在 2022 年介绍面向 Premium 会员的 Sleep Profile 月度睡眠画像。
+    citations:
+      - 1
+  audience:
+    text: 该功能面向拥有兼容 Fitbit 设备且使用 Premium 服务的人；其介绍要求每月有一定夜晚佩戴设备。
+    citations:
+      - 1
+  scenario:
+    text: 用户可在持续记录睡眠的过程中获得月度画像，官方用多项睡眠指标和动物类别帮助呈现模式。
+    citations:
+      - 1
+  features:
+    text: 2022 年公告称每个日历月至少佩戴设备睡眠 14 晚才能获得一次评估；具体设备与服务条件以公告为准。
+    citations:
+      - 1
+  status:
+    text: Fitbit 曾介绍付费 Premium 订阅；公开介绍展示产品设计，但不能单独证明画像能诊断疾病或改善每位用户健康。
+    citations:
+      - 1
+      - 2
+case_sources:
+  - id: 1
+    title: Fitbit Sleep Profile 发布说明
+    publisher: Fitbit／Google
+    url: https://blog.google/products-and-platforms/devices/fitbit/sleep-profile/
+  - id: 2
+    title: Fitbit Premium 推出
+    publisher: Fitbit／Google
+    url: https://blog.google/products-and-platforms/devices/fitbit/fitbit-launches-fitbit-premium/
+  - id: 3
+    title: 员工使用睡眠画像的故事
+    publisher: Fitbit／Google
+    url: https://blog.google/products-and-platforms/devices/fitbit/fitbit-sleep-premium-experience/
+  - id: 4
+    title: Fitbit 2022 年秋季设备与服务介绍
+    publisher: Fitbit／Google
+    url: https://blog.google/products-and-platforms/devices/fitbit/fall-2022/
+  - id: 5
+    title: Fitbit 睡眠阶段研究介绍
+    publisher: Fitbit／Google
+    url: https://blog.google/products-and-platforms/devices/fitbit/study-shows-fitbit-devices-accurately-track-sleep-stages/
+main_question: 假设你可以重新划分睡眠体验中的基础信息和付费分析。你会免费提供哪些内容、将哪些放进 Premium？请说明不同用户的价值和选择的代价。选择一个主要指标，说明观察对象、时间范围和怎样判断，并补充一项需要避免的用户误解。不要求完整实验设计，也不要把产品描述当作医疗效果证明。
+ability_tags:
+  - 产品取舍
+  - 产品价值判断
+  - 指标与验证
+difficulty: 基础
+domain: 健康/运动
+kind: daily
+rubric:
+  dimensions:
+    产品取舍:
+      - 给出基础与付费能力的清晰划分及理由，并说明其他合理方案也可能成立。
+      - 考虑价格、持续佩戴门槛与健康信息理解风险，明确一种需要接受的代价。
+      - 区分提出的新划分与 2022 年公告中的现有 Premium 功能，不虚构既有权益。
+    产品价值判断:
+      - 按所选免费与付费权益划分，说明不同需求的用户可能获得的具体价值及成立条件；不限定用户分组或某种权益组合。
+      - 承认设备兼容、佩戴条件和付费意愿可能影响价值；不把现有月度画像的条件推广到所有拟议分析。
+      - 不将动物分类、宣传或单人体验当作疾病诊断或健康改善证明。
+    指标与验证:
+      - 指标与所选权益划分有关，观察对象、时间范围和变化方向清楚；比例指标说清分母。
+      - 说明该指标能支持什么近期判断，以及它不能证明的长期价值或健康结果。
+      - 指出一项需要避免的权益或健康含义误解，不要求完整实验设计。
+  forbidden_leaks:
+    - 完整的免费付费划分、目标人群与验证方案。
+    - 睡眠画像能诊断疾病或必然改善健康的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 用户偶尔查看睡眠与持续关注趋势时，需要的信息有什么不同？
+  - level: 2
+    stage: 视角补充
+    question: 哪些基本解释应在用户作决定前就看得到？
+  - level: 3
+    stage: 反例与风险
+    question: 每月佩戴条件和设备兼容会让哪些人暂时无法使用？
+  - level: 4
+    stage: 取舍权衡
+    question: 如果只看订阅人数，会漏掉哪些体验或误解？
+  - level: 5
+    stage: 验证方式
+    question: 你选的一个指标观察谁、看多久，什么变化支持判断？需要避免什么误解？
+materials:
+  core:
+    - title: Fitbit Sleep Profile 发布说明
+      source: Fitbit／Google
+      url: https://blog.google/products-and-platforms/devices/fitbit/sleep-profile/
+      summary: 2022 年官方说明 Premium 睡眠画像、月度评估、设备和佩戴条件。
+    - title: Fitbit Premium 推出
+      source: Fitbit／Google
+      url: https://blog.google/products-and-platforms/devices/fitbit/fitbit-launches-fitbit-premium/
+      summary: 2019 年介绍付费 Premium 服务的产品背景；不代表 2022 年每项权益。
+  extended:
+    - title: 员工使用睡眠画像的故事
+      source: Fitbit／Google
+      url: https://blog.google/products-and-platforms/devices/fitbit/fitbit-sleep-premium-experience/
+      summary: 2022 年后续个人体验可帮助理解使用场景，但不能代表全体用户效果。
+    - title: Fitbit 2022 年秋季设备与服务介绍
+      source: Fitbit／Google
+      url: https://blog.google/products-and-platforms/devices/fitbit/fall-2022/
+      summary: 2022 年后续介绍设备与 Premium 相关功能；设备覆盖要按具体时间核实。
+    - title: Fitbit 睡眠阶段研究介绍
+      source: Fitbit／Google
+      url: https://blog.google/products-and-platforms/devices/fitbit/study-shows-fitbit-devices-accurately-track-sleep-stages/
+      summary: 2017 年公司介绍设备睡眠阶段研究；不能据此推断 Sleep Profile 的诊断效力。
+uncertainty:
+  - 提出的免费与付费重新划分是本题假设，不能当作现行权益清单。
+  - 官方宣传、单人体验及旧设备研究不能单独证明画像的诊断效力或长期健康收益。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

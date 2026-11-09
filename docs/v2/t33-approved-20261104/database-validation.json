@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "recordDate": "2026-11-04",
+  "executedBy": "root",
+  "evidenceSource": "exec session 71008 completed with exit code 0",
+  "database": "skilltraining_test",
+  "schema": "t33_owner_20261104_cc63c3892bb7",
+  "batchCounts": [18, 18, 36, 36],
+  "fullBankCounts": [66, 66],
+  "questionSourceHash": "2cf8b7a4ae43b60ee2d4be7ec0c59ac2dfb0d5648e04d3bfc37ffa7a402d6b52",
+  "questionSourceHashAlgorithm": "SHA-256 of JSON.stringify(sorted [relative question path, raw SHA-256] pairs for all 66 questions)",
+  "publishedDaily": 50,
+  "packs": { "dimensions": 8, "exactTierPacks": 8, "eachHasReserve": true },
+  "existingSchemaReused": false,
+  "rowsCompared": true,
+  "referenceBodiesImported": false,
+  "developmentQuestionBankImported": false,
+  "productionChanged": false,
+  "specificUserEligibilityTested": false,
+  "browserFlowTested": false
+}

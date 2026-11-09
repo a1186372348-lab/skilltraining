@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getDashboardView } from "./service";
 
@@ -28,13 +28,32 @@ function hubRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("getDashboardView：各卡独立装配与降级", () => {
+  it("卡片抛出非 Error 值时仍单卡降级", async () => {
+    const db = { trainingSession: { findFirst: async () => null, findMany: async () => Promise.reject("unavailable") }, abilityProfile: { findMany: async () => [] }, sessionFeedback: { findFirst: async () => null } } as unknown as PrismaClient;
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const view = await getDashboardView(db, "user-1");
+      expect(view.stats).toBeNull();
+      expect(view.currentTraining?.kind).toBe("not_started");
+    } finally { log.mockRestore(); }
+  });
+  it("基线未完成时在读取任何卡片前拒绝；守卫查询失败也不得降级为可查看", async () => {
+    const cardQuery = vi.fn().mockResolvedValue([]);
+    const db = { trainingSession: { findFirst: vi.fn().mockResolvedValue({ id: "baseline" }), findMany: cardQuery } } as unknown as PrismaClient;
+    await expect(getDashboardView(db, "user-1")).rejects.toMatchObject({ name: "BaselineRequiredError" });
+    expect(cardQuery).not.toHaveBeenCalled();
+    db.trainingSession.findFirst = vi.fn().mockRejectedValue(new Error("visibility unavailable"));
+    await expect(getDashboardView(db, "user-1")).rejects.toThrow("visibility unavailable");
+    expect(cardQuery).not.toHaveBeenCalled();
+  });
   it("当前训练卡查询失败 → currentTraining 空态，其余卡正常", async () => {
     const db = {
       trainingSession: {
         // 统计卡：昨天有终答 → 连续 1 天
         findMany: async () => [{ date: utcDaysAgo(1) }],
         // 当前训练卡：查询失败 → 该卡降级为 null（T08 约定，不拖垮整页）
-        findFirst: async () => {
+        findFirst: async (args: { where: { question?: { kind?: string } } }) => {
+          if (args.where.question?.kind === "baseline") return null;
           throw new Error("db connection lost");
         },
       },
@@ -59,8 +78,8 @@ describe("getDashboardView：各卡独立装配与降级", () => {
           throw new Error("stats query failed");
         },
         // 当前训练卡：存在未完成非基线会话 → 进行中（追问中）
-        findFirst: async (args: { where: { state: unknown } }) =>
-          args.where.state === "scored" ? null : hubRow({ state: "followup" }),
+        findFirst: async (args: { where: { state?: unknown; question?: { kind?: string } } }) =>
+          args.where.question?.kind === "baseline" || args.where.state === "scored" ? null : hubRow({ state: "followup" }),
       },
       abilityProfile: { findMany: async () => [{ dimension: "用户理解" }] },
       sessionFeedback: { findFirst: async () => null },
@@ -83,8 +102,8 @@ describe("getDashboardView：各卡独立装配与降级", () => {
     const db = {
       trainingSession: {
         findMany: async () => [],
-        findFirst: async (args: { where: { state: unknown } }) =>
-          args.where.state === "scored"
+        findFirst: async (args: { where: { state?: unknown; question?: { kind?: string } } }) =>
+          args.where.question?.kind === "baseline" ? null : args.where.state === "scored"
             ? hubRow({
                 id: "s-done",
                 state: "scored",

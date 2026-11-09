@@ -1,0 +1,47 @@
+id: Q45
+title: "eBay 球鞋鉴定：应该怎样验证交易信任是否改善"
+case_title: "增加鉴定环节后，交易更可信吗？"
+case_background:
+  product: {text: "2021 年 4 月 14 日，eBay 加拿大宣布将为符合条件的球鞋交易提供 Authenticity Guarantee 鉴定。", citations: [1]}
+  audience: {text: "计划涉及在加拿大平台交易符合条件球鞋的买家、卖家和独立第三方鉴定团队。", citations: [1]}
+  scenario: {text: "公告介绍成交后卖家将球鞋寄往鉴定中心，通过检查后再寄给买家。", citations: [1]}
+  features: {text: "鉴定包括核对商品与描述，并对鞋、鞋盒及配件进行实体检查。", citations: [1]}
+  status: {text: "公告称加拿大鉴定中心预计次月开放；计划初期覆盖部分品牌和款式的全新球鞋，扩大到更多品牌与二手鞋属于后续计划。2020 年销售增长发生在该计划之前，不能归因于此计划。", citations: [1]}
+case_sources:
+  - {id: 1, title: "eBay Canada Shakes Up Sneaker Market with Authentication Program", publisher: "eBay Canada", url: "https://www.ebayinc.com/stories/press-room/ca/ebay-canada-shakes-up-sneaker-market-with-authentication-program/"}
+main_question: "回到 2021 年 4 月，假设你负责设计加拿大方案上线后的效果验证。请说明如何区分买家对真伪的信心、实际争议、交易完成和卖家负担；提出可比对照、数据来源、鉴定准确性检查以及等待时间和费用等保护指标。没有本计划的真实结果，不要用 2020 年销售增长证明它有效，也不要假定鉴定绝不会出错。"
+ability_tags: [指标与验证, 产品价值判断, 产品取舍]
+difficulty: 挑战
+domain: 电商
+rubric:
+  dimensions:
+    指标与验证:
+      - "同时测量用户信心、真实争议或复核结果及交易完成，说明分母。"
+      - "设置可比商品或分阶段对照，考虑价格、品牌、卖家和自选择差异。"
+      - "设计鉴定误判或漏判的独立复核，避免只看鉴定通过率。"
+      - "将交付延迟、费用与卖家退出作为保护指标，给出停止条件。"
+    产品价值判断:
+      - "解释买家和卖家对信任、交易安全与履约速度可能具有不同需求。"
+      - "区分主观信心提升与真实识别能力、商业增长。"
+      - "不把 2020 年增长或官方预期归因于 2021 年方案。"
+    产品取舍:
+      - "比较额外鉴定带来的信任机会与时间、成本及误判代价。"
+      - "说明对鉴定争议和卖家申诉应有怎样的处理边界。"
+      - "限定加拿大和当时适用商品范围，不推广为全球现行规则。"
+  forbidden_leaks: ["将买卖双方信心调查、争议独立复核和延迟成本共同纳入对照的完整方案"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "你要衡量的是用户觉得可信，还是商品实际鉴定正确，二者一样吗？"}
+  - {level: 2, stage: 视角补充, question: "买家、卖家与鉴定团队分别承担哪些等待或误判成本？"}
+  - {level: 3, stage: 反例与风险, question: "鉴定通过率很高，但复核发现漏判时能得出什么结论？"}
+  - {level: 4, stage: 取舍权衡, question: "更严格的检查可能带来什么价值和延误？"}
+  - {level: 5, stage: 验证方式, question: "如何比较类似交易并核对争议，而不把此前销量变化归因于新服务？"}
+materials:
+  core:
+    - {title: "eBay Canada Shakes Up Sneaker Market with Authentication Program", source: "eBay Canada", url: "https://www.ebayinc.com/stories/press-room/ca/ebay-canada-shakes-up-sneaker-market-with-authentication-program/", summary: "2021 年公告介绍加拿大计划、第三方检查和预计开设时间。"}
+    - {title: "eBay Authenticity Guarantee for Sneakers", source: "eBay Canada", url: "https://pages.ebay.ca/authenticity-guarantee-sneakers/", summary: "当前买家说明介绍资格与检查；范围可变化，不代表 2021 年规则。"}
+  extended:
+    - {title: "eBay Authenticity Guarantee for Sneakers: Seller", source: "eBay Canada", url: "https://pages.ebay.ca/authenticity-guarantee-sneakers-seller/", summary: "当前卖家说明介绍发货、资格和未通过检查的处理。"}
+    - {title: "Authenticity Guarantee", source: "eBay Canada", url: "https://pages.ebay.ca/authenticity-guarantee/index.html", summary: "当前页面概述标识、鉴定和交付流程；不能直接当成 2021 条款。"}
+    - {title: "eBay’s Trusted Authenticity Guarantee Program Launches In Canada", source: "Sneaker News", url: "https://sneakernews.com/2021/08/11/ebay-authenticity-guarantee-canada/", summary: "2021 年 8 月后续报道说明服务流程，不能用作 4 月已发生结果。"}
+uncertainty: ["2021 年 4 月为宣布阶段；原公告价格门槛未在同一表述中标币种，题目不写具体金额；后续页面不证明 2021 年效果。"]
+status: published

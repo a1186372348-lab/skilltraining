@@ -10,16 +10,21 @@ import { TrainingFlow } from "../training/session/training-flow";
 
 import { fetchBaselineStatus } from "./api";
 import {
+  DEEPEN_HINT_TEXT,
   baselineStageText,
   finishingProgressText,
+  isDeepenCurrent,
   litDimensionCount,
   progressText,
-  REVEAL_DIMENSIONS,
+  resumeBanner,
   shouldShowIntro,
   showDelayHint,
+  toProgressDots,
+  toRevealPreview,
   transitionContinueLabel,
   transitionProgressText,
   type BaselineStatusView,
+  type DimensionPreviewView,
 } from "./view-model";
 
 /**
@@ -67,6 +72,8 @@ export function BaselineFlow() {
   const [transitionInfo, setTransitionInfo] = useState<{ done: number; total: number } | null>(null);
   // 进入收尾页至今的毫秒数（超时提示判定；每次轮询刷新驱动重渲染）
   const [finishingElapsed, setFinishingElapsed] = useState(0);
+  // 首次加载时的已作答题数（仅首屏写入一次：续测横幅「继续作答」态在尚未新作答时显示）
+  const [initialAnswered, setInitialAnswered] = useState(0);
   // 最近一次见到的已作答题数（推进据此判断何时加载下一题）
   const answeredRef = useRef(0);
   // 是否产生过基线作答（本次访问作答，或中断恢复时此前已作答；决定完成落点：/profile 或 /）
@@ -126,6 +133,7 @@ export function BaselineFlow() {
           return;
         }
         answeredRef.current = first.answeredCount;
+        setInitialAnswered(first.answeredCount);
         // 中断恢复：此前已作答过题的，完成后落点同样是 /profile
         if (first.answeredCount > 0) trainedRef.current = true;
         setStatus(first);
@@ -153,16 +161,19 @@ export function BaselineFlow() {
         }
         setPhase(shouldShowIntro(view, first.answeredCount) ? "intro" : "training");
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "加载失败，请稍后重试");
-          setPhase("error");
+        if (cancelled) return;
+        if (err instanceof ApiError && err.code === "UNAUTHORIZED") {
+          router.replace("/login");
+          return;
         }
+        setError(err instanceof Error ? err.message : "加载失败，请稍后重试");
+        setPhase("error");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [complete, enterFinishing]);
+  }, [complete, enterFinishing, router]);
 
   // 终答提交成功 → 同步进题间过渡卡（与 TrainingFlow 的提交 setState 同帧批处理，
   // 避免完成卡闪烁）；计数先按乐观值（已作答 + 1，提交已成功落库），随后刷新状态校准
@@ -221,6 +232,10 @@ export function BaselineFlow() {
         setStatus(next);
         setFinishingElapsed(Date.now() - (finishingSinceRef.current ?? Date.now()));
         if (!next.required) complete(false);
+        else if (next.nextQuestion) {
+          setRoundKey((key) => key + 1);
+          setPhase("training");
+        }
       } catch {
         // 轮询失败下轮自动重试（状态查询会对未评分会话补触发评分，自愈）
       } finally {
@@ -234,6 +249,17 @@ export function BaselineFlow() {
   const stageText = status
     ? baselineStageText(status.answeredCount, status.total)
     : "基线";
+
+  // T27 切片 4：逐维进度点 / 断点续测横幅 / 加深提示（全部下沉 view-model 纯函数判定）
+  const dots = status ? toProgressDots(status) : [];
+  const banner = status ? resumeBanner(status.resume) : null;
+  const deepenCurrent = status
+    ? isDeepenCurrent(status.items, status.nextQuestion?.id ?? null)
+    : false;
+  // 继续作答横幅仅在本次访问尚未新提交作答时显示（中断恢复的提示，不随流程持续打扰）；
+  // 评分/判定进行中文案按 scoringPending 瞬时状态驱动（评完自动消失）
+  const showContinueBanner =
+    banner !== null && (banner.kind === "scoring" || (status?.answeredCount ?? 0) === initialAnswered);
 
   return (
     <TodayShell stageText={stageText} lockViewport>
@@ -281,6 +307,10 @@ export function BaselineFlow() {
                 </span>
               ) : null}
             </header>
+            {/* T27 切片 4：逐维进度点（加深题琥珀色）；续测横幅；加深提示 */}
+            {status && dots.length > 0 ? <ProgressDotsStrip dots={dots} /> : null}
+            {showContinueBanner && banner ? <ResumeBannerCard banner={banner} /> : null}
+            {deepenCurrent ? <DeepenHintCard /> : null}
             {/* key 随题号推进重挂载：加载下一道基线题的会话；withShell=false 避免双重侧边栏；
                 redirectToFeedbackOnDone=false——终答后不跳反馈页，由本组件经 onFinalSubmitted 即时推进（T36） */}
             <TrainingFlow
@@ -305,10 +335,64 @@ export function BaselineFlow() {
             doneCount={status?.doneCount ?? 0}
             total={status?.total ?? 0}
             elapsedMs={finishingElapsed}
+            preview={status?.dimensionPreview ?? null}
           />
         ) : null}
       </div>
     </TodayShell>
+  );
+}
+
+/** 逐维进度点条（T27 切片 4）：格数 = total（8 + 已触发加深，上限 12）；
+ * 已评分点亮（蓝）、进行中蓝环、未到灰点；加深题琥珀色系（isDeepen）。 */
+function ProgressDotsStrip({ dots }: { dots: ReturnType<typeof toProgressDots> }) {
+  return (
+    <div className={`${CARD} mb-5 flex items-center gap-1.5 px-5 py-3`}>
+      {dots.map((dot) => (
+        <span
+          key={dot.key}
+          title={dot.isDeepen ? "加深题" : undefined}
+          className={`h-2 flex-1 rounded-full transition-colors ${
+            dot.isDeepen
+              ? dot.state === "pending"
+                ? "border border-[#F59E0B]/50 bg-[#FFFBEB]"
+                : "bg-[#F59E0B]"
+              : dot.state === "scored"
+                ? "bg-[#2563EB]"
+                : dot.state === "active"
+                  ? "bg-[#93C5FD]"
+                  : "bg-[#E2E8F0]"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** 断点续测横幅（T27 切片 4）：继续作答 / 评分判定进行中两态 */
+function ResumeBannerCard({ banner }: { banner: NonNullable<ReturnType<typeof resumeBanner>> }) {
+  const scoring = banner.kind === "scoring";
+  return (
+    <div
+      className={`mb-5 rounded-2xl border px-5 py-3.5 text-sm leading-6 ${
+        scoring ? "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]" : "border-[#D9E7FD] bg-[#EFF5FF] text-[#1D4ED8]"
+      }`}
+    >
+      <span className="font-bold">{banner.title}</span>
+      <span className="ml-2">{banner.body}</span>
+    </div>
+  );
+}
+
+/** 加深提示卡（T27 切片 4：当前题为加深题时显示，琥珀色系） */
+function DeepenHintCard() {
+  return (
+    <div className="mb-5 rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-5 py-3.5 text-sm leading-6 text-[#92400E]">
+      <span className="mr-2 rounded border border-[#FDE68A] bg-white px-1.5 py-0.5 text-[10px] font-medium text-[#B45309]">
+        加深题
+      </span>
+      {DEEPEN_HINT_TEXT}
+    </div>
   );
 }
 
@@ -386,18 +470,22 @@ function TransitionCard({
 /**
  * 收尾页（T36 / D38）：「能力边界生成中」——全部作答已提交，评分在后台并行进行；
  * 8 个能力维度按评分完成进度（doneCount/total）逐项点亮，营造揭晓仪式感；
+ * T27 切片 4：dimensionPreview 到达后按有效分点亮并展示分数（未知维度无分数、不点亮，BR-6）；
  * 超过约 3 分钟未评完时追加预期管理文案，页面持续轮询不离开。
  */
 function FinishingCard({
   doneCount,
   total,
   elapsedMs,
+  preview = null,
 }: {
   doneCount: number;
   total: number;
   elapsedMs: number;
+  preview?: DimensionPreviewView[] | null;
 }) {
   const litCount = litDimensionCount(doneCount, total);
+  const revealViews = toRevealPreview(preview, litCount);
   return (
     <div className={`${CARD} mx-auto w-full max-w-2xl p-10 text-center`}>
       <span className="text-xs font-bold tracking-[0.16em] text-[#2563EB]">能力基线测评</span>
@@ -409,11 +497,11 @@ function FinishingCard({
         {finishingProgressText(doneCount, total)}
       </p>
       <ul className="mx-auto mt-5 grid max-w-md grid-cols-2 gap-2.5 text-left">
-        {REVEAL_DIMENSIONS.map((dimension, index) => {
-          const lit = index < litCount;
+        {revealViews.map((view, index) => {
+          const lit = view.state === "lit";
           return (
             <li
-              key={dimension}
+              key={view.dimension}
               className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition-colors ${
                 lit ? "border-[#D9E7FD] bg-[#EFF5FF]" : "border-[#E9EDF4] bg-[#F8FAFD]"
               }`}
@@ -430,8 +518,11 @@ function FinishingCard({
                   lit ? "text-[#12233F]" : "text-[#94A3B8]"
                 }`}
               >
-                {dimension}
+                {view.dimension}
               </span>
+              {view.scoreText !== null ? (
+                <span className="ml-auto text-sm font-bold text-[#2563EB]">{view.scoreText}</span>
+              ) : null}
             </li>
           );
         })}

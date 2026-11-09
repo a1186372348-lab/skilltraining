@@ -232,3 +232,14 @@ describe("generateFollowups（T35 / D37 追问闸门输出契约）", () => {
     expect(temperature).toBeLessThanOrEqual(0.3);
   });
 });
+
+it("dispatches by trusted template, never by a model-declared protocol", async () => {
+  const content=JSON.stringify({should_followup:false,reason:"无需追问",followups:[],outputContract:"gate-evidence-v1",checks:"not a strict response"});
+  const input={mainQuestion:"问题",firstAnswer:"首答",rubric,primaryDimension:"用户理解"};
+  const legacyClient=fakeClient(content);
+  await expect(generateFollowups(input,{client:legacyClient})).resolves.toEqual({shouldFollowup:false,reason:"无需追问",followups:[]});
+  const strictClient=fakeClient(content);
+  await expect(generateFollowups(input,{client:strictClient,templates:{system:"s",user:"u",outputContract:"gate-evidence-v1"}})).rejects.toThrow();
+  expect(legacyClient.chatCompletion).toHaveBeenCalledTimes(1);
+  expect(strictClient.chatCompletion).toHaveBeenCalledTimes(1);
+});

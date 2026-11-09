@@ -1,0 +1,43 @@
+id: Q48
+title: "闲鱼成长等级：怎样验证灰测权益是否对交易双方有用"
+case_title: "发出权益后，买家和卖家都受益了吗？"
+case_background:
+  product: {text: "新华网 2024 年 6 月报道，闲鱼正在小范围灰度测试会员成长体系。", citations: [1]}
+  audience: {text: "报道说部分用户个人主页出现成长等级入口，平台根据用户交易活跃度匹配身份标识与权益。", citations: [1]}
+  scenario: {text: "报道举出个别用户看到的寄件券、流量券等权益；个例不能代表每位用户获得相同权益。", citations: [1]}
+  features: {text: "报道提到不同身份标识对应不同权益，以及部分权益按一定概率获得。", citations: [1]}
+  status: {text: "案例停在 2024 年 6 月的灰测阶段；报道对转化的描述不足以证明权益导致交易改善。", citations: [1]}
+case_sources:
+  - {id: 1, title: "闲鱼灰测‘会员体系’新功能，年轻人有了新‘电子财产’", publisher: "新华网", url: "https://www.news.cn/tech/20240625/0866f08043ab4f0daff4c8c6dd8e8d4e/c.html"}
+main_question: "假设你负责这次灰测，要分别判断寄件券和流量券是否为交易双方创造价值。为便于讨论，暂假设寄件券抵扣卖家寄费、流量券增加获券商品展示，实际使用门槛与规则须向平台核实。请分别说明两种权益的主要受益对象、预期变化和与常规未额外发券安排比较的方法；选出关键交易与成本指标，交代观察对象、口径和时间，并说明怎样了解买卖双方体验。对流量券，还要观察未获券卖家与整体交易：什么结果可能支持创造增量，什么可能只是重新分配？据结果说明何时扩大、调整或停止；若试点不足以区分，请说明结论边界和下一步。不要求完整的市场实验技术方案，也不要把报道个例当成已验证效果。"
+ability_tags: [指标与验证, 产品价值判断]
+difficulty: 中等
+domain: 电商
+rubric:
+  dimensions:
+    指标与验证:
+      - "分别提出两种权益的作用假设和对应的交易或成本观察，不把领券、用券直接当成价值。"
+      - "说明与常规安排的比较依据、观察对象、指标口径和时间；相近人群需说明可比依据及剩余差异，随机分配是可选路径。"
+      - "同时观察获券者、未获券者和整体交易，说明流量相互影响可能限制对增量的判断，并了解双方体验。"
+      - "说明什么结果支持扩大、调整或停止；样本或市场条件不足时允许探索性结论并指出下一步。"
+    产品价值判断:
+      - "区分两种权益的主要受益对象及买卖双方可能获得价值的条件。"
+      - "解释流量可能从未获券卖家转移，获券者曝光增加不等于整体交易增加。"
+      - "综合双方体验、交易和补贴成本判断取舍，承认小范围灰测不能证明所有用户都受益。"
+  forbidden_leaks: ["同时比较实际券使用、买卖交易、未获券曝光和访谈的完整灰测方案"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "领到券、用掉券和交易完成，是同一个结果吗？"}
+  - {level: 2, stage: 视角补充, question: "寄件的卖家与寻找商品的买家，分别可能获得什么价值？"}
+  - {level: 3, stage: 反例与风险, question: "获券卖家曝光增加，如果只是抢走别人曝光，平台整体是否受益？"}
+  - {level: 4, stage: 取舍权衡, question: "补贴成本、不同等级公平性与成交变化要怎样一起看？"}
+  - {level: 5, stage: 验证方式, question: "如何选择可比对象和观察时间，并判断证据是否足以支持扩大试点？"}
+materials:
+  core:
+    - {title: "闲鱼灰测会员体系新功能", source: "新华网", url: "https://www.news.cn/tech/20240625/0866f08043ab4f0daff4c8c6dd8e8d4e/c.html", summary: "2024 年 6 月报道小范围灰测与个别用户权益；文章转化说法不能作为因果证据。"}
+    - {title: "Interference, Bias, and Variance in Two-Sided Marketplace Experimentation", source: "Li 等 / arXiv", url: "https://arxiv.org/abs/2104.12222", summary: "研究买卖双方相互影响可能使实验对照产生偏差；是一般方法，不是闲鱼实验结果。"}
+  extended:
+    - {title: "Why Marketplace Experimentation Is Harder than it Seems", source: "Blake 与 Coey / eBay Research Labs", url: "https://dominiccoey.github.io/assets/papers/marketplace_experiments.pdf", summary: "以另一交易平台说明实验组与对照组可能相互影响，数值不能套用到闲鱼。"}
+    - {title: "Online Experimentation: Benefits, Operational and Methodological Challenges", source: "Harvard Data Science Review", url: "https://hdsr.mitpress.mit.edu/pub/aj31wj81/release/1", summary: "综述线上实验的设计和干扰问题，供规划灰测参考。"}
+    - {title: "对话闲鱼总经理季山", source: "蓝鲸新闻 / 新浪财经", url: "https://finance.sina.com.cn/tech/roll/2024-07-10/doc-inccsatt9196716.shtml", summary: "2024 年 7 月后续采访讨论平台经营及个人卖家流量公平，属于管理者观点而非灰测结果。"}
+uncertainty: ["灰测范围、每个等级的实际权益和效果未公开完整数据；案例不保证买卖双方均获益。"]
+status: published

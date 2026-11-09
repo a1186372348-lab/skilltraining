@@ -1,0 +1,60 @@
+id: Q32
+title: "Nintendo 家长控制：如何协调家庭使用与儿童自主"
+case_title: "一台家庭主机，怎样设置才说得清楚？"
+case_background:
+  product:
+    text: "Nintendo Switch 提供家长控制，可通过主机设置与手机应用管理；不同设置入口支持的功能不同。"
+    citations: [1]
+  audience:
+    text: "任天堂将家长或监护人与使用游戏主机的儿童作为这一功能的相关角色。"
+    citations: [2]
+  scenario:
+    text: "帮助页说明，多项限制按整台主机而非每个使用者生效；同一台设备上的使用者会受到相同的主机限制。"
+    citations: [1, 2]
+  features:
+    text: "手机应用可设置游戏时长、查看游戏记录，并可设置年龄分级和交流限制；到达时间上限时可选择提醒或暂停游戏。"
+    citations: [1, 2]
+  status:
+    text: "以上是 2026 年 11 月 3 日查阅任天堂帮助页时的说明；页面并未给出所有功能的首次上线日期。"
+    citations: [1, 2]
+case_sources:
+  - {id: 1, title: "How to Set Up, Adjust, or Remove Parental Controls on Nintendo Switch", publisher: "Nintendo Support", url: "https://en-americas-support.nintendo.com/app/answers/detail/a_id/22447"}
+  - {id: 2, title: "Parental Controls on Nintendo Switch 2 and Nintendo Switch Overview/FAQ", publisher: "Nintendo Support", url: "https://en-americas-support.nintendo.com/app/answers/detail/a_id/22508/kw/parental%20controls"}
+main_question: "假设一个家庭的两名不同年龄儿童与监护人共用一台 Nintendo Switch，家庭希望管理使用时长，又希望孩子理解规则并有适度自主权。现有主机级限制会影响共用者。作为产品经理，请提出一项可实施的设置或沟通体验改进：写明三方各自看到和能做什么、到时后的处理、例外请求，以及如何避免孩子通过简单切换使用者绕过保护。假设家庭成员均愿意参与试用；不要把功能设想写成现有功能。"
+ability_tags: [方案设计, 用户理解, 产品取舍]
+difficulty: 中等
+domain: 游戏/娱乐
+rubric:
+  dimensions:
+    方案设计:
+      - "描述监护人设置、孩子看到规则、到时与例外请求的连续流程。"
+      - "说明多人共用一台主机时身份识别、例外授权或无法识别时的处理边界。"
+      - "给出可撤销或调整的机制，并说明如何验证家庭能理解和完成操作。"
+    用户理解:
+      - "分别识别监护人的管理需要和不同年龄孩子对可预期、公平及自主的诉求。"
+      - "不将假设家庭中的冲突或行为当成全部家庭的事实。"
+      - "考虑孩子看不懂规则或一方无法使用手机等情境。"
+    产品取舍:
+      - "比较逐人灵活性与设备级保护的复杂度、绕过风险。"
+      - "说明监护控制和儿童自主之间的具体边界及理由。"
+      - "指出数据记录与家庭隐私的取舍，避免不必要监控。"
+  forbidden_leaks:
+    - "基于受监护账号发起延期请求并由家长限时批准的完整流程"
+    - "识别失败时回退到监护人设定的主机级底线"
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "这个家庭想管理的是每个人的什么行为，现有设置实际作用在哪个范围？"}
+  - {level: 2, stage: 视角补充, question: "监护人、年龄较小的孩子和年龄较大的孩子会分别希望看到什么？"}
+  - {level: 3, stage: 反例与风险, question: "如果孩子切换使用者，或者到时仍在一段不能随意中断的游戏中，会发生什么？"}
+  - {level: 4, stage: 取舍权衡, question: "逐人设置更灵活，但可能带来哪些保护和管理成本？"}
+  - {level: 5, stage: 验证方式, question: "你怎样观察家庭成员是否理解规则、能否提出例外并知道谁能批准？"}
+materials:
+  core:
+    - {title: "How to Set Up, Adjust, or Remove Parental Controls on Nintendo Switch", source: "Nintendo Support", url: "https://en-americas-support.nintendo.com/app/answers/detail/a_id/22447", summary: "说明主机、手机应用和账户设置的不同入口与控制能力。"}
+    - {title: "Parental Controls Overview/FAQ", source: "Nintendo Support", url: "https://en-americas-support.nintendo.com/app/answers/detail/a_id/22508/kw/parental%20controls", summary: "说明多数限制按主机生效、时间到达后的可选处理，以及按用户查看记录的条件。"}
+  extended:
+    - {title: "Nintendo Switch Parental Controls", source: "Nintendo Singapore", url: "https://www.nintendo.com/sg/support/switch/parentalcontrols/app/index.html", summary: "介绍手机应用的主机使用时长、记录和限制设置；地区说明可能不同。"}
+    - {title: "Parental Controls App", source: "Nintendo US", url: "https://www.nintendo.com/us/mobile-apps/parental-controls/", summary: "面向家庭介绍应用如何设置游戏时长、内容与其他限制。"}
+    - {title: "How to Download or Update the Nintendo Switch Parental Controls Smart Device App", source: "Nintendo Support", url: "https://en-americas-support.nintendo.com/app/answers/detail/a_id/22385/p/856/c/184", summary: "提供应用下载与版本更新记录，便于核对具体能力随时间变化的边界。"}
+uncertainty:
+  - "案例以查阅时公开帮助为准；设想家庭和新增功能仅用于设计练习，不代表真实家庭需求或任天堂后续计划。"
+status: published

@@ -9,6 +9,7 @@ import {
   formatHubDateKey,
   formatHubTime,
   historyHrefFor,
+  historyTypeText,
   historyStatusFor,
   hubStageText,
   progressLineFor,
@@ -121,6 +122,19 @@ describe("日期与时间格式化", () => {
 });
 
 describe("历史行状态徽章与跳转", () => {
+  it("基线优先于加练标识，所有基线记录跳转被点击会话的只读回放", () => {
+    const baseline = item({ sessionId: "baseline-1", isBaseline: true, isExtra: true, state: "followup", hasFinalAnswer: true });
+    expect(historyTypeText(baseline)).toBe("基线");
+    expect(historyHrefFor(baseline)).toBe("/training/history/baseline-1");
+    expect(historyStatusFor(baseline)).toEqual({ text: "评分中", tone: "scoring" });
+    expect(historyTypeText(item({ isExtra: true }))).toBe("加练");
+    expect(historyTypeText(item())).toBe("每日");
+  });
+
+  it("复测来源优先于 isExtra，基线仍优先", () => {
+    expect(historyTypeText(item({ sourceType: "retest", isExtra: true }))).toBe("复测");
+    expect(historyTypeText(item({ sourceType: "retest", isExtra: true, isBaseline: true }))).toBe("基线");
+  });
   it("已完成 → 绿徽章，跳只读详情 /training/history/[id]", () => {
     expect(historyStatusFor(item({ state: "scored" }))).toEqual({ text: "已完成", tone: "done" });
     expect(historyHrefFor(item({ state: "scored" }))).toBe("/training/history/s-1");

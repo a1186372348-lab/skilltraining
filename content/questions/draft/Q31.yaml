@@ -1,0 +1,62 @@
+id: Q31
+title: "Xbox 无障碍手柄：如何帮助不同活动能力的玩家完成设置"
+case_title: "可连接不同输入设备后，玩家怎样开始游戏？"
+case_background:
+  product:
+    text: "2018 年 5 月，Xbox 公布面向 Xbox One 和 Windows 10 玩家的 Xbox Adaptive Controller。"
+    citations: [1]
+  audience:
+    text: "它面向活动能力受限的玩家；Xbox 邀请相关组织和玩家参与产品开发。不同人的身体能力和设置需要各不相同。"
+    citations: [1]
+  scenario:
+    text: "Xbox 在介绍中举例：一些玩家可能难以触及普通手柄的全部按键，或难以长时间握持手柄。"
+    citations: [1]
+  features:
+    text: "手柄内置两个大按钮，可通过 Xbox Accessories 应用重新映射，并支持连接部分第三方外部输入设备。"
+    citations: [1]
+  status:
+    text: "在 2018 年 5 月的公告时点，Xbox 称手柄将在当年晚些时候推出；公告未证明所有玩家都能独立完成设置。"
+    citations: [1]
+case_sources:
+  - id: 1
+    title: "Accessible Gaming With The Xbox Adaptive Controller"
+    publisher: "Xbox Wire"
+    url: "https://news.xbox.com/en-us/2018/05/17/accessible-gaming-with-the-xbox-adaptive-controller-2/"
+main_question: "时间回到 2018 年 5 月，假设你负责为这款即将推出的手柄设计首次设置体验。你不能假定每位玩家都能使用同一组动作，也不能假定他们已拥有相同外设。请设计从了解可用输入、连接与映射，到确认能在游戏中操作的一条设置路径；说明如何让玩家在需要时获得协助、如何保护个人选择，以及你会怎样与不同活动能力的玩家验证方案。预算和可用硬件尚未知，请说明你准备先验证什么。"
+ability_tags: [方案设计, 用户理解, 产品取舍]
+difficulty: 基础
+domain: 游戏/娱乐
+rubric:
+  dimensions:
+    方案设计:
+      - "描述从识别可用输入到连接、映射、测试和重新调整的连贯步骤。"
+      - "给出至少两种可操作的引导或反馈方式，并说明失败时如何重试或寻求协助。"
+      - "提出可观察的验证任务，例如让参与者完成并修改一项映射，而不是只询问满意度。"
+    用户理解:
+      - "区分玩家的动作能力、已有外设与是否需要协助，不把残障玩家视为同质群体。"
+      - "说明设置环节可能对触达、体力或理解造成的具体障碍，并标记为待验证假设。"
+      - "尊重玩家对辅助方式和个人信息的选择，不默认照护者替玩家决策。"
+    产品取舍:
+      - "解释统一简单流程和个体配置自由之间的取舍。"
+      - "说明资源有限时优先支持哪一个设置环节，以及暂缓内容的代价。"
+      - "指出设备兼容与成本尚未证明，避免承诺适用于所有人。"
+  forbidden_leaks:
+    - "通过逐个动作测试并允许随时重映射的具体设置路径"
+    - "由不同动作能力的玩家实际完成任务后观察障碍的验证方案"
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "玩家第一次打开包装后，需要完成哪些步骤才能开始一局游戏？"}
+  - {level: 2, stage: 视角补充, question: "如果两位玩家能舒适使用的动作和已有外设不同，同一套说明会遇到什么限制？"}
+  - {level: 3, stage: 反例与风险, question: "如果某个输入连接成功但玩家无法稳定触发，流程应怎样避免让人卡住？"}
+  - {level: 4, stage: 取舍权衡, question: "引导越详细与允许自定义越多，分别会增加什么负担？你先解决哪一段？"}
+  - {level: 5, stage: 验证方式, question: "邀请不同玩家尝试时，你会观察哪些具体动作，并如何区分求助是可选还是被迫？"}
+materials:
+  core:
+    - {title: "Accessible Gaming With The Xbox Adaptive Controller", source: "Xbox Wire", url: "https://news.xbox.com/en-us/2018/05/17/accessible-gaming-with-the-xbox-adaptive-controller-2/", summary: "2018 年宣布手柄时介绍目标人群、可映射按钮和外接输入，区分产品能力与厂商目标。"}
+    - {title: "Xbox Adaptive Controller welcomed by UK charities and gamers with disabilities", source: "Microsoft UK Stories", url: "https://ukstories.microsoft.com/features/xbox-adaptive-controller-welcomed-by-uk-charities-and-gamers-with-disabilities/", summary: "2018 年 5 月官方报道介绍玩家和合作组织的需求与反馈；个案不代表全部玩家。"}
+  extended:
+    - {title: "Stories of Web Users", source: "W3C Web Accessibility Initiative", url: "https://www.w3.org/WAI/people-use-web/user-stories/", summary: "一般无障碍参考：不同用户的经历可帮助理解能力与使用环境差异；不作为 2018 年 Xbox 产品事实。"}
+    - {title: "Diverse Abilities and Barriers", source: "W3C Web Accessibility Initiative", url: "https://www.w3.org/WAI/people-use-web/abilities-barriers/", summary: "一般无障碍参考：介绍不同能力与交互障碍；网页场景不能直接证明手柄兼容性。"}
+    - {title: "Involving Users in Evaluating Web Accessibility", source: "W3C Web Accessibility Initiative", url: "https://www.w3.org/WAI/test-evaluate/involving-users/", summary: "介绍邀请残障用户参与无障碍评估及避免以单一参与者代表所有人的方法；页面含 2018 年之后的更新，仅作方法延伸且须结合硬件场景。"}
+uncertainty:
+  - "方案为练习设想；未掌握玩家设置成功率、设备兼容范围与预算。扩展资料中 5 月之后的文章不参与历史判断。"
+status: published

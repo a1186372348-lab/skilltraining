@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { sessionCookieHeader } from "@/app/api/_test/session";
 import type { RubricScoringInput, RubricScoringOutput } from "@/server/modules/scoring/rubric-scorer";
 
-import { createFeedbackGetHandler } from "./route";
+import { createFeedbackGetHandler } from "./handler";
 
 // GET /api/training/[id]/feedback 集成测试：真实数据库，AI 评分经工厂注入 mock（真实冒烟 0 次）。
 // 覆盖：懒触发（200 scoring → 后台评分 → 200 ready）、幂等（重复 GET 不重复评分）、
@@ -28,6 +28,7 @@ const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
 
 const SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000a1";
+const BASELINE_QUESTION_ID = "00000000-0000-4000-8000-0000000000e5";
 
 const SEED_QUESTION_DATA = {
   id: SEED_QUESTION_ID,
@@ -67,6 +68,11 @@ async function ensureSeedQuestion(): Promise<void> {
   const { id, ...data } = SEED_QUESTION_DATA;
   try {
     await prisma.question.upsert({ where: { id }, create: SEED_QUESTION_DATA, update: data });
+    await prisma.question.upsert({
+      where: { id: BASELINE_QUESTION_ID },
+      create: { ...SEED_QUESTION_DATA, id: BASELINE_QUESTION_ID, kind: "baseline", status: "draft" },
+      update: { ...data, kind: "baseline", status: "draft" },
+    });
   } catch {
     // 并发播种冲突：忽略
   }
@@ -81,6 +87,7 @@ function fakeScorer(rawScores: Record<string, number>, tracker?: { calls: number
         rawScore: rawScores[dimension] ?? 70,
         diagnosis: `${dimension}诊断：引用了终答中的具体证据。`,
       })),
+      confidence: null,
       topIssue: "终答缺少量化指标，应补充衡量口径。",
       nextFocus: "下一步练「产品价值判断」中的价值量化类问题。",
     };
@@ -142,6 +149,23 @@ afterAll(async () => {
 });
 
 describe("GET /api/training/:id/feedback（懒触发与轮询）", () => {
+  it("基线未完成时反馈路由 404，且不触发评分", async () => {
+    const user = await prisma.user.create({ data: { email: `feedback-baseline-${randomUUID()}@example.com` } });
+    createdUserIds.push(user.id);
+    const session = await prisma.trainingSession.create({ data: {
+      userId: user.id, questionId: BASELINE_QUESTION_ID, date: new Date(), isExtra: true,
+      state: "followup", firstAnswer: "首答", firstSubmittedAt: new Date(),
+      finalAnswer: "终答", finalSubmittedAt: new Date(),
+    } });
+    const tracker = { calls: 0 };
+    const handler = createFeedbackGetHandler({ scoreWithRubric: fakeScorer({}, tracker) });
+    const request = new Request(`http://localhost/api/training/${session.id}/feedback`, { headers: { cookie: sessionCookieHeader(user) } });
+    const response = await handler(request, { params: Promise.resolve({ id: session.id }) });
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe("SESSION_NOT_FOUND");
+    expect(tracker.calls).toBe(0);
+    expect(await prisma.score.count({ where: { sessionId: session.id } })).toBe(0);
+  });
   it("未评分会话：200 scoring；后台评分完成后 200 ready，四元组装配正确", async () => {
     const { email, sessionId } = await newUserWithSession({ hintCount: 2 });
 

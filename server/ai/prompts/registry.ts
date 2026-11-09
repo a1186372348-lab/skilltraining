@@ -28,8 +28,11 @@ export interface PromptVersionView {
 /* ============================== content 形态与哈希 ============================== */
 
 /** DB 存取形态：JSON canonical 字符串（key 顺序固定 system→user，哈希稳定） */
-export function serializePromptContent(pair: { system: string; user: string }): string {
-  return JSON.stringify({ system: pair.system, user: pair.user });
+export function serializePromptContent(pair: { system: string; user: string; outputContract?: "gate-evidence-v1" | "gate-evidence-v2" }): string {
+  if (pair.outputContract !== undefined && pair.outputContract !== "gate-evidence-v1" && pair.outputContract !== "gate-evidence-v2") throw new Error("提示模板协议无效");
+  return pair.outputContract === undefined
+    ? JSON.stringify({ system: pair.system, user: pair.user })
+    : JSON.stringify({ system: pair.system, user: pair.user, outputContract: pair.outputContract });
 }
 
 /** 解析 DB content：非法（非 JSON / 缺字段 / 非字符串）返回 null，调用方回退文件版本 */
@@ -138,7 +141,7 @@ export function planRollback(versions: PromptVersionView[], name: string): Rollb
     throw new Error(`prompt「${name}」当前无 active 版本，无可回滚`);
   }
   const candidates = versions
-    .filter((v) => v.name === name && v.status !== "active")
+    .filter((v) => v.name === name && (v.status === "passed" || v.status === "rolled_back"))
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const target = candidates[0];
   if (!target) {

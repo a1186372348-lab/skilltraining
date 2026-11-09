@@ -1,0 +1,117 @@
+id: Q19
+title: Airbnb 分类搜索：没有固定目的地时用户能获得什么价值
+case_title: 先选想住的地方类型，再决定去哪
+case_background:
+  product:
+    text: Airbnb 提供房源搜索与预订；2022 年夏季发布将 Categories 作为新的房源发现方式。
+    citations:
+      - 1
+  audience:
+    text: 案例关注旅行日期或目的地有一定弹性的潜在旅客，以及向平台提供房源的房东。
+    citations:
+      - 1
+      - 3
+  scenario:
+    text: Airbnb 将目的地未完全确定、希望先探索独特房源的旅行规划作为相关场景。
+    citations:
+      - 1
+      - 3
+  features:
+    text: 2022 年发布介绍按房源风格、位置或活动等组织的分类；同次还介绍拆分长住订单的 Split Stays。
+    citations:
+      - 1
+      - 2
+  status:
+    text: Airbnb 于 2022 年 5 月开始推广新版搜索；后续材料描述过分类及搜索的进一步变化，但不应当成 5 月已知效果。
+    citations:
+      - 1
+      - 5
+case_sources:
+  - id: 1
+    title: Airbnb 2022 夏季发布
+    publisher: Airbnb
+    url: https://news.airbnb.com/2022-summer-release
+  - id: 2
+    title: 2022 夏季发布媒体指南
+    publisher: Airbnb
+    url: https://news.airbnb.com/wp-content/uploads/sites/4/2022/05/Airbnb-Summer-Release-Media-Guide-1.pdf
+  - id: 3
+    title: Flexible Destinations 介绍
+    publisher: Airbnb
+    url: https://news.airbnb.com/unique-stays-hosts-earn-more-than-300-million-since-start-of-pandemic
+  - id: 4
+    title: 弹性搜索与欧洲旅行
+    publisher: Airbnb
+    url: https://news.airbnb.com/en-uk/airbnbs-flexible-search-boosts-sustainable-travel-in-europe
+  - id: 5
+    title: 2022 冬季发布说明
+    publisher: Airbnb
+    url: https://news.airbnb.com/product-releases/airbnb-2022-winter-release
+main_question: 假设你需要判断 Categories 对没有固定目的地的旅客是否有价值：请选择至少两类旅行规划场景，说明分类搜索相对按目的地搜索可能改善什么、又可能增加什么成本；再提出一套验证价值的办法。可以认为不同人或同一人在不同时刻会得出不同答案。
+ability_tags:
+  - 产品价值判断
+  - 用户理解
+  - 指标与验证
+difficulty: 中等
+domain: 出行
+kind: daily
+rubric:
+  dimensions:
+    产品价值判断:
+      - 将潜在价值落在具体规划任务，并与按目的地搜索这一替代方式比较。
+      - 讨论发现灵感与筛选成本或不相关房源之间的权衡，不预设分类总是更好。
+      - 结论须说明成立条件与证据不足，不能把公司旅游分析当作因果证明。
+    用户理解:
+      - 区分目标明确与愿意探索的人，或区分同一人在不同旅程阶段的需要。
+      - 同时考虑房源供给方与旅客的信息需要，但不凭空声称某类房东受损。
+      - 分析类别、位置、时间和预算等约束如何改变用户选择。
+    指标与验证:
+      - 提出衡量发现过程与后续行动的指标，说明观察对象和窗口。
+      - 设计可执行的对照，并考虑目的地、房源可用性和季节差异。
+      - 设置相关性或信息负担护栏，指出仅看点击量的局限。
+  forbidden_leaks:
+    - 完整的旅客分层、价值比较和实验指标组合。
+    - 分类搜索一定带来更多预订或一定削弱目的地搜索的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 一个人已经确定城市，另一个人只想住有特色的地方，他们会从哪里开始？
+  - level: 2
+    stage: 视角补充
+    question: 同一个用户在找灵感和确认出行日期时，搜索需求会改变吗？
+  - level: 3
+    stage: 反例与风险
+    question: 如果喜欢某个房源但日期、预算或距离不合适，分类点击意味着什么？
+  - level: 4
+    stage: 取舍权衡
+    question: 你会优先减少哪种成本，同时接受什么额外筛选负担？
+  - level: 5
+    stage: 验证方式
+    question: 如何比较两种入口而不把季节和房源差异误认作效果？
+materials:
+  core:
+    - title: Airbnb 2022 夏季发布
+      source: Airbnb
+      url: https://news.airbnb.com/2022-summer-release
+      summary: 2022 年 5 月介绍 Categories、Split Stays 与其他发布内容。
+    - title: 2022 夏季发布媒体指南
+      source: Airbnb
+      url: https://news.airbnb.com/wp-content/uploads/sites/4/2022/05/Airbnb-Summer-Release-Media-Guide-1.pdf
+      summary: 官方指南解释房源分类和搜索界面；图像及资料的转载权需另查。
+  extended:
+    - title: Flexible Destinations 介绍
+      source: Airbnb
+      url: https://news.airbnb.com/unique-stays-hosts-earn-more-than-300-million-since-start-of-pandemic
+      summary: 2021 年介绍以独特房源为线索的弹性目的地发现方式。
+    - title: 弹性搜索与欧洲旅行
+      source: Airbnb
+      url: https://news.airbnb.com/en-uk/airbnbs-flexible-search-boosts-sustainable-travel-in-europe
+      summary: 2022 年后续材料描述公司对弹性搜索与旅行分布的分析；结论与方法需独立检验。
+    - title: 2022 冬季发布说明
+      source: Airbnb
+      url: https://news.airbnb.com/product-releases/airbnb-2022-winter-release
+      summary: 同年 11 月回顾分类搜索的后续改进，不应倒填为 5 月已有能力。
+uncertainty:
+  - 2022 年夏季发布是案例时点；欧洲报告和冬季说明属于后续材料。
+  - 公司对旅行分布的分析不单独证明分类搜索造成预订变化。
+status: published

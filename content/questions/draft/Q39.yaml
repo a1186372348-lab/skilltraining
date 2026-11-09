@@ -1,0 +1,44 @@
+id: Q39
+title: "Android 地震预警：首先应解决哪些用户与场景问题"
+case_title: "几秒钟的提醒，究竟要帮助谁？"
+case_background:
+  product: {text: "2020 年 8 月 11 日，Google 介绍 Android 地震探测与提醒计划。", citations: [1]}
+  audience: {text: "Google 与美国地质调查局及加州应急机构合作，向加州 Android 设备发送由 ShakeAlert 支持的提醒。", citations: [1]}
+  scenario: {text: "美国地质调查局说明，地震预警发生在地震开始之后；靠近震源的区域可能没有足够时间在强震到达前收到提醒。", citations: [2]}
+  features: {text: "Google 同时介绍利用 Android 手机中的传感器参与地震探测的计划；探测参与不等于每个地区都能收到预警。", citations: [1]}
+  status: {text: "本题停在 2020 年 8 月公告时点，材料没有证明所有用户都能及时收到提醒，也不应把预警称为地震预测。", citations: [1, 2]}
+case_sources:
+  - {id: 1, title: "Earthquake detection and early alerts, now on your Android phone", publisher: "Google", url: "https://blog.google/products-and-platforms/platforms/android/earthquake-detection-and-alerts/"}
+  - {id: 2, title: "The Blind Zone of Earthquake Early Warning", publisher: "U.S. Geological Survey", url: "https://www.usgs.gov/programs/earthquake-hazards/science/blind-zone-earthquake-early-warning"}
+main_question: "假设你在 2020 年负责加州预警体验，必须先定义要解决的问题，不能假定每个人都能及时收到提醒。请选择一个优先人群与接收场景，说明他们目前可能遇到的障碍、期望做到的事及两者差距；区分探测、通知送达、理解及行动中的不同问题，并提出与当地居民和应急机构共同验证的方式。其他场景可用于说明边界。不要承诺系统保证人身安全或给出未经核验的避险指令。"
+ability_tags: [问题定义, 用户理解]
+difficulty: 挑战
+domain: 工具/效率
+rubric:
+  dimensions:
+    问题定义:
+      - "选择一个优先人群和接收情境，说明当前任务障碍、期望结果及差距；其他情境可用于说明边界。"
+      - "区分地震发生后预警、地震预测、探测参与与用户收到通知。"
+      - "指出近震区可能无提前量或漏收，避免以送达率代表安全。"
+      - "描述可验证的目标和不在产品单独控制范围内的边界。"
+    用户理解:
+      - "说明优先场景中的具体接收条件如何影响用户注意或理解提醒。"
+      - "说明所选场景中用户需要理解或完成的事，不把已送达但未注意等同于未送达；必要时说明迟到或未送达的边界，不要求逐类研究。"
+      - "提出与当地居民及应急机构研究需求，避免把假设写成事实。"
+  forbidden_leaks: ["以送达、理解和演练动作分层定义预警体验目标的完整框架"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "这个系统是在地震发生之前预测，还是在震动传播过程中提醒？"}
+  - {level: 2, stage: 视角补充, question: "同一条提醒在睡觉、嘈杂或无法听到提示音的场景中是否同样可用？"}
+  - {level: 3, stage: 反例与风险, question: "如果人在震源附近、提醒没有赶上强震，产品不能承诺什么？"}
+  - {level: 4, stage: 取舍权衡, question: "较早提示与更确定的判断之间可能存在什么冲突，谁应参与确定规则？"}
+  - {level: 5, stage: 验证方式, question: "怎样在不发送真实紧急警报的情况下验证送达、理解及不同人群的可用性？"}
+materials:
+  core:
+    - {title: "Earthquake detection and early alerts, now on your Android phone", source: "Google", url: "https://blog.google/products-and-platforms/platforms/android/earthquake-detection-and-alerts/", summary: "2020 年公告区分加州 ShakeAlert 提醒和手机参与探测计划。"}
+    - {title: "The Blind Zone of Earthquake Early Warning", source: "U.S. Geological Survey", url: "https://www.usgs.gov/programs/earthquake-hazards/science/blind-zone-earthquake-early-warning", summary: "2020 年研究解读说明震源附近可能没有提前预警的原因。"}
+  extended:
+    - {title: "Earthquake Early Warning – Fine-Tuning for Best Alerts", source: "U.S. Geological Survey", url: "https://www.usgs.gov/programs/earthquake-hazards/science/earthquake-early-warning-fine-tuning-best-alerts", summary: "2019 年解释预警不是地震预测，以及提醒时机与判断的不确定性。"}
+    - {title: "USGS ShakeAlert Earthquake Early Warning System", source: "U.S. Geological Survey", url: "https://www.usgs.gov/news/featured-story/usgs-shakealert-earthquake-early-warning-system", summary: "2019 年介绍 ShakeAlert 的发展和用户教育背景；不代表 Android 提醒的实测结果。"}
+    - {title: "Stay informed after quakes with Google Public Alerts for New Zealand", source: "Google", url: "https://blog.google/intl/en-nz/products/2015_11_stay-informed-after-quakes-with-google/", summary: "2015 年的震后信息服务可帮助区分震后信息和地震波到达前提醒。"}
+uncertainty: ["不假定提醒在所有地区或所有地震中及时可用；具体保护行动以当地应急机构指导为准。"]
+status: published

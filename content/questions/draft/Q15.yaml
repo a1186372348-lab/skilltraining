@@ -1,0 +1,116 @@
+id: Q15
+title: Duolingo 连续学习中断：如何拆解用户流失的可能原因
+case_title: 连续记录断了，是否意味着学习已经中断
+case_background:
+  product:
+    text: Duolingo 通过连续天数记录学习活动，并提供可在错过练习时保护连续记录的 Streak Freeze。
+    citations:
+      - 1
+  audience:
+    text: 连续记录面向使用 Duolingo 进行学习的人；官方文章讨论了刚开始坚持与已保持较长记录的不同学习者。
+    citations:
+      - 1
+  scenario:
+    text: Duolingo 一篇产品文章回顾：团队分析连续两天使用产品的学习者时，发现其中有人没有保持连续记录。
+    citations:
+      - 2
+  features:
+    text: 该文章说明，过去需要达到每日目标才能延续记录；团队后来测试将延续条件改为完成一节课。另一篇技术文章解释了系统故障时修复受影响记录的做法。
+    citations:
+      - 2
+      - 3
+  status:
+    text: 官方报道了对连续记录规则进行实验与调整；这些公司文章未提供本题所需的完整用户流失原因分布。
+    citations:
+      - 2
+      - 5
+case_sources:
+  - id: 1
+    title: Duolingo 连续记录与灵活性
+    publisher: Duolingo
+    url: https://blog.duolingo.com/how-duolingo-streak-builds-habit/
+  - id: 2
+    title: 改进连续学习记录
+    publisher: Duolingo
+    url: https://blog.duolingo.com/improving-the-streak/
+  - id: 3
+    title: 系统故障时保护连续记录
+    publisher: Duolingo
+    url: https://blog.duolingo.com/protecting-streaks-from-site-issues/
+  - id: 4
+    title: 两项连续记录相关实验
+    publisher: Duolingo
+    url: https://blog.duolingo.com/how-streaks-keep-duolingo-learners-committed-to-their-language-goals/
+  - id: 5
+    title: Duolingo 如何进行产品实验
+    publisher: Duolingo
+    url: https://blog.duolingo.com/improving-duolingo-one-experiment-at-a-time/
+main_question: 假设你负责理解学习者为什么中断 Duolingo 内的练习。连续记录中断与实际停止应用内练习可能并不一致。请先界定要解释的现象，再提出并比较至少两种可能原因：现有材料各支持到哪里，还需要哪些证据才能区分？证据不足时，可以只给优先调查顺序，不必排定主因。最后提出一项优先行动及验证方式；不要把应用内不活跃直接等同于停止学习语言。
+ability_tags:
+  - 根因分析
+  - 用户理解
+  - 指标与验证
+difficulty: 挑战
+domain: 教育
+kind: daily
+rubric:
+  dimensions:
+    根因分析:
+      - 区分连续记录中断、停止应用内练习与是否仍在其他地方学习，界定本题要解释的现象。
+      - 提出可区分的原因假设，并说明各自需要什么证据，不限于规则、生活安排、学习体验或技术故障。
+      - 利用官方文章中连续使用但未保持记录的观察，说明其支持什么、不支持什么。
+      - 在证据允许时提出相对判断；证据不足时说明优先调查什么、为什么及什么发现会改变判断，不强制给出原因贡献排序。
+    用户理解:
+      - 结合提出的原因，说明学习者可能遇到的具体学习情境或约束，不要求固定用户分组。
+      - 区分冻结记录、未达目标和完全未打开产品等可能行为，不把每次跳过都归因于失去动力。
+      - 指出至少一种用户处境或行为含义需要向学习者核实，不将单一故事当成普遍事实。
+    指标与验证:
+      - 为需要观察的应用内练习或记录事件提出可操作口径，说明观察对象和时间范围。
+      - 说明怎样用可获得的分析、访谈或实验区分提出的原因，并指出证据局限。
+      - 为优先行动提出能观察结果的方式，说明什么发现会改变原判断。
+  forbidden_leaks:
+    - 规则与真实练习分离、按原因分群并选择实验的完整诊断链。
+    - 把一种解释写成全部学习者流失的确定原因。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 先定义「记录中断」与「没有在应用内练习」，它们一定是同一事件吗？
+  - level: 2
+    stage: 视角补充
+    question: 临时忙碌的学习者与觉得课程不合适的学习者，可能留下相同记录吗？
+  - level: 3
+    stage: 反例与风险
+    question: 有人连续使用两天却没有保住记录，哪些规则或技术解释应先排查？
+  - level: 4
+    stage: 取舍权衡
+    question: 不知道各原因占比时，你依据什么决定先修规则、调整内容还是研究用户？
+  - level: 5
+    stage: 验证方式
+    question: 为两种解释分别写一个可观察证据，并说明什么结果会让你改判。
+materials:
+  core:
+    - title: Duolingo 连续记录与灵活性
+      source: Duolingo
+      url: https://blog.duolingo.com/how-duolingo-streak-builds-habit/
+      summary: 官方介绍连续记录和 Streak Freeze 的用途，并讨论连续学习中的灵活性。
+    - title: 改进连续学习记录
+      source: Duolingo
+      url: https://blog.duolingo.com/improving-the-streak/
+      summary: 产品文章回顾每日目标与连续记录旧规则、团队发现的口径差异以及后续实验。
+  extended:
+    - title: 系统故障时保护连续记录
+      source: Duolingo
+      url: https://blog.duolingo.com/protecting-streaks-from-site-issues/
+      summary: 技术文章介绍系统故障期间识别受影响用户并修复记录的处理。
+    - title: 两项连续记录相关实验
+      source: Duolingo
+      url: https://blog.duolingo.com/how-streaks-keep-duolingo-learners-committed-to-their-language-goals/
+      summary: 增长团队介绍连续记录相关产品实验；规则和界面只代表文章所述时点。
+    - title: Duolingo 如何进行产品实验
+      source: Duolingo
+      url: https://blog.duolingo.com/improving-duolingo-one-experiment-at-a-time/
+      summary: 公司介绍 A/B 实验流程与用多个指标评估改动的方法。
+uncertainty:
+  - 题目没有给出当前学习者流失率或各原因占比，调查任务为明确假设。
+  - 官方文章为不同时间的产品回顾，具体规则和界面不能一律当作 2026 年现状。
+status: published

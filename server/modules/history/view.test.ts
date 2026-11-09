@@ -18,6 +18,7 @@ function detailRow(overrides: Partial<HistorySessionDetailRow> = {}): HistorySes
     userId: "user-1",
     date: new Date(Date.UTC(2026, 9, 3)),
     isExtra: false,
+    sourceType: "daily",
     state: "scored",
     firstAnswer: "首答：Agent 模式是质变，因为它接管了任务闭环。",
     firstSubmittedAt: new Date(Date.UTC(2026, 9, 3, 6, 10)),
@@ -29,6 +30,7 @@ function detailRow(overrides: Partial<HistorySessionDetailRow> = {}): HistorySes
       { round: 2, question: "有证据吗？你会看哪个指标？" },
     ],
     question: {
+      kind: "daily",
       caseTitle: "从「帮你写」到「替你做」：Cursor 的 Agent 模式",
       caseBackground: {
         product: "Cursor——AI 原生代码编辑器。",
@@ -74,6 +76,13 @@ describe("能力标签防御解析", () => {
 });
 
 describe("详情回放装配完整性（US-009：案例/两版答案/提示/追问/评分/反馈）", () => {
+  it("保留本人真实来源，复测和训练包不会因 isExtra 被误标成加练", () => {
+    for (const sourceType of ["retest", "pack", "extra", "baseline"] as const) {
+      const view = toHistoryDetailView(detailRow({ isExtra: true, sourceType }));
+      expect(view).toMatchObject({ isExtra: true, sourceType });
+    }
+  });
+
   it("六个分区全部装配，提示含层数与时间，评分为四元组", () => {
     const view = toHistoryDetailView(detailRow());
 

@@ -20,6 +20,16 @@ enum TrainingSessionState {
   abandoned // 已终止（T38 / D40：用户主动放弃，不评分不计入画像，历史保留）
 }
 
+// 会话来源（T29 / D32：P3 公共前置，T30/T31 直接复用不再各自迁移）
+enum TrainingSessionSource {
+  daily    // 每日一题（默认兜底）
+  extra    // 加练（D3）
+  baseline // 基线测评题（D19）
+  plan     // 周期训练计划题（T29）
+  pack     // 专项训练包题（T30）
+  retest   // 复测题（T31）
+}
+
 // 题目上架状态（R3：每题试运行后方可上架，仅上架题参与出题）
 enum QuestionStatus {
   draft     // 草稿（生产中/评审中）
@@ -44,6 +54,13 @@ model User {
   profileDraft    ProfileDraft?
   sessions        TrainingSession[]
   abilityProfiles AbilityProfile[]
+  trainingPlans   TrainingPlan[]
+
+  trainingPacks   TrainingPack[]
+
+  stageProgress StageProgress[]
+  stageRecords StageRecord[]
+  retestAttempts RetestAttempt[]
 
   @@map("users")
 }
@@ -120,6 +137,8 @@ model Question {
   domain         String?           // 领域标签（T33 / BR-V2-8：只落库与统计，V1 运行时不读取，T29 起消费）
   sessions       TrainingSession[]
 
+  packItems      PackItem[]
+
   @@map("questions")
 }
 
@@ -131,14 +150,20 @@ model TrainingSession {
   date             DateTime             @db.Date // 训练日期（每日一题归属日）
   isExtra          Boolean              @default(false) @map("is_extra") // 是否加练（D3：同等计入画像）
   state            TrainingSessionState @default(reading)
+  sourceType       TrainingSessionSource @default(daily) @map("source_type") // 会话来源（T29：创建方透传落点；历史回填按 question.kind/is_extra，迁移 20261022140000）
+  sourceId         String?               @map("source_id") @db.Uuid // 来源对象 id（计划/包/复测；daily/extra/baseline 恒为 NULL）
+  linkedPlanId     String?               @map("linked_plan_id") @db.Uuid
   firstAnswer      String?              @map("first_answer") // 首次答案
   finalAnswer      String?              @map("final_answer") // 最终答案
   hintCount        Int                  @default(0) @map("hint_count") // 首次提交前的提示次数（服务端记录为准）
   followupHintCount Int                 @default(0) @map("followup_hint_count") // 追问阶段已释放提示次数（D22，服务端记录为准）
   followups        Json?                // jsonb：追问对话记录（1~2 轮，BR-4；T19 起含预生成提示 hint 与 hintReleased 标记，D22）
+  baselineActivatedAt DateTime?          @map("baseline_activated_at") // 基线会话首次实际选中；预建不激活
   startedAt        DateTime             @default(now()) @map("started_at") // 进入训练
   firstSubmittedAt DateTime?            @map("first_submitted_at") // 首次提交（此后提示按钮消失，D7）
   finalSubmittedAt DateTime?            @map("final_submitted_at") // 最终提交
+  scoreSequence    BigInt?              @unique @map("score_sequence")
+  scoredDimensions Json?                @map("scored_dimensions")
   scoredAt         DateTime?            @map("scored_at") // 完成评分
   user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   question         Question             @relation(fields: [questionId], references: [id])
@@ -147,6 +172,13 @@ model TrainingSession {
   feedback         SessionFeedback?
   survey           FeedbackSurvey?
 
+  linkedPlan       TrainingPlan?         @relation(fields: [linkedPlanId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  packItem         PackItem?
+
+  retestAttempt RetestAttempt?
+
+  @@index([userId, scoreSequence])
+  @@index([linkedPlanId, scoredAt])
   @@index([userId, date])
   @@index([questionId])
   @@map("training_sessions")
@@ -174,6 +206,7 @@ model Score {
   coefficient    Float           // 独立完成系数（BR-2：max(0.6, 1 − 0.1 × n)）
   effectiveScore Float           @map("effective_score") // 有效得分 = 原始分 × 系数
   diagnosisText  String?         @map("diagnosis_text") // 诊断文本
+  confidence     Int?            // 评分置信度（T28 / BR-V2-6：0~100 可空；NULL = 无置信度信息，T27 消费侧不触发加深判定）
   session        TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
@@ -244,4 +277,148 @@ model EvalRun {
 
   @@index([promptVersionId])
   @@map("eval_runs")
+}
+
+// 计划状态（T29 / F5：active 进行中 / rejected 已拒绝本周不再推荐（D33②/BR-V2-2）/ completed 周回顾后归档）
+enum TrainingPlanStatus {
+  active
+  rejected
+  completed
+}
+
+// 周期训练计划（T29 / F5）：每周一首访懒生成；@@unique 保证并发首访幂等不双写
+model TrainingPlan {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  weekStartDate  DateTime           @map("week_start_date") @db.Date // 周一（UTC）
+  focusDimension String             @map("focus_dimension") // 主攻维度（画像最低分维度，同分按 ABILITY_DIMENSIONS 固定顺序）
+  startScore     Float              @map("start_score") // 生成时该维当前分
+  targetScore    Float              @map("target_score") // min(100, 当前分 + 10)（D35）
+  status         TrainingPlanStatus @default(active)
+  reason         String             // 选择理由（模板文案，含维度名与当前分；规则引擎不用 AI）
+  createdAt      DateTime           @default(now()) @map("created_at")
+  reviewSnapshot Json?              @map("review_snapshot")
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  linkedPackSessions TrainingSession[]
+
+  @@unique([userId, weekStartDate])
+  @@index([userId, status])
+  @@map("training_plans")
+}
+
+
+enum TrainingPackStatus {
+  active
+  completed
+  abandoned
+}
+
+enum PackTier {
+  basic
+  advanced
+  challenge
+}
+
+model TrainingPack {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  dimension String
+  status    TrainingPackStatus @default(active)
+  createdAt DateTime           @default(now()) @map("created_at")
+  endedAt   DateTime?          @map("ended_at")
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     PackItem[]
+
+  @@index([userId, status])
+  @@map("training_packs")
+}
+
+model PackItem {
+  id               String           @id @default(uuid()) @db.Uuid
+  packId           String           @map("pack_id") @db.Uuid
+  questionId       String           @map("question_id") @db.Uuid
+  orderIndex       Int              @map("order_index")
+  targetTier       PackTier         @map("target_tier")
+  actualTier       PackTier         @map("actual_tier")
+  actualDifficulty Int              @map("actual_difficulty")
+  unlockedAt       DateTime?        @map("unlocked_at")
+  startedAt        DateTime?        @map("started_at")
+  sessionId        String?          @unique @map("session_id") @db.Uuid
+  pack             TrainingPack     @relation(fields: [packId], references: [id], onDelete: Cascade)
+  question         Question         @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  session          TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@unique([packId, orderIndex])
+  @@unique([packId, questionId])
+  @@index([questionId])
+  @@map("pack_items")
+}
+
+
+enum StageRecordType {
+  retest_trigger
+  retest_pass
+  retest_fail
+}
+
+enum RetestAttemptStatus {
+  active
+  abandoned
+  settled
+}
+
+model StageProgress {
+  userId         String   @map("user_id") @db.Uuid
+  dimension      String
+  initializedAt  DateTime @default(now()) @map("initialized_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  legacyWindow   Json     @map("legacy_window")
+  afterSequence  BigInt?  @map("after_sequence")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, dimension])
+  @@map("stage_progress")
+}
+
+model StageRecord {
+  id                      String          @id @default(uuid()) @db.Uuid
+  userId                  String          @map("user_id") @db.Uuid
+  dimension               String
+  type                    StageRecordType
+  createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  eventScoreSequence      BigInt          @map("event_score_sequence")
+  qualifying              Json?
+  settledAt               DateTime?       @map("settled_at") @db.Timestamptz(3)
+  triggerId               String?         @unique @map("trigger_id") @db.Uuid
+  resultOriginalSessionId String?         @map("result_original_session_id") @db.Uuid
+  resultEffectiveScore    Float?          @map("result_effective_score")
+  user                    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trigger                 StageRecord?    @relation("StageRecordOutcome", fields: [triggerId, userId, dimension], references: [id, userId, dimension], onDelete: NoAction, onUpdate: Cascade)
+  outcomes                StageRecord[]   @relation("StageRecordOutcome")
+  attempts                RetestAttempt[]
+
+  @@unique([id, userId, dimension])
+  @@index([userId, dimension, eventScoreSequence, createdAt])
+  @@map("stage_records")
+}
+
+model RetestAttempt {
+  id                String              @id @default(uuid()) @db.Uuid
+  triggerId         String              @map("trigger_id") @db.Uuid
+  userId            String              @map("user_id") @db.Uuid
+  dimension         String
+  questionId        String              @map("question_id") @db.Uuid
+  sessionId         String?             @unique @map("session_id") @db.Uuid
+  originalSessionId String              @unique @map("original_session_id") @db.Uuid
+  status            RetestAttemptStatus @default(active)
+  startedAt         DateTime            @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt           DateTime?           @map("ended_at") @db.Timestamptz(3)
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trigger           StageRecord         @relation(fields: [triggerId, userId, dimension], references: [id, userId, dimension], onDelete: NoAction, onUpdate: Cascade)
+  session           TrainingSession?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, questionId])
+  @@index([triggerId, startedAt])
+  @@map("retest_attempts")
 }

@@ -55,6 +55,7 @@ describe("runCalibration：漂移检测", () => {
       })),
       topIssue: "stub 问题",
       nextFocus: "stub 方向",
+      confidence: null,
     });
 
     const report = await runCalibration([sample], scorer, { mode: "mock" });
@@ -76,6 +77,7 @@ describe("runCalibration：漂移检测", () => {
       })),
       topIssue: "stub 问题",
       nextFocus: "stub 方向",
+      confidence: null,
     });
 
     const report = await runCalibration([sample], scorer, { mode: "mock" });
@@ -109,6 +111,7 @@ describe("formatCalibrationReport：漂移报告输出", () => {
       })),
       topIssue: "stub 问题",
       nextFocus: "stub 方向",
+      confidence: null,
     });
     const report = await runCalibration([sample], scorer, { mode: "mock" });
     const text = formatCalibrationReport(report);

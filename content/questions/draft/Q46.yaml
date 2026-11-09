@@ -1,0 +1,42 @@
+id: Q46
+title: "Acrobat Liquid Mode：怎样解释手机阅读的变化与边界"
+case_title: "PDF 在小屏幕上重新排版"
+case_background:
+  product: {text: "Adobe 在 2020 年 9 月 23 日介绍 Acrobat Reader 移动应用中的 Liquid Mode。", citations: [1]}
+  audience: {text: "该功能面向在手机等小屏设备上阅读 PDF 的用户。", citations: [1]}
+  scenario: {text: "Adobe 介绍，长篇、文字较多的 PDF 在手机上阅读时，需要处理小屏幕与固定页面之间的差异。", citations: [1]}
+  features: {text: "Liquid Mode 尝试识别 PDF 中的标题、段落、图片和表格并重新排版，用户可调整字号与间距。", citations: [1]}
+  status: {text: "2020 年发布文章称这一能力首先在免费的 Acrobat Reader 移动应用中推出，并说明技术仍处早期阶段。", citations: [1]}
+case_sources:
+  - {id: 1, title: "Adobe unveils ambitious multi-year vision for PDF: Introduces Liquid Mode", publisher: "Adobe", url: "https://blog.adobe.com/en/publish/2020/09/23/adobe-unveils-ambitious-multi-year-vision-for-pdf-introduces-liquid-mode"}
+main_question: "假设你负责 2020 年发布时的首次使用说明，请写一段给手机阅读者看的简短文案，讲清打开后页面可能怎样变化、能调整什么、遇到识别不理想时应如何核对。说明文案放在何处、读者何时能看到及为什么适合；不确定的具体操作标明待核实。避免承诺所有 PDF 都可正确重排或声称已证实的阅读效率提升。"
+ability_tags: [产品表达, 方案设计]
+difficulty: 基础
+domain: 工具/效率
+rubric:
+  dimensions:
+    产品表达:
+      - "用非技术语言解释内容重新排列和字号间距调整。"
+      - "明确复杂内容可能识别不理想，提示与原文核对。"
+      - "不承诺适用于所有 PDF 或保证阅读速度提升。"
+    方案设计:
+      - "选择一个与文案相符的触点，说明用户何时看到，不强制设置两个位置。"
+      - "为发现排版异常的用户提供返回原文或求助的可行方向，并注明需核对实际操作。"
+      - "解释这一触点怎样帮助读者在需要时理解功能或找到下一步。"
+  forbidden_leaks: ["以小屏重排、字号调整和原文核对组成的完整首次提示"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "读者打开功能后，首先会看到内容的哪些变化？"}
+  - {level: 2, stage: 视角补充, question: "文字太小或间距不合适的人，会想调整什么？"}
+  - {level: 3, stage: 反例与风险, question: "如果复杂表格的顺序被识别错了，应避免什么承诺？"}
+  - {level: 4, stage: 取舍权衡, question: "这段简短说明放在哪里，读者使用时才容易看到？"}
+  - {level: 5, stage: 验证方式, question: "如何让读者验证重排后的内容并复述功能的限制？"}
+materials:
+  core:
+    - {title: "Adobe unveils ambitious multi-year vision for PDF: Introduces Liquid Mode", source: "Adobe", url: "https://blog.adobe.com/en/publish/2020/09/23/adobe-unveils-ambitious-multi-year-vision-for-pdf-introduces-liquid-mode", summary: "2020 年发布文章解释小屏重排、文档结构与可调阅读设置。"}
+    - {title: "Understanding Success Criterion 1.4.10: Reflow", source: "W3C WAI", url: "https://www.w3.org/WAI/WCAG21/Understanding/reflow.html", summary: "解释内容重排对小屏和放大的意义，是一般无障碍参考，不证明 Adobe 产品合规。"}
+  extended:
+    - {title: "Writing for user interfaces", source: "GOV.UK", url: "https://www.gov.uk/service-manual/design/writing-for-user-interfaces", summary: "2018 年更新的通用界面文案指南，讨论简洁和使用读者熟悉的语言；不是 Adobe 产品说明。"}
+    - {title: "Mobile Accessibility: How WCAG 2.0 and Other W3C/WAI Guidelines Apply to Mobile", source: "W3C", url: "https://www.w3.org/TR/mobile-accessibility-mapping/", summary: "通用移动无障碍资料讨论小屏幕、放大和文字适配；不证明 Adobe 产品符合标准。"}
+    - {title: "Usability testing", source: "Digital.gov", url: "https://digital.gov/guides/plain-language/test/usability-testing", summary: "现行通用文案理解测试资料，可供后续研究参考；不代表 2020 年本功能实测。"}
+uncertainty: ["文件识别可能不完整，具体返回操作和适用文件类型须按 2020 年实际版本核实。"]
+status: published

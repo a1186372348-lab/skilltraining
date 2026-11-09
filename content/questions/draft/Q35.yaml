@@ -1,0 +1,103 @@
+id: Q35
+title: "Amazon Go 无人收银：如何判断减少结账步骤的价值"
+case_title: "少一次排队，是否值得重做门店流程？"
+case_background:
+  product:
+    text: Amazon Go 是 Amazon 的实体便利店，首家门店于 2018 年 1 月在西雅图向公众开放。
+    citations:
+      - 1
+      - 2
+  audience:
+    text: 同期报道介绍，顾客使用 Amazon 账户、Amazon Go 应用和兼容手机进入门店购物。
+    citations:
+      - 1
+  scenario:
+    text: 顾客在店内选择商品后可离店，不必经过传统收银结账环节。
+    citations:
+      - 1
+      - 2
+  features:
+    text: Amazon 说明该体验依靠计算机视觉、机器学习与传感器融合等技术。
+    citations:
+      - 2
+      - 3
+  status:
+    text: 本题以 2018 年首店已向公众开放后的推广评估为背景。材料说明入店与离店机制，但未提供本题目标门店的排队、误扣、服务成本或经营回报数据。
+    citations:
+      - 1
+      - 2
+case_sources:
+  - id: 1
+    title: Amazon Go opens to the public
+    publisher: Retail Dive
+    url: https://www.retaildive.com/news/amazon-go-opens-to-the-public/515240/
+  - id: 2
+    title: Amazon Announces Fourth Quarter Results
+    publisher: Amazon
+    url: https://press.aboutamazon.com/2018/2/amazon-com-announces-fourth-quarter-sales-up-38-to-60-5-billion
+  - id: 3
+    title: Amazon 2016 财年第四季度业绩公告（SEC 存档）
+    publisher: Amazon / SEC
+    url: https://www.sec.gov/Archives/edgar/data/1018724/000101872417000003/amzn-20161231xex991.htm
+  - id: 4
+    title: Amazon Go concept store opens to public
+    publisher: ABC News
+    url: https://www.abc.net.au/news/2018-01-23/amazon-opens-supermarkets-with-no-checkouts/9351504
+  - id: 5
+    title: Amazon opening Go store with no cashiers
+    publisher: CBS News / AP
+    url: https://www.cbsnews.com/news/amazon-go-store-no-cashiers-checkout-lines-seattle/
+main_question: 假设你在 2018 年 2 月初评估是否把类似结账方式推广到另一家便利店。当前没有目标门店的排队、交易、成本或误扣数据。请判断顾客与门店可能获得什么价值、哪些人可能无法使用，以及技术和服务成本如何影响“值得做”的条件。说明是否保留另一种结账方式及代价，给出有条件建议，并提出试点比较、关键指标和扩大、调整或停止的依据；将材料事实与假设分开。
+ability_tags: [产品价值判断, 指标与验证, 产品取舍]
+difficulty: 挑战
+domain: 本地生活
+rubric:
+  dimensions:
+    产品价值判断:
+      - 分别说明顾客节省结账步骤与门店经营可能获得的价值，并指出均须测量。
+      - 识别没有兼容手机或不愿关联账户的顾客可能面临的排除。
+      - 将减少结账步骤与总购物时间、交易准确性和真实经营收益区分。
+      - 给出考虑净收益与不确定性的有条件建议。
+    指标与验证:
+      - 设计可比较的门店或时段对照，解释客流差异等干扰。
+      - 测量购物过程、误扣及纠正、服务成本和不同顾客的完成情况；区分顾客主动操作、账单等待和纠错投入。
+      - 说明试点结果何时支持扩大、调整或停止。
+    产品取舍:
+      - 比较无人收银与保留其他结账方式的覆盖和成本。
+      - 讨论便利性、收费准确、隐私或员工服务之间至少一项实际权衡。
+      - 不把厂商宣传直接当作该方式成功或失败的证据。
+  forbidden_leaks:
+    - 以分时段对照估算端到端节省并同时监测误扣和服务成本的验证方案
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "少了结账环节，就一定代表整个购物过程更快吗？"}
+  - {level: 2, stage: 视角补充, question: "没有兼容手机、需要协助的顾客，以及门店员工会遇到什么不同情况？"}
+  - {level: 3, stage: 反例与风险, question: "如果离店快了但账单纠错耗时很久，你如何评价价值？"}
+  - {level: 4, stage: 取舍权衡, question: "保留另一种结账方式会增加什么成本，又可能解决什么问题？"}
+  - {level: 5, stage: 验证方式, question: "缺少真实数据时，怎样做公平比较并设置停止条件？"}
+materials:
+  core:
+    - title: Amazon Announces Fourth Quarter Results
+      source: Amazon
+      url: https://press.aboutamazon.com/2018/2/amazon-com-announces-fourth-quarter-sales-up-38-to-60-5-billion
+      summary: 2018 年 2 月官方财报介绍首店及无常规收银的技术，不证明目标门店投资回报。
+    - title: Amazon Go opens to the public
+      source: Retail Dive
+      url: https://www.retaildive.com/news/amazon-go-opens-to-the-public/515240/
+      summary: 2018 年 1 月同期报道介绍首店开放及需要的账户和手机。
+  extended:
+    - title: Amazon 2016 财年第四季度业绩公告（SEC 存档）
+      source: Amazon / SEC
+      url: https://www.sec.gov/Archives/edgar/data/1018724/000101872417000003/amzn-20161231xex991.htm
+      summary: 2017 年 2 月的官方公告介绍无常规收银构想及相关技术，不提供 2018 年目标门店的经营回报。
+    - title: Amazon Go concept store opens to public
+      source: ABC News
+      url: https://www.abc.net.au/news/2018-01-23/amazon-opens-supermarkets-with-no-checkouts/9351504
+      summary: 2018 年 1 月同期报道介绍传感器、应用和购物过程。
+    - title: Amazon opening Go store with no cashiers
+      source: CBS News / AP
+      url: https://www.cbsnews.com/news/amazon-go-store-no-cashiers-checkout-lines-seattle/
+      summary: 2018 年 1 月同期报道首店公开营业及购物结账方式。
+uncertainty:
+  - 这是 2018 年 2 月初的假设性决策练习；材料没有提供目标门店的客流、等待、误扣或成本数据。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

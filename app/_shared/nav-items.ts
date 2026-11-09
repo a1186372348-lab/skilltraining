@@ -14,6 +14,7 @@ const NAV_DEFINITIONS = [
   { label: "首页", href: "/" },
   { label: "产品训练", href: "/training" },
   { label: "能力画像", href: "/profile" },
+  { label: "成长阶段", href: "/stages" },
   { label: "我的", href: "/settings" },
 ] as const;
 

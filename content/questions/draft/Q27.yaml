@@ -1,0 +1,116 @@
+id: Q27
+title: Coursera 助学金：曝光改动后如何验证机会是否真正改善
+case_title: 申请入口更显眼，是否让需要帮助的人真的获得机会
+case_background:
+  product:
+    text: Coursera 提供在线课程；其助学金计划为无法负担相关费用的申请者提供财务支持。
+    citations:
+      - 1
+      - 2
+  audience:
+    text: 2015 年 Coursera 调查发现，不到一半受访学习者知道其助学金计划；该调查范围不能直接代表所有潜在学习者。
+    citations:
+      - 1
+  scenario:
+    text: 2015 年的官方复盘称，团队让少数课程的付款页面更明显地展示助学金选项，并观察获得助学金的人数变化。
+    citations:
+      - 1
+  features:
+    text: 2015 年助学金申请需要学习者说明经济情况和学习动机；获批后可获得相关课程证书费用豁免。
+    citations:
+      - 1
+  status:
+    text: 公司称在少数课程修改付款页面后，获得助学金的人数翻倍；材料未给出完整对照组、分母或长期学习结果。
+    citations:
+      - 1
+case_sources:
+  - id: 1
+    title: Coursera 助学金项目复盘
+    publisher: Coursera
+    url: https://blog.coursera.org/courseras-financial-aid-what-it-is-and-who-is/
+  - id: 2
+    title: Verified Certificates ensure academic integrity
+    publisher: Coursera
+    url: https://blog.coursera.org/verified-certificates-ensure-academic-integrity/
+  - id: 3
+    title: Introducing Signature Track
+    publisher: Coursera
+    url: https://blog.coursera.org/signaturetrack/
+  - id: 4
+    title: First Students to Earn Verified Certificates
+    publisher: Coursera
+    url: https://blog.coursera.org/congrats-to-the-first-students-to-earn-verified/
+  - id: 5
+    title: 'Carron Riach: rebuilding a future with financial aid'
+    publisher: Coursera
+    url: https://blog.coursera.org/carron-riach-rebuilding-a-future-with-financial/
+main_question: 假设你接手 2015 年少数课程的助学金入口改进。如何判断更醒目的入口是否真正帮助需要资助的学习者，而不仅仅增加了人数？请分别提出主要指标、漏斗诊断和比较方案，说明如何理解不同学习者的障碍、保护隐私，以及什么证据会改变你的判断。
+ability_tags:
+  - 指标与验证
+  - 根因分析
+  - 用户理解
+difficulty: 挑战
+domain: 教育
+kind: daily
+rubric:
+  dimensions:
+    指标与验证:
+      - 给出以学习者为单位的可计算指标，包含分子、分母、观察窗口，并区分申请、批准和实际开始学习。
+      - 提出可执行的对照和分配单位，说明课程、时间与样本组成如何影响解释。
+      - 为学习参与、误导或公平性设置可观测护栏；事先未给出的阈值不冒充已知标准。
+      - 所选指标应与具体机会主张对应；允许只验证近期参与，但须说明尚未验证什么，不能由申请或批准直接推出需求满足和长期结果。
+    根因分析:
+      - 按看到入口、理解条件、提交、审核和开始学习拆解流失，并提出可区分的原因假设。
+      - 列出支持或推翻至少两种原因的证据，例如入口可见性、申请成本和审核时长。
+      - 明确公司回顾缺少基线分母和可比对照，不能排除其他变化。
+    用户理解:
+      - 识别经济压力、语言或时间限制不同的学习者，并承认需求与实际资格不能仅凭外观判断。
+      - 提出低侵扰的研究或分层办法，保护财务信息，避免让弱势群体承担额外风险。
+      - 区分个体体验与群体比例，不用个例代表所有学习者。
+  forbidden_leaks:
+    - 申请、批准、实际学习与隐私护栏组成的完整评估设计。
+    - 人数翻倍自动证明入口改动带来真实机会或因果改善。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 先画出从看到选项到实际开始课程的步骤，每一步观察对象是否相同？
+  - level: 2
+    stage: 视角补充
+    question: 获得资助、开始学习，以及真正需要帮助的人能否获得原本负担不起的机会，有什么不同？
+  - level: 3
+    stage: 反例与风险
+    question: 语言、申请成本和经济处境可能如何影响不同学习者？
+  - level: 4
+    stage: 取舍权衡
+    question: 人数翻倍没有给出哪些分母或比较信息，如何构造更公平的比较？
+  - level: 5
+    stage: 验证方式
+    question: 写出一种明确分子、分母、时间窗口及隐私保护的方案。
+materials:
+  core:
+    - title: Coursera 助学金项目复盘
+      source: Coursera
+      url: https://blog.coursera.org/courseras-financial-aid-what-it-is-and-who-is/
+      summary: 2015 年 10 月 23 日官方复盘介绍助学金、知晓度与少数课程页面调整；人数变化没有完整对照口径。
+    - title: Verified Certificates ensure academic integrity
+      source: Coursera
+      url: https://blog.coursera.org/verified-certificates-ensure-academic-integrity/
+      summary: 2014 年说明付费认证与财务援助背景；不同课程权益不必相同。
+  extended:
+    - title: Introducing Signature Track
+      source: Coursera
+      url: https://blog.coursera.org/signaturetrack/
+      summary: 2013 年介绍认证课程和经济困难学习者的资助申请；不能概括 2015 年所有课程。
+    - title: First Students to Earn Verified Certificates
+      source: Coursera
+      url: https://blog.coursera.org/congrats-to-the-first-students-to-earn-verified/
+      summary: 2013 年团队问答介绍认证与资助背景；公司数据不证明本次入口改动效果。
+    - title: 'Carron Riach: rebuilding a future with financial aid'
+      source: Coursera
+      url: https://blog.coursera.org/carron-riach-rebuilding-a-future-with-financial/
+      summary: 2014 年受助学习者个案有助理解处境，不代表所有目标人群。
+uncertainty:
+  - 人数翻倍和知晓度来自公司 2015 年 10 月 23 日复盘；缺少完整可比对照、分母及长期学习数据。
+  - 较早认证产品和个人故事提供背景，但不能直接代表 2015 年所有课程或全体有需求的学习者。
+  - 禁止泄露点的编辑口径：限制导师在用户完成判断前代写整套答案，不限制题面提供必要机制事实和正常资料，也不要求用户采用参考答案的具体词语、排序或方案。
+status: published

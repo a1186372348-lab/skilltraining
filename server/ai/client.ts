@@ -3,7 +3,7 @@
  *
  * - OpenAI 兼容 chat completions：base_url / api_key 一律走环境变量
  *   （DEEPSEEK_BASE_URL / DEEPSEEK_API_KEY），模型固定 deepseek-flash
- *   （官方别名，当前即 V4.1-Flash-1017 快照）；
+ *   （请求别名不能证明后端版本；响应元数据仅记录服务端声明标识及指纹摘要）；
  * - 统一超时（默认 80s，AbortSignal 实现；2026-10-07 由 60s 上调——推理模型高负载下单次可达 ~58s，80s 留余量又不至于让故障悬挂过久）；
  * - 指数退避重试（429、5xx，以及 T22 起「200 但 content 为空」——推理模型
  *   高负载下正文被截空属瞬时退化，重试大概率自愈；最多 1 + maxRetries 次）；
@@ -12,7 +12,10 @@
  * - fetch 与 sleep 可注入，测试全程 mock，不出网。
  */
 
-export const AI_MODEL = "deepseek-flash";
+import { requestAudit, responseAudit, unknownRequestAudit } from "./client-audit.ts";
+import { buildRuntimeContract, DEFAULT_MAX_TOKENS, REQUEST_MODEL, RuntimeContractError } from "./runtime-contract.ts";
+
+export const AI_MODEL = REQUEST_MODEL;
 /** 用量审计事件名（scripts/lib/ai-usage.ts 按此聚合） */
 export const AI_AUDIT_EVENT = "ai.deepseek.chat_completion";
 const DEFAULT_TIMEOUT_MS = 80_000;
@@ -66,7 +69,7 @@ export interface ChatMessage {
 
 export interface ChatCompletionParams {
   messages: ChatMessage[];
-  /** 低 temperature（R1：结构化任务建议 0.2~0.3） */
+  /** 请求的 temperature；是否生效取决于服务端模式。 */
   temperature?: number;
   maxCompletionTokens?: number;
   responseFormat?: { type: "json_object" };
@@ -126,27 +129,43 @@ export function createAiClient(options: AiClientOptions): AiClient {
     const startedAt = Date.now();
     let attempt = 0;
     let lastError: AiApiError | null = null;
+    let lastResponseAudit = responseAudit(null);
+    let requestMetadata: ReturnType<typeof requestAudit> = unknownRequestAudit();
 
     while (attempt <= maxRetries) {
       attempt += 1;
+      lastResponseAudit = responseAudit(null);
+      requestMetadata = unknownRequestAudit();
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
+        const headers = {
+          "content-type": "application/json",
+          authorization: `Bearer ${options.apiKey}`,
+        };
+        const messages = params.messages;
+        const requestedTemperature = params.temperature;
+        const requestedLimit = params.maxCompletionTokens;
+        const runtime = buildRuntimeContract(
+          model,
+          requestedTemperature === undefined ? 0.3 : requestedTemperature,
+          requestedLimit === undefined ? DEFAULT_MAX_TOKENS : requestedLimit,
+        );
+        const requestBody = {
+          model: runtime.model,
+          messages,
+          temperature: runtime.temperature,
+          max_tokens: runtime.maxTokens,
+          thinking: { type: runtime.thinking },
+          reasoning_effort: runtime.effort,
+          ...(params.responseFormat ? { response_format: params.responseFormat } : {}),
+        };
+        const serializedBody = JSON.stringify(requestBody);
+        requestMetadata = requestAudit(runtime);
         const response = await fetchImpl(`${baseUrl}/chat/completions`, {
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${options.apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: params.messages,
-            temperature: params.temperature ?? 0.3,
-            ...(params.maxCompletionTokens !== undefined
-              ? { max_completion_tokens: params.maxCompletionTokens }
-              : {}),
-            ...(params.responseFormat ? { response_format: params.responseFormat } : {}),
-          }),
+          headers,
+          body: serializedBody,
           signal: controller.signal,
         });
 
@@ -166,6 +185,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
           choices?: { message?: { content?: string; reasoning_content?: unknown } }[];
           usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
+        lastResponseAudit = responseAudit(body);
         const message = body.choices?.[0]?.message;
         const content = message?.content;
         if (typeof content !== "string" || content.length === 0) {
@@ -184,6 +204,8 @@ export function createAiClient(options: AiClientOptions): AiClient {
         // 审计：仅元数据，不含 Key 与消息明文
         audit({
           event: AI_AUDIT_EVENT,
+          ...requestMetadata,
+          ...lastResponseAudit,
           model,
           status: response.status,
           attempts: attempt,
@@ -204,6 +226,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
           reasoningContent,
         };
       } catch (error) {
+        if (error instanceof RuntimeContractError) throw error;
         if (error instanceof AiApiError) {
           lastError = error;
           // 不可重试错误（如 400）单次即抛；可重试的结构错误（T22：200 空 content）走退避重试
@@ -225,6 +248,8 @@ export function createAiClient(options: AiClientOptions): AiClient {
 
     audit({
       event: AI_AUDIT_EVENT,
+      ...requestMetadata,
+      ...lastResponseAudit,
       model,
       status: lastError?.status ?? null,
       attempts: attempt,

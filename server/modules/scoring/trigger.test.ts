@@ -141,6 +141,7 @@ describe("triggerSessionScoring：inflight 去重与失败重试（T36 / D38）"
       dimensions: [],
       topIssue: "issue",
       nextFocus: "focus",
+      confidence: null,
     });
     const scoreSession = vi.fn((...args: unknown[]) => {
       seen.push(args);

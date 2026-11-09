@@ -1,4 +1,9 @@
 import { z } from "zod";
+import type { PrismaClient } from "@prisma/client";
+
+import { assertAbilityResultsVisible, BaselineRequiredError } from "@/server/modules/baseline/result-visibility";
+import { getPackAvailability, type PackAvailability } from "@/server/modules/packs";
+import { PackError } from "@/server/modules/packs/errors";
 
 import type {
   AbilityDbClient,
@@ -7,6 +12,7 @@ import type {
   Trend,
 } from "./ability";
 import { getAbilityProfileView, hintDependencyBand } from "./ability";
+import { ABILITY_DIMENSIONS } from "./schema";
 
 /**
  * 能力画像页（P2）的视图装配（T09 / US-008 / FR-8 / BR-6）。
@@ -14,13 +20,11 @@ import { getAbilityProfileView, hintDependencyBand } from "./ability";
  * 在 getAbilityProfileView 的全 8 维视图之上补充页面所需的派生信息：
  * - 状态标签：观察 < 3 次一律「样本较少」（样本不足不解读趋势），否则按趋势打标；
  * - 趋势火花线：近 N 次有效分序列（时间升序），从 scores 表读取；
- * - 顶部洞察：已了解 n/8 + 下一题优先方向（固定规则文案）；
+ * - 顶部洞察：已了解 n/8 + 基于画像的下一步练习建议；
  * - 整体提示依赖度：已观测维度提示依赖的平均与分档（BR-6 诊断素材）。
  *
- * 【T11 接入点】nextFocusOf 是 T11 自适应出题就绪前的固定规则占位：
- * 存在未观测维度 → 探索期（优先维度序第一个未观测维度）；
- * 全部已观测 → 强化期（优先当前分最低者）。T11 完成后应以选题模块的
- * 真实选题理由替换本规则，洞察条文案同步改为「为什么是它」。
+ * 存在未观测维度时先建议探索；全部已观测时根据最低分维度及其提示依赖给出行动。
+ * 实际选题还受周计划等因素影响，建议不承诺下一题的维度。
  */
 
 /** 状态标签的样本门槛：观察次数 < 3 不解读趋势（均值噪声大） */
@@ -49,26 +53,57 @@ export interface NextFocus {
   text: string;
 }
 
-/** 下一题优先方向的固定规则（T11 接入点占位，见模块注释） */
+const FOCUS_ACTIONS: Record<string, string> = {
+  问题定义: "写清目标用户及其要解决的问题",
+  用户理解: "列出目标用户的关键需求并找证据验证",
+  根因分析: "列出可能原因并设计方法逐一排查",
+  产品价值判断: "写出用户价值和业务价值及其判断依据",
+  方案设计: "围绕关键问题列出方案及主要使用步骤",
+  产品取舍: "列出备选方案，说明选择标准和放弃的代价",
+  指标与验证: "选定一个核心指标并写出验证办法",
+  产品表达: "先写结论，再用关键依据解释判断",
+};
+
+function hintAdvice(value: number | null): { label: string; action: string } {
+  switch (hintDependencyBand(value)) {
+    case "高": return { label: "提示依赖较高", action: "先独立列出判断和依据，再按需看提示" };
+    case "中": return { label: "提示依赖适中", action: "先写出判断，需要时再看提示" };
+    case "低": return { label: "提示依赖较低", action: "保持独立作答，检查依据是否充分" };
+    default: return { label: "提示依赖资料不足", action: "记录提示使用，积累后再判断依赖情况" };
+  }
+}
+
+function dimensionOrder(dimension: string): number {
+  const index = (ABILITY_DIMENSIONS as readonly string[]).indexOf(dimension);
+  return index < 0 ? ABILITY_DIMENSIONS.length : index;
+}
+
+/** 未知维度先探索；其余按最低分及提示依赖给出建议。 */
 export function nextFocusOf(dimensions: AbilityProfileDimensionView[]): NextFocus {
-  const unobserved = dimensions.find((d) => !d.observed);
+  const ordered = [...dimensions].sort((a, b) => dimensionOrder(a.dimension) - dimensionOrder(b.dimension));
+  const unobserved = ordered.find((d) => !d.observed);
   if (unobserved) {
     return {
       dimension: unobserved.dimension,
       mode: "explore",
-      text: `下一题将优先探索「${unobserved.dimension}」`,
+      text: `当前建议先探索「${unobserved.dimension}」，积累该维度的作答记录`,
     };
   }
   // 强化期：当前分最低者优先；同分取观察次数较少者；再同取维度序前者（sort 稳定）
-  const weakest = [...dimensions].sort(
+  const weakest = [...ordered].sort(
     (a, b) =>
       (a.currentScore ?? 0) - (b.currentScore ?? 0) ||
       a.observationCount - b.observationCount,
   )[0];
+  const score = weakest.currentScore === null
+    ? "分数暂无"
+    : `${Math.round(weakest.currentScore * 10) / 10} 分`;
+  const hint = hintAdvice(weakest.hintDependency);
+  const action = FOCUS_ACTIONS[weakest.dimension] ?? "写出判断及其依据";
   return {
     dimension: weakest.dimension,
     mode: "strengthen",
-    text: `下一题将优先强化「${weakest.dimension}」`,
+    text: `当前建议重点练「${weakest.dimension}」（${score}，${hint.label}）：${action}；${hint.action}`,
   };
 }
 
@@ -100,6 +135,7 @@ export interface RecentEvaluation {
   scoredAt: Date;
   /** 关联题目的案例标题（一句话简介） */
   caseTitle: string;
+  confidence: number | null;
 }
 
 export interface AbilityDimensionPageView extends AbilityProfileDimensionView {
@@ -109,6 +145,30 @@ export interface AbilityDimensionPageView extends AbilityProfileDimensionView {
   recentEvaluations: RecentEvaluation[];
   /** 近 N 次有效分序列（时间升序，与火花线同口径），供网络图弹窗趋势（T16） */
   recentScores: number[];
+  packCta: PackCta;
+}
+
+export interface PackCta {
+  status: "available" | "active-self" | "disabled-other-active" | "disabled-insufficient" | "baseline-required";
+  activePackId: string | null;
+  completedCount: number | null;
+  availableQuestions: number;
+  requiredQuestions: number;
+}
+
+function packCtaOf(availability: PackAvailability): PackCta {
+  const statuses = {
+    available: "available",
+    active_same_dimension: "active-self",
+    active_other_dimension: "disabled-other-active",
+    insufficient_questions: "disabled-insufficient",
+    baseline_required: "baseline-required",
+  } as const;
+  return {
+    status: statuses[availability.status], activePackId: availability.activePackId,
+    completedCount: availability.completedCount, availableQuestions: availability.availableQuestions,
+    requiredQuestions: availability.requiredQuestions,
+  };
 }
 
 export interface AbilityPageView {
@@ -150,9 +210,17 @@ export const abilityPageViewSchema = z.object({
           score: z.number(),
           scoredAt: z.date(),
           caseTitle: z.string().min(1),
+          confidence: z.number().int().min(0).max(100).nullable(),
         }),
       ),
       recentScores: z.array(z.number()),
+      packCta: z.object({
+        status: z.enum(["available", "active-self", "disabled-other-active", "disabled-insufficient", "baseline-required"]),
+        activePackId: z.string().min(1).nullable(),
+        completedCount: z.number().int().min(0).max(5).nullable(),
+        availableQuestions: z.number().int().min(0),
+        requiredQuestions: z.number().int().positive(),
+      }),
     }),
   ),
   hintDependencyOverall: z
@@ -181,6 +249,7 @@ async function recentScoreSeries(
     take: SPARKLINE_MAX_POINTS,
     select: {
       effectiveScore: true,
+      confidence: true,
       session: {
         select: { id: true, scoredAt: true, question: { select: { caseTitle: true } } },
       },
@@ -196,20 +265,36 @@ async function recentScoreSeries(
         score: row.effectiveScore,
         scoredAt: row.session.scoredAt as Date,
         caseTitle: row.session.question.caseTitle,
+        confidence: Number.isInteger(row.confidence) && row.confidence !== null && row.confidence >= 0 && row.confidence <= 100
+          ? row.confidence
+          : null,
       })),
   };
 }
 
 /** 读取并装配画像页完整视图（统一响应封装的 data 负载） */
 export async function getAbilityPageView(
-  db: AbilityDbClient,
+  db: PrismaClient,
   userId: string,
 ): Promise<AbilityPageView> {
+  await assertAbilityResultsVisible(db, userId);
   const profileView = await getAbilityProfileView(db, userId);
+  let availability: PackAvailability[];
+  try {
+    availability = await getPackAvailability(db, userId, profileView.map((dim) => dim.dimension));
+  } catch (error) {
+    // 包查询内会再次检查基线；并发期间不可把门禁错误降级为画像成功。
+    if (error instanceof PackError && error.code === "BASELINE_REQUIRED") throw new BaselineRequiredError();
+    throw error;
+  }
+  const availabilityByDimension = new Map(availability.map((item) => [item.dimension, item]));
   const dimensions: AbilityDimensionPageView[] = await Promise.all(
     profileView.map(async (dim) => {
+      const availabilityForDimension = availabilityByDimension.get(dim.dimension);
+      if (!availabilityForDimension) throw new Error("训练包可用性缺少维度");
+      const packCta = packCtaOf(availabilityForDimension);
       if (!dim.observed) {
-        return { ...dim, statusLabel: null, sparkline: [], recentEvaluations: [], recentScores: [] };
+        return { ...dim, statusLabel: null, sparkline: [], recentEvaluations: [], recentScores: [], packCta };
       }
       const series = await recentScoreSeries(db, userId, dim.dimension);
       return {
@@ -218,6 +303,7 @@ export async function getAbilityPageView(
         sparkline: series.scores,
         recentEvaluations: series.recentEvaluations,
         recentScores: series.scores,
+        packCta,
       };
     }),
   );

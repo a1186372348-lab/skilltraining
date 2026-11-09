@@ -2,8 +2,9 @@
 // 事件形状见 server/ai/client.ts 审计输出（成功带 usage，失败带 error，均单行 JSON）
 
 export const AI_AUDIT_EVENT = "ai.deepseek.chat_completion";
-/** 当前 max_completion_tokens 预算（D25⑤）；校准标准：峰值 × 约 2 倍余量内为健康 */
-export const COMPLETION_TOKEN_BUDGET = 4096;
+import { buildRuntimeContract, DEFAULT_MAX_TOKENS } from "../../server/ai/runtime-contract.ts";
+/** 新请求契约目标预算；历史日志不能据此证明实际受限。 */
+export const COMPLETION_TOKEN_BUDGET = DEFAULT_MAX_TOKENS;
 export const HEALTHY_HEADROOM_RATIO = 2;
 
 export interface AiUsageSummary {
@@ -43,6 +44,8 @@ export interface AiUsageSummary {
     prompt: { average: number | null; max: number | null };
     completion: { average: number | null; max: number | null };
   };
+  /** 仅当每条事件具有一致完整契约时记录目标预算；否则为未知。 */
+  requestBudget: number | null;
   /** status=200 且 error=failed 的次数：「200 空 content」截空的直接观测 */
   truncatedEmpty: number;
 }
@@ -61,6 +64,19 @@ function statsOf(values: number[]): { average: number | null; max: number | null
     average: values.reduce((sum, v) => sum + v, 0) / values.length,
     max: Math.max(...values),
   };
+}
+
+function readRequestContract(value: Record<string, unknown>) {
+  if (typeof value.requestModel !== "string" || typeof value.requestTemperature !== "number"
+    || typeof value.requestTokenLimit !== "number" || value.requestTokenLimitField !== "max_tokens"
+    || value.requestThinking !== "enabled" || value.requestEffort !== "high"
+    || value.requestTemperatureApplicability !== "ineffective_in_thinking") return null;
+  try {
+    const profile = buildRuntimeContract(value.requestModel, value.requestTemperature, value.requestTokenLimit);
+    return value.requestContractHash === profile.hash ? profile : null;
+  } catch {
+    return null;
+  }
 }
 
 /** 逐行容错扫描日志，汇总 ai.deepseek.chat_completion 审计事件 */
@@ -83,6 +99,8 @@ export function summarizeAiUsage(logText: string): AiUsageSummary {
   const completionValues: number[] = [];
   let withUsage = 0;
   let missingUsage = 0;
+  let requestProfile: ReturnType<typeof readRequestContract> = null;
+  let unknownOrMixed = false;
 
   for (const rawLine of logText.split("\n")) {
     const line = rawLine.trim();
@@ -97,6 +115,9 @@ export function summarizeAiUsage(logText: string): AiUsageSummary {
     if (!isRecord(parsed) || parsed.event !== AI_AUDIT_EVENT) continue;
 
     total += 1;
+    const profile = readRequestContract(parsed);
+    if (!profile || (requestProfile && requestProfile.hash !== profile.hash)) unknownOrMixed = true;
+    if (profile && !requestProfile) requestProfile = profile;
     const error =
       typeof parsed.error === "string" && parsed.error.length > 0 ? parsed.error : null;
     const failed = error !== null;
@@ -167,6 +188,7 @@ export function summarizeAiUsage(logText: string): AiUsageSummary {
       completion: statsOf(completionValues),
     },
     truncatedEmpty,
+    requestBudget: !unknownOrMixed && requestProfile ? requestProfile.maxTokens : null,
   };
 }
 
@@ -194,7 +216,7 @@ function align(label: string, width: number): string {
 }
 
 export interface FormatAiUsageOptions {
-  /** max_completion_tokens 预算，默认 4096 */
+  /** 当前请求契约目标预算；不代表历史日志的实际生效上限。 */
   completionTokenBudget?: number;
 }
 
@@ -203,7 +225,7 @@ export function formatAiUsageReport(
   summary: AiUsageSummary,
   options: FormatAiUsageOptions = {},
 ): string {
-  const budget = options.completionTokenBudget ?? COMPLETION_TOKEN_BUDGET;
+  const budget = summary.requestBudget;
   const LABEL_WIDTH = 14;
   const label = (text: string) => align(text, LABEL_WIDTH);
   const divider = "─".repeat(48);
@@ -259,14 +281,16 @@ export function formatAiUsageReport(
   const peak = summary.tokens.completion.max;
   if (peak === null) {
     rows.push("判断·completion 预算：无 completion 观测，本次无法校验预算余量。");
+  } else if (budget === null || (options.completionTokenBudget !== undefined && options.completionTokenBudget !== budget)) {
+    rows.push("判断·completion 预算：运行契约未知或混合，无法校验预算余量；历史记录不按当前预算追认。");
   } else {
     const headroom = budget / peak;
     const verdict =
       headroom >= HEALTHY_HEADROOM_RATIO
         ? "健康（D25⑤：峰值 × 约 2 倍余量内为健康）"
-        : `低于 ${HEALTHY_HEADROOM_RATIO} 倍健康线，建议上调 max_completion_tokens 预算或排查高负载截断`;
+        : `低于 ${HEALTHY_HEADROOM_RATIO} 倍健康线，建议评估 max_tokens 预算或排查高负载截断`;
     rows.push(
-      `判断·completion 预算：峰值 ${Math.round(peak)} / 预算 ${budget}，余量 ${headroom.toFixed(1)} 倍 → ${verdict}`,
+      `判断·completion 请求目标预算：峰值 ${Math.round(peak)} / 请求上限 ${budget}，余量 ${headroom.toFixed(1)} 倍 → ${verdict}；请求字段不证明服务端实际生效。`,
     );
   }
   // 判断二：截空次数

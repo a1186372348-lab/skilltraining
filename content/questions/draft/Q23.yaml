@@ -1,0 +1,114 @@
+id: Q23
+title: Stripe 支付链接：没有网站的小商家获得了什么价值
+case_title: 只分享链接，能替商家解决什么
+case_background:
+  product:
+    text: Stripe 在 2021 年发布 Payment Links，允许商家创建并分享支付页面链接。
+    citations:
+      - 1
+  audience:
+    text: 官方将没有网站或开发资源的创业者、创作者及其他商家列为潜在使用者。
+    citations:
+      - 1
+  scenario:
+    text: 商家可以把链接分享到社交平台或直接渠道，让顾客进入支付页面。
+    citations:
+      - 1
+  features:
+    text: 2021 年发布说明称商家可通过 Stripe 仪表盘创建支付页面，无须自行编写代码。
+    citations:
+      - 1
+  status:
+    text: Stripe 在 2022 年发布后续功能更新；当前文档里的能力和覆盖范围不应默认在 2021 年首发时全部存在。
+    citations:
+      - 2
+      - 3
+case_sources:
+  - id: 1
+    title: Stripe Payment Links 发布
+    publisher: Stripe
+    url: https://stripe.com/en-pt/newsroom/news/stripe-launches-payment-links
+  - id: 2
+    title: Payment Links 文档
+    publisher: Stripe Docs
+    url: https://docs.stripe.com/payment-links
+  - id: 3
+    title: 2022 年 Payment Links 功能更新
+    publisher: Stripe
+    url: https://stripe.com/blog/payment-links-updates-jan-2022
+  - id: 4
+    title: 分享支付链接
+    publisher: Stripe Docs
+    url: https://docs.stripe.com/payment-links/share
+  - id: 5
+    title: Stripe Sessions 2021 产品介绍
+    publisher: Stripe
+    url: https://stripe.com/blog/sessions-keynote-2021
+main_question: 假设你要向一个主要通过社交渠道接单、没有独立网站的小商家解释 Payment Links 的价值。请界定它替商家省去了哪些步骤、仍需要商家自己处理什么；再比较一类不一定适合只用链接的业务，并说明你会如何验证价值。
+ability_tags:
+  - 产品价值判断
+  - 用户理解
+  - 指标与验证
+difficulty: 中等
+domain: 金融
+kind: daily
+rubric:
+  dimensions:
+    产品价值判断:
+      - 把无需编程的支付页面与商家原先的接单和收款链路比较，指出价值成立条件。
+      - 区分创建收款入口与获客、履约、退款等整个经营过程，不把链接当作完整经营方案。
+      - 讨论至少一种价值有限的业务场景或代价，并允许不同有据结论。
+    用户理解:
+      - 明确商家的销售渠道、技术能力和交易情境，避免只用小商家这一标签代替需求。
+      - 考虑顾客打开链接、确认商品与完成付款的任务及信任需要。
+      - 识别商家需求可能随交易复杂度或组织规模变化。
+    指标与验证:
+      - 提出衡量创建、分享和完成付款等环节的指标与观察对象。
+      - 比较替代方式时说明流量来源、商品差异或选择偏差，不能把相关性当因果。
+      - 设置支付失败、顾客疑虑或经营成本等至少一项护栏。
+  forbidden_leaks:
+    - 无代码收款的完整价值链、边界和验证指标组合。
+    - 链接必然提高成交或替代所有商家系统的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 商家从收到顾客询问到收款，原本需要哪些步骤？
+  - level: 2
+    stage: 视角补充
+    question: 没有网站的商家与已有复杂库存系统的商家，需求会相同吗？
+  - level: 3
+    stage: 反例与风险
+    question: 顾客收到链接后，凭什么判断订单和收款方可信？
+  - level: 4
+    stage: 取舍权衡
+    question: 创建链接解决了收款入口，是否也解决发货、退款和获客？
+  - level: 5
+    stage: 验证方式
+    question: 怎样比较使用链接前后的结果，避免把渠道差异误当成效果？
+materials:
+  core:
+    - title: Stripe Payment Links 发布
+      source: Stripe
+      url: https://stripe.com/en-pt/newsroom/news/stripe-launches-payment-links
+      summary: 2021 年公告介绍无需自建网站或编程即可创建支付页面并分享链接。
+    - title: Payment Links 文档
+      source: Stripe Docs
+      url: https://docs.stripe.com/payment-links
+      summary: 当前文档介绍支付链接的创建与使用，版本和地区能力可能变化。
+  extended:
+    - title: 2022 年 Payment Links 功能更新
+      source: Stripe
+      url: https://stripe.com/blog/payment-links-updates-jan-2022
+      summary: 后续公告介绍产品更新及公司自报的商家使用情况。
+    - title: 分享支付链接
+      source: Stripe Docs
+      url: https://docs.stripe.com/payment-links/share
+      summary: 当前文档说明复制和分享已创建链接的方式。
+    - title: Stripe Sessions 2021 产品介绍
+      source: Stripe
+      url: https://stripe.com/blog/sessions-keynote-2021
+      summary: 2021 年产品活动回顾 Stripe 的结账及相关产品更新，可作背景。
+uncertainty:
+  - 2021 年发布公告与后续更新、当前文档属于不同时间；覆盖地区和费率须另核。
+  - 公司关于便捷或增长的描述不直接证明商家转化提升。
+status: published

@@ -13,6 +13,7 @@ const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
 
 const SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000a1";
+const BASELINE_QUESTION_ID = "00000000-0000-4000-8000-0000000000e6";
 
 // 全量规范种子数据：各测试文件共用同一题目 id，upsert 保证跨文件并发播种结果一致
 const SEED_QUESTION_DATA = {
@@ -58,6 +59,11 @@ async function ensureSeedQuestion(): Promise<void> {
       data: { status: "archived" },
     });
     await prisma.question.upsert({ where: { id }, create: SEED_QUESTION_DATA, update: data });
+    await prisma.question.upsert({
+      where: { id: BASELINE_QUESTION_ID },
+      create: { ...SEED_QUESTION_DATA, id: BASELINE_QUESTION_ID, kind: "baseline", status: "draft" },
+      update: { ...data, kind: "baseline", status: "draft" },
+    });
   } catch {
     // 并发播种冲突：忽略，题目已存在
   }
@@ -93,6 +99,27 @@ afterAll(async () => {
 });
 
 describe("GET /api/dashboard（US-002）", () => {
+  it("未完成的基线会话不提前揭晓首页分数；旧免测用户和完成用户可正常查看", async () => {
+    const email = await newEmail();
+    const request = await buildRequest(email);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    await prisma.userProfile.create({ data: {
+      userId: user.id, position: "产品经理", yearsExperience: "1-3年", industry: "软件",
+      familiarProducts: [], interestAreas: [], selfAssessment: [],
+    } });
+    await prisma.abilityProfile.create({ data: { userId: user.id, dimension: "用户理解", currentScore: 73, observationCount: 1 } });
+    expect((await GET(request)).status).toBe(200);
+    await prisma.trainingSession.create({ data: { userId: user.id, questionId: BASELINE_QUESTION_ID, date: new Date(), state: "scored", isExtra: true } });
+    const blocked = await GET(request);
+    expect(blocked.status).toBe(409);
+    const body = await blocked.json();
+    expect(body.error.code).toBe("BASELINE_REQUIRED");
+    expect(JSON.stringify(body)).not.toContain("73");
+    await prisma.userProfile.update({ where: { userId: user.id }, data: { baselineCompletedAt: new Date() } });
+    const revealed = await GET(request);
+    expect(revealed.status).toBe(200);
+    expect(JSON.stringify(await revealed.json())).toContain("73");
+  });
   it("新用户全未知：今日任务卡自动就绪，统计/画像/诊断均为空态", async () => {
     const email = await newEmail();
     const res = await GET(await buildRequest(email));

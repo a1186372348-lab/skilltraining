@@ -4,11 +4,17 @@ import { Prisma } from "@prisma/client";
 import { generateFollowups, type FollowupGateResult, type FollowupInput } from "@/server/ai/followup";
 import { FOLLOWUP_PROMPT_V1 } from "@/server/ai/prompts/followup.v1";
 import { resolvePromptTemplates } from "@/server/ai/prompts/resolver";
+import { withUserTransaction, type UserTransaction } from "@/server/lib/user-transaction";
+import { abandonPackInTransaction, PackError } from "@/server/modules/packs";
+import { abandonRetestInTransaction, StageError } from "@/server/modules/stages";
 import { SelectionError } from "@/server/modules/selection/errors";
-import { selectTodayQuestion } from "@/server/modules/selection/service";
+import type { SelectionDb } from "@/server/modules/selection/repository";
+import { selectTodayQuestion, type RetestSelection } from "@/server/modules/selection/service";
 
 import { independenceCoefficient } from "./coefficient";
 import { TRAINING_ERROR_CODES as CODES, TrainingError } from "./errors";
+import { resolveActivePackSession } from "./pack-entry";
+import { pickRetestInTransaction } from "./retest-entry";
 import { nextState } from "./state-machine";
 import {
   buildFollowupGateDecisionRecord,
@@ -42,11 +48,22 @@ export function todayUtc(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-/** 自适应选题（T11 引擎）：探索期/强化期/降级由 selection 模块保证；错误码对齐 TrainingError */
-async function pickQuestion(db: DbClient, userId: string): Promise<Question> {
+/** 自适应选题（T11 引擎）：探索期/强化期/降级由 selection 模块保证；错误码对齐 TrainingError。
+ *  T29 / BR-V2-1：返回选题结果（含 sourceType/sourceId），会话创建时透传落库 */
+async function pickQuestion(
+  db: SelectionDb,
+  userId: string,
+  excludedQuestionIds: readonly string[] = [],
+  pickRetest?: () => Promise<RetestSelection | null>,
+): Promise<{ question: Question; sourceType: "daily" | "plan" | "retest"; sourceId: string | null; retestSessionId?: string }> {
   try {
-    const { question } = await selectTodayQuestion(db, userId);
-    return question;
+    const { question, outcome, retestSessionId } = await selectTodayQuestion(db, userId, { excludedQuestionIds, pickRetest });
+    return {
+      question,
+      sourceType: outcome.sourceType === "plan" || outcome.sourceType === "retest" ? outcome.sourceType : "daily",
+      sourceId: outcome.sourceType === "plan" || outcome.sourceType === "retest" ? (outcome.sourceId ?? null) : null,
+      retestSessionId,
+    };
   } catch (err) {
     if (err instanceof SelectionError) {
       throw new TrainingError(err.code, err.httpStatus, err.message);
@@ -55,34 +72,76 @@ async function pickQuestion(db: DbClient, userId: string): Promise<Question> {
   }
 }
 
+async function selectedRetestSession(context: UserTransaction, sessionId: string | undefined, triggerId: string | null) {
+  if (!sessionId || !triggerId) throw new TrainingError("RETEST_NEEDS_RECOVERY", 409, "复测记录需要恢复，请前往成长阶段查看");
+  const session = await context.tx.trainingSession.findFirst({ where: {
+    id: sessionId, userId: context.userId, sourceType: "retest", sourceId: triggerId,
+  }, include: { question: true } });
+  if (!session) throw new TrainingError("RETEST_NEEDS_RECOVERY", 409, "复测记录需要恢复，请前往成长阶段查看");
+  return { session, question: session.question };
+}
+
 /** 获取或创建今日会话（每日一题，同一天幂等复用；T38 / D40：已终止会话不复用，重建出新题） */
 export async function getOrCreateTodaySession(
   db: DbClient,
   userId: string,
+  options: { mode?: "auto" | "daily"; completedFallbackId?: string } = {},
 ): Promise<{ session: TrainingSession; question: Question }> {
-  const date = todayUtc();
-  const existing = await db.trainingSession.findFirst({
-    where: { userId, date, isExtra: false, state: { not: "abandoned" } },
-    include: { question: true },
-    orderBy: { startedAt: "asc" },
-  });
-  if (existing) return { session: existing, question: existing.question };
-
-  const question = await pickQuestion(db, userId);
-  try {
-    const session = await db.trainingSession.create({
-      data: { userId, questionId: question.id, date, state: "reading" },
+  return withUserTransaction(db, userId, async context => {
+    const pack = await resolveActivePackSession(context, true);
+    if (pack.active) {
+      if (!pack.session) throw new TrainingError("ITEM_INCONSISTENT", 409, "训练包进度异常，请稍后重试");
+      return { session: pack.session, question: pack.session.question };
+    }
+    const date = todayUtc();
+    // 上层只读查询与本事务之间可能新建了加练，持锁后重新确认，避免越过未完成训练。
+    const ongoing = await context.tx.trainingSession.findFirst({
+      where: { userId, date, sourceType: { notIn: ["pack", "retest"] }, state: { in: ["reading", "answering", "followup"] }, question: { kind: "daily" } },
+      include: { question: true },
+      orderBy: [{ startedAt: "desc" }, { id: "desc" }],
     });
-    return { session, question };
-  } catch {
-    // 并发首次进入：另一请求已创建，回读复用（每日一题唯一性兜底）
-    const session = await db.trainingSession.findFirstOrThrow({
-      where: { userId, date, isExtra: false, state: { not: "abandoned" } },
+    if (ongoing) return { session: ongoing, question: ongoing.question };
+    const existing = await context.tx.trainingSession.findFirst({
+      where: { userId, date, isExtra: false, sourceType: { not: "retest" }, state: { not: "abandoned" } },
       include: { question: true },
       orderBy: { startedAt: "asc" },
     });
-    return { session, question: session.question };
-  }
+    const completedFallback = options.completedFallbackId ? await context.tx.trainingSession.findFirst({
+      where: { id: options.completedFallbackId, userId, date, state: "scored", sourceType: { not: "retest" }, question: { kind: "daily" } },
+      include: { question: true },
+    }) : null;
+    if (existing) {
+      if (existing.state !== "scored" || options.mode === "daily") return { session: existing, question: existing.question };
+      // 已占每日槽的完成题不再重标或另建计划题，但独立复测仍可推荐。
+      const retest = await pickRetestInTransaction(context);
+      if (retest) return selectedRetestSession(context, retest.sessionId, retest.triggerId);
+      const completed = completedFallback ?? existing;
+      return { session: completed, question: completed.question };
+    }
+    let retestChecked = false;
+    let picked: Awaited<ReturnType<typeof pickQuestion>>;
+    try {
+      picked = await pickQuestion(context.tx, userId, [], options.mode === "daily" ? undefined : async () => {
+        const retest = await pickRetestInTransaction(context);
+        retestChecked = true;
+        return retest;
+      });
+    } catch (error) {
+      if (completedFallback && (options.mode === "daily" || retestChecked)
+        && error instanceof TrainingError && error.code === CODES.NO_PUBLISHED_QUESTION) {
+        return { session: completedFallback, question: completedFallback.question };
+      }
+      throw error;
+    }
+    if (picked.sourceType === "retest") {
+      return selectedRetestSession(context, picked.retestSessionId, picked.sourceId);
+    }
+    if (completedFallback && picked.sourceType === "daily") return { session: completedFallback, question: completedFallback.question };
+    const session = await context.tx.trainingSession.create({
+      data: { userId, questionId: picked.question.id, date, state: "reading", sourceType: picked.sourceType, sourceId: picked.sourceId },
+    });
+    return { session, question: picked.question };
+  });
 }
 
 /**
@@ -96,29 +155,27 @@ export async function getOrCreateExtraSession(
   db: DbClient,
   userId: string,
 ): Promise<{ session: TrainingSession; question: Question }> {
-  const date = todayUtc();
-  const existing = await db.trainingSession.findFirst({
-    where: { userId, date, finalAnswer: null, state: { not: "abandoned" }, question: { kind: "daily" } },
-    include: { question: true },
-    orderBy: { startedAt: "asc" },
-  });
-  if (existing) return { session: existing, question: existing.question };
-
-  const question = await pickQuestion(db, userId);
-  try {
-    const session = await db.trainingSession.create({
-      data: { userId, questionId: question.id, date, isExtra: true, state: "reading" },
-    });
-    return { session, question };
-  } catch {
-    // 并发创建冲突：另一请求已建加练，回读复用（与每日一题同一兜底模式）
-    const session = await db.trainingSession.findFirstOrThrow({
-      where: { userId, date, isExtra: true, state: { not: "abandoned" }, question: { kind: "daily" } },
+  return withUserTransaction(db, userId, async context => {
+    const pack = await resolveActivePackSession(context, false);
+    if (pack.session && pack.session.sourceType !== "pack" && pack.session.finalSubmittedAt === null) {
+      return { session: pack.session, question: pack.session.question };
+    }
+    if (pack.session?.sourceType === "pack" && pack.session.finalSubmittedAt === null) {
+      throw new TrainingError("SESSION_IN_PROGRESS", 409, "请先完成或终止当前训练包题目");
+    }
+    const date = todayUtc();
+    const existing = await context.tx.trainingSession.findFirst({
+      where: { userId, date, sourceType: { notIn: ["pack", "retest"] }, finalAnswer: null, state: { not: "abandoned" }, question: { kind: "daily" } },
       include: { question: true },
       orderBy: { startedAt: "asc" },
     });
-    return { session, question: session.question };
-  }
+    if (existing) return { session: existing, question: existing.question };
+    const picked = await pickQuestion(context.tx, userId, pack.reservedQuestionIds);
+    const session = await context.tx.trainingSession.create({
+      data: { userId, questionId: picked.question.id, date, isExtra: true, state: "reading", sourceType: "extra" },
+    });
+    return { session, question: picked.question };
+  });
 }
 
 /**
@@ -130,18 +187,21 @@ export async function getLatestDailySession(
   db: DbClient,
   userId: string,
 ): Promise<{ session: TrainingSession; question: Question } | null> {
-  const session = await db.trainingSession.findFirst({
-    where: { userId, date: todayUtc(), state: { not: "abandoned" }, question: { kind: "daily" } },
-    include: { question: true },
-    orderBy: { startedAt: "desc" },
+  return withUserTransaction(db, userId, async context => {
+    const pack = await resolveActivePackSession(context, false);
+    if (pack.active) return pack.session ? { session: pack.session, question: pack.session.question } : null;
+    const session = await context.tx.trainingSession.findFirst({
+      where: { userId, date: todayUtc(), sourceType: { not: "retest" }, state: { not: "abandoned" }, question: { kind: "daily" } },
+      include: { question: true },
+      orderBy: { startedAt: "desc" },
+    });
+    return session ? { session, question: session.question } : null;
   });
-  if (!session) return null;
-  return { session, question: session.question };
 }
 
 /** 加载会话并校验归属（不泄露存在性：他人会话按不存在处理） */
 async function loadOwnedSession(
-  db: DbClient,
+  db: Pick<DbClient, "trainingSession">,
   sessionId: string,
   userId: string,
 ): Promise<TrainingSession & { question: Question }> {
@@ -207,15 +267,25 @@ export async function abandonSession(
   db: DbClient,
   sessionId: string,
   userId: string,
+  options: { confirmAbandonPack?: boolean } = {},
 ): Promise<AbandonResult> {
-  const session = await loadOwnedSession(db, sessionId, userId);
+  return withUserTransaction(db, userId, context => abandonSessionInTransaction(context, sessionId, options));
+}
+
+async function abandonSessionInTransaction(
+  context: UserTransaction,
+  sessionId: string,
+  options: { confirmAbandonPack?: boolean },
+): Promise<AbandonResult> {
+  const { tx, userId } = context;
+  const session = await loadOwnedSession(tx, sessionId, userId);
 
   // 基线会话不属于可终止范围（先于幂等分支判定：基线永不终止，语义更准）
   if (session.question.kind === "baseline") {
     throw new TrainingError(CODES.BASELINE_SESSION, 409, "基线测评不可终止，请完成测评");
   }
   // 幂等：已终止 → 直接成功
-  if (session.state === "abandoned") return { state: "abandoned" };
+  if (session.state === "abandoned" && session.sourceType !== "retest") return { state: "abandoned" };
   // 已提交终答（评分在路上）与已评分会话无终止意义（先于状态机检查，错误语义更准）
   if (session.state === "scored") {
     throw new TrainingError(CODES.SESSION_ALREADY_SCORED, 409, "会话已评分，不可终止");
@@ -227,10 +297,32 @@ export async function abandonSession(
       "最终答案已提交，评分进行中，不可终止",
     );
   }
+  if (session.sourceType === "retest") {
+    try { await abandonRetestInTransaction(context, sessionId); }
+    catch (error) {
+      if (error instanceof StageError) throw new TrainingError(error.code, error.httpStatus, error.message);
+      throw error;
+    }
+    const fresh = await loadOwnedSession(tx, sessionId, userId);
+    if (fresh.state !== "abandoned") throw new TrainingError("RETEST_NEEDS_RECOVERY", 409, "复测记录需要恢复，请前往成长阶段查看");
+    return { state: "abandoned" };
+  }
+  if (session.sourceType === "pack") {
+    if (!options.confirmAbandonPack) throw new TrainingError("CONFIRMATION_REQUIRED", 409, "终止此题将放弃整个训练包，请先确认");
+    if (!session.sourceId) throw new TrainingError("ITEM_INCONSISTENT", 409, "训练包记录需要恢复");
+    try { await abandonPackInTransaction(context, session.sourceId, { confirmed: true }); }
+    catch (error) {
+      if (error instanceof PackError) throw new TrainingError(error.code, error.httpStatus, error.message);
+      throw error;
+    }
+    const fresh = await loadOwnedSession(tx, sessionId, userId);
+    if (fresh.state !== "abandoned") throw new TrainingError("ITEM_INCONSISTENT", 409, "训练包记录需要恢复");
+    return { state: "abandoned" };
+  }
   nextState(session.state, "ABANDON");
 
   // 原子推进：守卫条件（进行中三态 + 未交终答）防并发双击与「终止-交卷」竞态
-  const updated = await db.trainingSession.updateMany({
+  const updated = await tx.trainingSession.updateMany({
     where: {
       id: sessionId,
       userId,
@@ -241,7 +333,7 @@ export async function abandonSession(
   });
   if (updated.count === 0) {
     // 守卫未命中：并发下状态已变化，重新加载后按当前态分流
-    const fresh = await loadOwnedSession(db, sessionId, userId);
+    const fresh = await loadOwnedSession(tx, sessionId, userId);
     if (fresh.state === "abandoned") return { state: "abandoned" };
     if (fresh.state === "scored") {
       throw new TrainingError(CODES.SESSION_ALREADY_SCORED, 409, "会话已评分，不可终止");
@@ -427,6 +519,9 @@ export async function submitFirstAnswer(
 ): Promise<FirstAnswerResult> {
   const session = await loadOwnedSession(db, sessionId, userId);
 
+  if (session.state === "abandoned") {
+    throw new TrainingError(CODES.SESSION_ABANDONED, 409, "该训练已终止，请回到训练大厅重新开始");
+  }
   // 幂等：已提交过首答 → 返回既有记录，不覆盖、不重复调 AI
   if (session.firstSubmittedAt !== null) {
     return {
@@ -441,18 +536,24 @@ export async function submitFirstAnswer(
 
   const submittedAt = new Date();
   const updated = await db.trainingSession.updateMany({
-    where: { id: sessionId, userId, firstSubmittedAt: null },
+    where: { id: sessionId, userId, state: { in: ["reading", "answering"] }, firstSubmittedAt: null },
     data: { firstAnswer: answer, firstSubmittedAt: submittedAt, state: "followup" },
   });
   if (updated.count === 0) {
     // 并发重复提交：回读按幂等返回
     const fresh = await loadOwnedSession(db, sessionId, userId);
+    if (fresh.state === "abandoned") {
+      throw new TrainingError(CODES.SESSION_ABANDONED, 409, "该训练已终止，请回到训练大厅重新开始");
+    }
+    if (fresh.firstSubmittedAt === null) {
+      throw new TrainingError(CODES.INVALID_STATE, 409, "训练状态已变化，请重试");
+    }
     return {
       state: fresh.state,
       followups: toFollowupViews(parseFollowupRecords(fresh.followups)),
       followupGateSkipped: parseFollowupGateSkip(fresh.followups) !== null,
       coefficient: independenceCoefficient(fresh.hintCount, fresh.followupHintCount),
-      firstSubmittedAt: fresh.firstSubmittedAt ?? submittedAt,
+      firstSubmittedAt: fresh.firstSubmittedAt,
     };
   }
 
@@ -640,6 +741,9 @@ export async function submitFinalAnswer(
 ): Promise<FinalAnswerResult> {
   const session = await loadOwnedSession(db, sessionId, userId);
 
+  if (session.state === "abandoned") {
+    throw new TrainingError(CODES.SESSION_ABANDONED, 409, "该训练已终止，请回到训练大厅重新开始");
+  }
   // 幂等：已提交过终答 → 直接返回既有记录
   if (session.finalSubmittedAt !== null) {
     return { state: session.state, finalSubmittedAt: session.finalSubmittedAt };
@@ -651,6 +755,7 @@ export async function submitFinalAnswer(
     where: {
       id: sessionId,
       userId,
+      state: "followup",
       firstSubmittedAt: { not: null },
       finalSubmittedAt: null,
     },
@@ -658,10 +763,14 @@ export async function submitFinalAnswer(
   });
   if (updated.count === 0) {
     const fresh = await loadOwnedSession(db, sessionId, userId);
+    if (fresh.state === "abandoned") {
+      throw new TrainingError(CODES.SESSION_ABANDONED, 409, "该训练已终止，请回到训练大厅重新开始");
+    }
     if (fresh.finalSubmittedAt !== null) {
       return { state: fresh.state, finalSubmittedAt: fresh.finalSubmittedAt };
     }
-    throw new TrainingError(CODES.FIRST_ANSWER_REQUIRED, 409, "请先提交首次答案");
+    if (fresh.firstSubmittedAt === null) throw new TrainingError(CODES.FIRST_ANSWER_REQUIRED, 409, "请先提交首次答案");
+    throw new TrainingError(CODES.INVALID_STATE, 409, "训练状态已变化，请重试");
   }
 
   // 【T06 接入点】终答已落库；状态保持 followup，

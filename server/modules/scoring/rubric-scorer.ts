@@ -47,6 +47,24 @@ export interface RubricScoringOutput {
   topIssue: string;
   /** 下一步训练方向 */
   nextFocus: string;
+  /**
+   * 模型对本次评分的自评置信度（0~100，T28 / BR-V2-6；蓝图 §4 R6）：
+   * 缺失/越界/非数字一律降级为 null 并记日志（console.warn），不抛 SCORING_OUTPUT_INVALID——
+   * confidence 是新增信息，不得让既有评分主流程因新字段失败；
+   * T27 消费侧按「null = 无置信度信息」处理（不触发加深判定）。
+   */
+  confidence: number | null;
+}
+
+/** 解析 confidence：合法 0~100 数值收整为整数；缺失/越界/非数字降级 null + warn（不阻断评分） */
+function parseConfidence(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= 100) {
+    return Math.round(raw);
+  }
+  console.warn(
+    `[scoring] confidence 缺失或非法（${typeof raw === "number" ? raw : typeof raw}），降级为 NULL（不影响评分主流程）`,
+  );
+  return null;
 }
 
 export function buildScoringMessages(
@@ -121,6 +139,9 @@ export function parseScoringOutput(
   } catch {
     fail("输出不是合法 JSON");
   }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    fail("输出不是 JSON 对象");
+  }
   const record = data as Record<string, unknown>;
   if (!Array.isArray(record.dimensions)) fail("缺少 dimensions 数组");
   const parsed = record.dimensions.map(parseDimensionEntry);
@@ -141,6 +162,7 @@ export function parseScoringOutput(
     dimensions,
     topIssue: record.top_issue.trim(),
     nextFocus: record.next_focus.trim(),
+    confidence: parseConfidence(record.confidence),
   };
 }
 
@@ -157,10 +179,10 @@ export async function scoreWithRubric(
   const client = deps.client ?? createAiClientFromEnv();
   const result = await client.chatCompletion({
     messages: buildScoringMessages(input, deps.templates),
-    temperature: 0.2, // 低 temperature（R1：评分一致性对策）
+    temperature: 0.2, // 请求值；深度思考模式下不作为有效温度证据。
     // deepseek-flash 为推理模型（D39）：推理 token 计入 max_completion_tokens，
     // 多维度诊断的结构化输出预算给足，避免正文被截空
-    maxCompletionTokens: 4096,
+
     responseFormat: { type: "json_object" },
   });
   return parseScoringOutput(result.content, Object.keys(input.rubricDimensions));

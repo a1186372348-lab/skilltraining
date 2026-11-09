@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { visibleTrainingResultsWhere } from "@/server/modules/baseline/result-visibility";
 
 import type { HistorySessionDetailRow } from "./view";
 
@@ -16,14 +17,16 @@ import type { HistorySessionDetailRow } from "./view";
 export async function findHistorySessionDetail(
   db: PrismaClient,
   sessionId: string,
+  userId: string,
 ): Promise<HistorySessionDetailRow | null> {
-  return db.trainingSession.findUnique({
-    where: { id: sessionId },
+  return db.trainingSession.findFirst({
+    where: { AND: [{ id: sessionId }, visibleTrainingResultsWhere(userId)] },
     select: {
       id: true,
       userId: true,
       date: true,
       isExtra: true,
+      sourceType: true,
       state: true,
       firstAnswer: true,
       firstSubmittedAt: true,
@@ -33,6 +36,7 @@ export async function findHistorySessionDetail(
       followups: true,
       question: {
         select: {
+          kind: true,
           caseTitle: true,
           caseBackground: true,
           mainQuestion: true,

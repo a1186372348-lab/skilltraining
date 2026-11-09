@@ -18,7 +18,12 @@ type DbClient = PrismaClient;
 export type PostLoginPath = "/onboarding" | "/baseline" | "/";
 
 export async function resolvePostLoginPath(db: DbClient, userId: string): Promise<PostLoginPath> {
-  const profile = await db.userProfile.findUnique({ where: { userId } });
+  const profile = await db.userProfile.findUnique({ where: { userId } }).catch(() => {
+    // 不记录异常对象或用户信息，避免数据库错误详情进入日志。
+    console.error("[auth] 登录后画像查询失败，使用首页落点");
+    return undefined;
+  });
+  if (profile === undefined) return "/";
   if (!profile) return "/onboarding";
   const baseline = await getBaselineStatus(db, userId);
   return baseline.required ? "/baseline" : "/";

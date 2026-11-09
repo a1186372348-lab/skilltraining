@@ -1,0 +1,42 @@
+id: Q34
+title: "Peloton 暂停功能：怎样向居家训练用户说明能暂停什么"
+case_title: "训练中断时，课程和排名会怎样？"
+case_background:
+  product: {text: "Peloton 提供带课程内容的居家训练设备；其公开文章介绍了设备上的课程暂停按钮。", citations: [1]}
+  audience: {text: "Peloton 文章面向在家使用 Bike、Bike+、Tread、Tread+ 或 Row 训练的会员。", citations: [1]}
+  scenario: {text: "文章举例，用户可能在课程进行中因家庭事务需要暂时中断。", citations: [1]}
+  features: {text: "文章介绍点击屏幕并按住暂停按钮；Tread 或 Tread+ 的跑带会逐渐停止，课程进度和累计指标最多冻结 60 分钟。", citations: [1]}
+  status: {text: "案例依据 2025 年 6 月 9 日更新的 Peloton 文章；文章称暂停后排行榜名次会移除，适用课程与设备须按各自说明确认。", citations: [1]}
+case_sources:
+  - {id: 1, title: "Using the Pause Button: How to Hit Pause During a Workout", publisher: "Peloton", url: "https://www.onepeloton.com/blog/pause-button"}
+main_question: "假设你负责写一段面向 Tread 用户的课程内暂停提示。请写出实际显示给用户的短文案，并说明放在何时、哪里：让用户知道怎样暂停、跑带发生什么、暂停的时间边界、恢复需要注意什么，以及排行榜名次受什么影响。请明确哪些课程适用仍需核对；不要承诺直播课可暂停，也不要用它代替设备安全说明。"
+ability_tags: [产品表达, 方案设计]
+difficulty: 基础
+domain: 健康/运动
+rubric:
+  dimensions:
+    产品表达:
+      - "使用简洁直接的用户语言说明操作、跑带状态、暂停时间边界与排名影响。"
+      - "将已知设备行为和待核对的课程适用范围区分开，不承诺所有课程可暂停。"
+      - "明确恢复前需遵循设备提示，避免把暂停描述为瞬间停止或安全保证。"
+    方案设计:
+      - "说明暂停前、暂停中或恢复时各在哪个触点显示必要信息。"
+      - "让用户能理解排名变化而不遮挡主要操作。"
+      - "提出通过模拟中断观察用户理解及恢复操作的验证办法。"
+  forbidden_leaks: ["暂停前告知排名变化、暂停后展示跑带与恢复状态的完整文案"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "用户在训练中突然要离开时，首先需要知道哪三件事？"}
+  - {level: 2, stage: 视角补充, question: "跑步机与静态屏幕不同，暂停时设备还会发生什么？"}
+  - {level: 3, stage: 反例与风险, question: "如果用户以为暂停后排名完全不受影响，或误以为所有课程都支持，会怎样？"}
+  - {level: 4, stage: 取舍权衡, question: "操作前有多少信息必须立即说明，哪些可以在暂停后再展示？"}
+  - {level: 5, stage: 验证方式, question: "让用户复述操作和后果时，你会检查哪些误解？"}
+materials:
+  core:
+    - {title: "Using the Pause Button: How to Hit Pause During a Workout", source: "Peloton", url: "https://www.onepeloton.com/blog/pause-button", summary: "2025 年文章解释设备暂停、跑带、进度及排行榜影响。"}
+    - {title: "Pause Button Arrives for Peloton Tread & Tread+", source: "Peloton Buddy（非官方）", url: "https://www.pelobuddy.com/pause-button-peloton-tread/", summary: "独立社区 2022 年介绍 Tread 暂停和点播课程范围；具体适用范围仍应核对官方最新说明。"}
+  extended:
+    - {title: "Peloton Q3 2021 Earnings Call", source: "Peloton 投资者关系", url: "https://investor.onepeloton.com/static-files/3effe961-df7c-4b90-b8ba-4efc7b7821e7", summary: "2021 年管理层说明计划增加点播课程暂停与排行榜公平性的考虑。"}
+    - {title: "Peloton Homecoming Keynote 2021 Announcements", source: "Peloton Buddy（非官方）", url: "https://www.pelobuddy.com/peloton-keynote-2021-announcements/", summary: "回顾 2021 年暂停功能的宣布和当时尚待推出的状态。"}
+    - {title: "It took Peloton until 2021 to add a pause button", source: "Engadget", url: "https://www.engadget.com/peloton-bike-plus-pause-button-tread-205410305.html", summary: "2021 年报道介绍 Bike 暂停与排行榜、直播课程之间的区别；不代表 2025 全部设备规则。"}
+uncertainty: ["题目不假定直播或每一种课程均支持暂停；实际设备版本与课程范围需再核对。"]
+status: published

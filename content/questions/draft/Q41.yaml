@@ -1,0 +1,46 @@
+id: Q41
+title: "YouTube 视频章节：长视频的定位问题可能出在哪里"
+case_title: "知道视频里有答案，却找不到那一分钟"
+case_background:
+  product: {text: "YouTube 在 2020 年介绍视频章节功能，用于在视频内跳转或重看片段。", citations: [1]}
+  audience: {text: "该功能面向观看视频并希望定位某一部分的观众。", citations: [1]}
+  scenario: {text: "观众可通过播放器中的章节标题打开章节列表，并查看各章节的预览缩略图。", citations: [1]}
+  features: {text: "章节将视频划分为可跳转片段；列表帮助观众选择想看的部分。", citations: [1]}
+  status: {text: "2020 年 10 月 YouTube 介绍扩展章节列表视图；材料没有给出定位失败率或观看完成率。", citations: [1]}
+case_sources:
+  - {id: 1, title: "5 tips and tricks for watching your favorite videos on YouTube", publisher: "YouTube", url: "https://blog.youtube/news-and-events/tips-and-tricks-watching-your-favorite-videos/"}
+main_question: "假设研究团队想知道观众在一段较长教程中寻找某个步骤时，章节能否帮助他们；目前没有定位失败数据。请定义一个可观察的问题，提出至少三种不同的可能原因，说明每种原因需要什么证据，最后设计一次小规模任务观察，说明观察结果能支持什么判断及其限制。不要把长视频观看完成率低或章节标签有误当作已知事实。"
+ability_tags: [根因分析, 问题定义, 指标与验证]
+difficulty: 基础
+domain: 内容/社交
+rubric:
+  dimensions:
+    根因分析:
+      - "提出至少三种与定位任务有关、可区分的原因假设；入口未发现、名称不清或片段不匹配只是示例。"
+      - "说明各假设预期出现的不同观察和相应边界；目标内容不存在是一种可能，不是必答原因。"
+      - "不把任一假设当成已证实原因。"
+    问题定义:
+      - "限定观众、教程任务与找到目标片段的可观察结果。"
+      - "区分定位困难与整体观看时长或内容质量。"
+      - "承认题设没有真实失败率和发生规模。"
+    指标与验证:
+      - "选择适合的观察量，例如找到目标比例、用时或错误跳转；涉及比例时说明分母。"
+      - "结合观察与必要的事后询问，说明如何区分前述假设。"
+      - "说明不同视频、用户和设备的小样本局限。"
+  forbidden_leaks: ["按发现入口、理解章节与片段准确性拆分定位失败原因的完整诊断"]
+hint_tree:
+  - {level: 1, stage: 任务澄清, question: "这位观众要完成的具体任务是什么，怎样算找到目标？"}
+  - {level: 2, stage: 视角补充, question: "不知道章节存在的人与看过列表却无法选的人经历有什么不同？"}
+  - {level: 3, stage: 反例与风险, question: "如果视频本来没有这个步骤，章节设计能解决吗？"}
+  - {level: 4, stage: 取舍权衡, question: "只看是否点击章节，能区分入口和内容问题吗？"}
+  - {level: 5, stage: 验证方式, question: "让观众寻找同一个步骤时，你会记录哪些动作、时间与解释？"}
+materials:
+  core:
+    - {title: "5 tips and tricks for watching your favorite videos on YouTube", source: "YouTube", url: "https://blog.youtube/news-and-events/tips-and-tricks-watching-your-favorite-videos/", summary: "2020 年介绍章节跳转和章节列表视图。"}
+    - {title: "Media Accessibility User Requirements", source: "W3C", url: "https://www.w3.org/WAI/PF/media-accessibility-reqs/", summary: "通用多媒体无障碍资料讨论不同用户和设备使用播放控件的需要；不证明 YouTube 的具体实现。"}
+  extended:
+    - {title: "Usability Testing with Steve Krug", source: "Digital.gov", url: "https://digital.gov/event/2018/06/14/usability-testing-with-steve-krug", summary: "2018 年活动介绍小规模可用性观察；不能据此估计全平台发生比例。"}
+    - {title: "Health.gov’s Move Your Way Activity Planner: A Case Study", source: "Digital.gov", url: "https://digital.gov/2019/12/03/healthgovs-move-your-way-activity-planner-a-case-study", summary: "2019 年另一产品的任务观察案例，可参考如何选场景及理解研究局限；不是 YouTube 结果。"}
+    - {title: "Making Audio and Video Media Accessible", source: "W3C", url: "https://www.w3.org/WAI/media/av/", summary: "2019 年首次发布、现行更新版的音视频无障碍通用资料；可帮助考虑不同用户，不是 2020 年 YouTube 功能说明。"}
+uncertainty: ["没有提供定位失败规模或创作者实际章节质量；通用资料和其他产品案例不证明 YouTube 实际表现。"]
+status: published

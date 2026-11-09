@@ -12,6 +12,14 @@ export type HintDependencyBand = "低" | "中" | "高";
 /** 维度状态标签（US-008；「样本较少」优先于趋势，观察 < 3 次时不解读趋势） */
 export type AbilityStatusLabel = "稳定" | "样本较少" | "↑ 上升中" | "↓ 下降中";
 
+export interface PackCta {
+  status: "available" | "active-self" | "disabled-other-active" | "disabled-insufficient" | "baseline-required";
+  activePackId: string | null;
+  completedCount: number | null;
+  availableQuestions: number;
+  requiredQuestions: number;
+}
+
 /** 单条评估记录（T18 / D21）：弹窗「最近评估记录」列表项，可跳转对应训练反馈页 */
 export interface RecentEvaluation {
   /** 训练会话 id（跳转 /training/feedback/[sessionId]，T25 路径） */
@@ -22,6 +30,7 @@ export interface RecentEvaluation {
   scoredAt: string;
   /** 关联题目的案例标题（一句话简介） */
   caseTitle: string;
+  confidence?: number | null;
 }
 
 /** 单维度画像视图：未观测维度为未知态（observed=false，数值字段全 null，不显示 0 分） */
@@ -41,11 +50,13 @@ export interface AbilityDimensionView {
   recentEvaluations: RecentEvaluation[];
   /** 近 N 次有效分序列（时间升序，与 sparkline 同口径），供 3D 网络图弹窗趋势（T16） */
   recentScores: number[];
+  /** 缺失时安全禁用入口，兼容暂时未更新的响应。 */
+  packCta?: PackCta;
   /** JSON 序列化后为 ISO 字符串；未观测为 null */
   updatedAt: string | null;
 }
 
-/** 下一题优先方向（T11 自适应出题接入前的固定规则文案） */
+/** 根据画像数据生成的下一步练习建议 */
 export interface NextFocus {
   dimension: string;
   /** explore = 探索期（存在未观测维度）；strengthen = 强化期（全部已观测，攻最弱） */

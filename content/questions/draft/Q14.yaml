@@ -1,0 +1,117 @@
+id: Q14
+title: Netflix 广告档：如何权衡低价、广告体验与内容限制
+case_title: 低价订阅需要让出多少观看体验
+case_background:
+  product:
+    text: Netflix 是提供按月订阅观看影视内容的流媒体服务。2022 年其宣布新增较低价格的广告支持档位。
+    citations:
+      - 1
+  audience:
+    text: 新档位面向愿意接受广告以选择较低月费的订阅用户；原有无广告档位仍作为其他选择。
+    citations:
+      - 1
+  scenario:
+    text: 2022 年 10 月，Netflix 公告计划于 11 月 3 日在美国推出广告档，同时列出该档位与既有基础档的差异。
+    citations:
+      - 1
+  features:
+    text: 按美国发布公告，该档位月费 6.99 美元，计划平均每小时播放约 4 至 5 分钟广告；部分作品因授权不可用，且当时不支持下载。
+    citations:
+      - 1
+  status:
+    text: Netflix 在 2022 年 7 月宣布选择 Microsoft 作为新广告支持计划的技术和销售合作伙伴；公告属于推出前的方案描述。
+    citations:
+      - 2
+case_sources:
+  - id: 1
+    title: Netflix 美国广告档发布说明
+    publisher: Netflix
+    url: https://about.netflix.com/en/news/announcing-basic-with-ads-us
+  - id: 2
+    title: Netflix 与 Microsoft 广告计划合作
+    publisher: Netflix
+    url: https://about.netflix.com/en/news/netflix-partners-with-microsoft
+  - id: 3
+    title: 2022 年 7 月美国电视观看份额
+    publisher: Nielsen
+    url: https://www.nielsen.com/insights/2022/streaming-claims-largest-piece-of-tv-viewing-pie-in-july/
+  - id: 4
+    title: 2022 年 8 月美国电视观看份额
+    publisher: Nielsen
+    url: https://www.nielsen.com/insights/2022/streaming-grabs-35-of-tv-time-in-august-but-overall-usage-dips-as-summer-winds-down/
+  - id: 5
+    title: 2022 年流媒体观看时间变化
+    publisher: Nielsen
+    url: https://www.nielsen.com/insights/2022/streaming-usage-increases-21-in-a-year-to-now-account-for-nearly-one-third-of-total-tv-time/
+main_question: 把自己放在 2022 年 10 月美国广告档公告后、推出前：如果可以调整价格、广告负荷与可用权益，你会优先保护什么、接受什么代价？授权范围、广告销售能力与技术条件尚未完全确认；涉及其变化时，请说明依赖条件。请比较至少两种可实施的档位方向，论证观众、广告主与 Netflix 可能获得或失去的价值，选择一种，并说明怎样验证净影响。请将预期与材料支持的事实区分开。
+ability_tags:
+  - 产品取舍
+  - 产品价值判断
+  - 指标与验证
+difficulty: 挑战
+domain: 内容/社交
+kind: daily
+rubric:
+  dimensions:
+    产品取舍:
+      - 明确价格、广告或权益方向与优先保护对象，解释至少两种方案的机会成本，不把公告方案设为唯一正确答案。
+      - 分析低价吸引新用户与既有用户可能降档之间的权衡，覆盖广告负荷或片库限制的体验代价。
+      - 提出可接受边界和调整条件，说明尚需验证的成本或风险。
+      - 区分观众、广告主与平台约束，不把任一方收益自动等同总体净收益。
+    产品价值判断:
+      - 解释较低月费可能为哪些用户创造何种价值及其成立条件。
+      - 说明广告位对广告主和平台的潜在价值及前提，不把预期收入当作已实现收入。
+      - 引用公告和 Nielsen 数据时保留时间、地区与统计范围，不由市场份额推断档位效果。
+    指标与验证:
+      - 分别观察新增、降档或流失及广告体验，明确比较对象和观察窗口。
+      - 给出可行的分组或分阶段验证，并说明用户迁移、内容差异和季节性对归因的影响。
+      - 提出可行动的体验或商业护栏和越线处理，不把臆造阈值写成既有标准。
+  forbidden_leaks:
+    - 完整的价格、广告量与权益取舍结论及指标方案。
+    - 低价广告档必然增收或必然损害品牌的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 先说明你讨论的是哪个国家、时间点和订阅档位，有哪些条件可以调整。
+  - level: 2
+    stage: 视角补充
+    question: 价格更低对观众意味着什么？广告主和已有无广告订阅者的诉求会相同吗？
+  - level: 3
+    stage: 反例与风险
+    question: 如果新增的人多，但部分原用户选择便宜档位，这两种变化如何区分？
+  - level: 4
+    stage: 取舍权衡
+    question: 广告时长、价格和片库权益中，你首先保护什么，愿意承担什么代价？
+  - level: 5
+    stage: 验证方式
+    question: 如果只允许有限范围上线，你如何构造比较并观察体验和业务结果？
+materials:
+  core:
+    - title: Netflix 美国广告档发布说明
+      source: Netflix
+      url: https://about.netflix.com/en/news/announcing-basic-with-ads-us
+      summary: 2022 年美国公告列出价格、广告负荷、片库与下载限制；不代表现行档位。
+    - title: Netflix 与 Microsoft 广告计划合作
+      source: Netflix
+      url: https://about.netflix.com/en/news/netflix-partners-with-microsoft
+      summary: 2022 年 Netflix 宣布新广告支持计划的技术和销售合作伙伴。
+  extended:
+    - title: 2022 年 7 月美国电视观看份额
+      source: Nielsen
+      url: https://www.nielsen.com/insights/2022/streaming-claims-largest-piece-of-tv-viewing-pie-in-july/
+      summary: Nielsen 按美国电视观看时间分析流媒体等方式的份额，不能直接推断广告档表现。
+    - title: 2022 年 8 月美国电视观看份额
+      source: Nielsen
+      url: https://www.nielsen.com/insights/2022/streaming-grabs-35-of-tv-time-in-august-but-overall-usage-dips-as-summer-winds-down/
+      summary: 2022 年 9 月公布的美国电视观看快照反映内容和季节变化，不证明广告档效果。
+    - title: 2022 年流媒体观看时间变化
+      source: Nielsen
+      url: https://www.nielsen.com/insights/2022/streaming-usage-increases-21-in-a-year-to-now-account-for-nearly-one-third-of-total-tv-time/
+      summary: Nielsen 解释电视和流媒体观看快照及当时变化，可作为市场背景而非用户实验。
+uncertainty:
+  - 价格、下载与片库限制仅描述 2022 年美国公告；不同市场或当前规则可能不同。
+  - 市场观看份额与公司预期不能证明新档位对留存、收入或降档的因果影响。
+status: published
+reveal_after_first_answer:
+  text: 编辑复盘资料：2022 年 11 月美国广告档上线公告 https://about.netflix.com/en/news/our-newest-plan-now-available-us 。该字段仅供内容编辑保存，当前不会导入或向用户展示。
+  citations: []

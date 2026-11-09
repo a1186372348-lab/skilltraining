@@ -1,7 +1,8 @@
-import { jsonOk, unauthorized } from "@/server/lib/api-response";
+import { jsonError, jsonOk, unauthorized } from "@/server/lib/api-response";
 import { getRequestUser } from "@/server/lib/request-user";
 import { prisma } from "@/server/lib/prisma";
 import { getAbilityPageView } from "@/server/modules/profile/ability-page";
+import { BaselineRequiredError } from "@/server/modules/baseline/result-visibility";
 
 /**
  * 能力画像页视图（T09 / US-008 / FR-8）。
@@ -12,5 +13,12 @@ import { getAbilityPageView } from "@/server/modules/profile/ability-page";
 export async function GET(request: Request) {
   const user = await getRequestUser(prisma, request);
   if (!user) return unauthorized();
-  return jsonOk(await getAbilityPageView(prisma, user.id));
+  try {
+    return jsonOk(await getAbilityPageView(prisma, user.id));
+  } catch (error) {
+    if (error instanceof BaselineRequiredError) {
+      return jsonError(409, "BASELINE_REQUIRED", error.message);
+    }
+    throw error;
+  }
 }

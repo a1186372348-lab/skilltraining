@@ -1,5 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 
+import { visibleTrainingResultsWhere } from "@/server/modules/baseline/result-visibility";
+
 import { SCORING_ERROR_CODES as CODES, ScoringError } from "@/server/modules/scoring/errors";
 import { scoreSession } from "@/server/modules/scoring/service";
 import {
@@ -34,6 +36,7 @@ export interface FeedbackDimensionView {
   /** 有效得分 = 原始分 × 系数（BR-1） */
   effectiveScore: number;
   diagnosisText: string | null;
+  confidence: number | null;
 }
 
 export interface ReadyFeedbackView {
@@ -70,8 +73,8 @@ export async function getFeedbackView(
   userId: string,
   deps: FeedbackViewDeps = {},
 ): Promise<FeedbackView> {
-  const session = await db.trainingSession.findUnique({
-    where: { id: sessionId },
+  const session = await db.trainingSession.findFirst({
+    where: { AND: [{ id: sessionId }, visibleTrainingResultsWhere(userId)] },
     include: { scores: true, question: { select: { kind: true } } },
   });
   if (!session || session.userId !== userId) {
@@ -108,6 +111,7 @@ export async function getFeedbackView(
       coefficient: row.coefficient,
       effectiveScore: row.effectiveScore,
       diagnosisText: row.diagnosisText,
+      confidence: row.confidence,
     })),
     topIssueText: result.feedback.topIssueText,
     nextFocusText: result.feedback.nextFocusText,

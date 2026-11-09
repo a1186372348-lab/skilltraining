@@ -6,12 +6,17 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { fetchTrainingHub } from "./api";
 import type { HubHistoryItem, TrainingHubView } from "./contract";
 import { CurrentTrainingCard } from "./current-training-card";
+import { DailyTrainingAction } from "./daily-action";
 import { formatScore } from "./feedback/[id]/view-model";
 import { TrainingShell } from "./shell";
+import { PlanSection } from "../_shared/plan-cards";
+import { PackCard } from "./pack/pack-card";
 import {
   formatHubTime,
   historyHrefFor,
+  historyPackHrefFor,
   historyStatusFor,
+  historyTypeText,
   sidebarStageText,
   type HistoryStatusTone,
 } from "./view-model";
@@ -43,6 +48,7 @@ export function TrainingHubFlow() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   /** 手动重试令牌：递增触发 effect 重新加载 */
   const [retryToken, setRetryToken] = useState(0);
+  const [packRefreshToken, setPackRefreshToken] = useState(0);
   /** 最近一次加载完成时间：历史行「今天 HH:mm」判定基准（渲染期不取当前时间） */
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
@@ -81,6 +87,7 @@ export function TrainingHubFlow() {
    * 当前卡回未开始态、历史列表出现「已终止」行；刷新失败保持现状（下次进入/手动重试再加载）。
    */
   const onCurrentChanged = useCallback(() => {
+    setPackRefreshToken((value) => value + 1);
     void (async () => {
       try {
         const result = await fetchTrainingHub();
@@ -102,6 +109,8 @@ export function TrainingHubFlow() {
           <h1 className="text-[26px] font-bold tracking-wide">产品训练</h1>
           <p className="mt-2 text-[13.5px] text-[#64748B]">每天一个真实产品问题，训练产品判断力</p>
         </header>
+
+        <DailyTrainingAction />
 
         {phase === "loading" ? (
           <>
@@ -125,6 +134,12 @@ export function TrainingHubFlow() {
             <div className="mb-6">
               <CurrentTrainingCard current={view.current} onChanged={onCurrentChanged} />
             </div>
+            <PackCard refreshToken={packRefreshToken} />
+            {/* T29 切片 5 / F5：周计划条（屏 3 浓缩）——当前训练卡下方、历史列表上方；
+                接口/数据异常时组件内部降级为不渲染，绝不影响大厅主流程 */}
+            <div className="mb-6">
+              <PlanSection />
+            </div>
             <HistorySection history={view.history} now={loadedAt ?? new Date()} />
           </>
         ) : null}
@@ -133,7 +148,7 @@ export function TrainingHubFlow() {
   );
 }
 
-/** 训练历史列表（D27④：加练并入，以徽章区分；基线会话不下发，D26⑦/D27 同口径） */
+/** 训练历史列表：每日、加练与完成测评后的已参与基线以类型徽章区分。 */
 function HistorySection({ history, now }: { history: HubHistoryItem[]; now: Date }) {
   return (
     <>
@@ -171,11 +186,10 @@ const STATUS_TONE_CLASS: Record<HistoryStatusTone, string> = {
 /** 单条训练记录行：类型徽章 + 状态徽章 / 案例名 / 能力标签 / 得分摘要与时间；整行可点（进行中回工作台、已完成看回放） */
 function HistoryRow({ item, now }: { item: HubHistoryItem; now: Date }) {
   const status = historyStatusFor(item);
+  const packHref = historyPackHrefFor(item);
   return (
-    <Link
-      href={historyHrefFor(item)}
-      className="flex flex-wrap items-center gap-4 border-b border-[#F0F3F8] px-6 py-4 transition-colors last:border-b-0 hover:bg-[#FAFBFE]"
-    >
+    <div className="flex flex-wrap items-center gap-4 border-b border-[#F0F3F8] px-6 py-4 last:border-b-0 hover:bg-[#FAFBFE]">
+    <Link href={historyHrefFor(item)} className="flex min-w-0 flex-1 flex-wrap items-center gap-4">
       <div className="flex min-w-[260px] flex-1 flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-1.5">
           <span
@@ -185,7 +199,7 @@ function HistoryRow({ item, now }: { item: HubHistoryItem; now: Date }) {
                 : "border-[#D8DFEA] bg-white text-[#64748B]"
             }`}
           >
-            {item.isExtra ? "加练" : "每日"}
+            {historyTypeText(item)}
           </span>
           <span
             className={`rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap ${STATUS_TONE_CLASS[status.tone]}`}
@@ -224,5 +238,10 @@ function HistoryRow({ item, now }: { item: HubHistoryItem; now: Date }) {
         </span>
       </div>
     </Link>
+    {item.sourceType === "pack" ? (packHref ? (
+      <Link href={packHref} className="text-xs font-semibold text-[#1D4ED8] hover:underline">查看训练包</Link>
+    ) : <span className="text-xs text-[#B45309]">训练包信息待恢复</span>) : null}
+    {item.sourceType === "retest" && !item.isBaseline ? <Link href="/stages" className="text-xs font-semibold text-[#1D4ED8] hover:underline">查看复测进度</Link> : null}
+    </div>
   );
 }

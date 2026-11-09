@@ -1,0 +1,115 @@
+id: Q20
+title: Instacart 食品补助支付：结账链路的问题应如何定义
+case_title: 一笔订单中哪些费用能用补助支付
+case_background:
+  product:
+    text: Instacart 的帮助页说明，参与美国 SNAP 项目的用户可在支持的商户使用 EBT 卡购买合资格商品。
+    citations:
+      - 1
+      - 5
+  audience:
+    text: 相关对象包括持有有效 EBT 卡的用户与参与线上交易的商户；是否支持取决于州和商户。
+    citations:
+      - 1
+      - 5
+  scenario:
+    text: 用户在选择商品并准备提交线上订单时，需要区分可用补助支付的商品与其他费用。
+    citations:
+      - 2
+      - 3
+  features:
+    text: 帮助页介绍可打开商品 SNAP 资格显示。按本题采用的 Instacart 帮助页，使用 EBT 卡前还需向账户添加信用卡或借记卡，用于承担不符合 EBT 条件的商品及有关费用；哪些费用可用补助支付仍按相应规则判断。
+    citations:
+      - 1
+      - 2
+      - 3
+  status:
+    text: 所列帮助页面为 2026 年 11 月核验时的公开说明，商户、地区与规则可能变化。
+    citations:
+      - 1
+      - 3
+      - 5
+case_sources:
+  - id: 1
+    title: 使用 EBT SNAP 购物
+    publisher: Instacart 帮助
+    url: https://www.instacart.com/help/section/360009947632/360047289812
+  - id: 2
+    title: 查找 EBT 合资格商品
+    publisher: Instacart 帮助
+    url: https://www.instacart.com/help/article/360047747451
+  - id: 3
+    title: 使用 EBT 卡结账
+    publisher: Instacart 帮助
+    url: https://www.instacart.com/help/section/3698914653/2174394288/991012%40
+  - id: 4
+    title: 更新支付方式
+    publisher: Instacart 帮助
+    url: https://www.instacart.com/help/article/360039573011
+  - id: 5
+    title: 参与 SNAP 的商户与州
+    publisher: Instacart 帮助
+    url: https://www.instacart.com/help/section/lp2kq7/18085466140308
+main_question: 假设你要改善首次使用 EBT SNAP 的线上购物体验。基于材料先定义值得解决的具体问题：用户在商品选择、资格判断与支付分配之间可能遇到哪些不同障碍？选择一个最优先问题，说明受影响人群、成功结果和边界，再提出最小验证或改进思路。不要假设已有某个环节的失败率。
+ability_tags:
+  - 问题定义
+  - 用户理解
+difficulty: 中等
+domain: 电商
+kind: daily
+rubric:
+  dimensions:
+    问题定义:
+      - 把宽泛的结账困难界定为特定人群、任务、障碍和期望结果。
+      - 区分所选障碍与回答中涉及的其他相关障碍，不将其混为同一问题；不要求穷举所有可能环节。
+      - 依据证据强弱提出优先级，并明确尚需验证的范围，不编造失败率。
+    用户理解:
+      - 针对首次使用者说明所选购物情境中需要理解的信息，不要求额外分析已有经验的用户。
+      - 结合订单资格、可用支付卡或商户支持等条件说明具体障碍，不以收入标签代替场景。
+      - 指出支付失败、费用超出预期等可能顾虑之一，并说明它仍是待验证的假设。
+  forbidden_leaks:
+    - 完整的问题界定、优先级理由和验证思路。
+    - 首次使用者普遍无法完成支付或现有流程已经解决所有问题的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 同一购物车里，哪些商品和费用可能适用不同支付规则？
+  - level: 2
+    stage: 视角补充
+    question: 新用户与已经用过 EBT 的用户，需要看到的信息会一样吗？
+  - level: 3
+    stage: 反例与风险
+    question: 如果用户没有另一张可用的支付卡，系统应如何解释限制？
+  - level: 4
+    stage: 取舍权衡
+    question: 商品资格、商户支持、卡片添加和结账说明中，你先验证哪个问题？
+  - level: 5
+    stage: 验证方式
+    question: 怎样区分用户看到了信息与真正理解了支付分配？
+materials:
+  core:
+    - title: 使用 EBT SNAP 购物
+      source: Instacart 帮助
+      url: https://www.instacart.com/help/section/360009947632/360047289812
+      summary: 帮助页说明 EBT SNAP 使用条件及添加卡片的步骤。
+    - title: 查找 EBT 合资格商品
+      source: Instacart 帮助
+      url: https://www.instacart.com/help/article/360047747451
+      summary: 介绍在购物时查看或筛选有资格商品的方式。
+  extended:
+    - title: 使用 EBT 卡结账
+      source: Instacart 帮助
+      url: https://www.instacart.com/help/section/3698914653/2174394288/991012%40
+      summary: 结账说明指出 EBT 支付与其他支付方式分别承担的费用。
+    - title: 更新支付方式
+      source: Instacart 帮助
+      url: https://www.instacart.com/help/article/360039573011
+      summary: 介绍在账户中添加和更新支付方式；具体支持取决于地区与商户。
+    - title: 参与 SNAP 的商户与州
+      source: Instacart 帮助
+      url: https://www.instacart.com/help/section/lp2kq7/18085466140308
+      summary: 列出当前参与线上 EBT SNAP 的商户和州，清单会变化。
+uncertainty:
+  - 帮助页面为核验时的规则，不应外推到所有州、商户或商品。
+  - 材料没有提供首次使用者的流失、失败比例及原因分布。
+status: published

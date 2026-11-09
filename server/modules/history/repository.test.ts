@@ -116,7 +116,7 @@ describe("历史详情行（回放数据完整性）", () => {
       },
     });
 
-    const row = await findHistorySessionDetail(prisma, session.id);
+    const row = await findHistorySessionDetail(prisma, session.id, user.id);
     expect(row).not.toBeNull();
     expect(row?.question.mainQuestion).toBe("测试主问题？");
     // 提示事件按请求时间升序（层 1 在前）
@@ -135,6 +135,6 @@ describe("历史详情行（回放数据完整性）", () => {
   });
 
   it("不存在的会话返回 null", async () => {
-    expect(await findHistorySessionDetail(prisma, randomUUID())).toBeNull();
+    expect(await findHistorySessionDetail(prisma, randomUUID(), randomUUID())).toBeNull();
   });
 });

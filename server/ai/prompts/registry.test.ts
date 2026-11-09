@@ -151,3 +151,19 @@ describe("回滚 = 切回最近非 active 版本（上一 passed/rolled_back）"
     expect(findActiveVersion(versions, "missing")).toBeNull();
   });
 });
+
+it("回滚跳过最新 draft，只选择最近合格版本", () => {
+  const rows = [
+    version({ id: "active", status: "active", createdAt: new Date("2026-10-03") }),
+    version({ id: "eligible", status: "passed", createdAt: new Date("2026-10-02") }),
+    version({ id: "draft", status: "draft", createdAt: new Date("2026-10-04") }),
+  ];
+  expect(planRollback(rows, "scoring")).toEqual({ activateId: "eligible", deactivateId: "active" });
+});
+
+it("只有 draft 时拒绝回滚且不改变原有状态", () => {
+  const rows = [version({ id: "active", status: "active" }), version({ id: "draft", status: "draft" })];
+  const before = structuredClone(rows);
+  expect(() => planRollback(rows, "scoring")).toThrow(/回滚/);
+  expect(rows).toEqual(before);
+});

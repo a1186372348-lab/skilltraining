@@ -1,4 +1,4 @@
-import type { HistorySessionState } from "./contract";
+import type { HistoryDetailView, HistorySessionState } from "./contract";
 
 /**
  * 训练历史回放共享视图模型（纯函数，T10；T25 / D27 迁入产品训练模块）。
@@ -29,4 +29,20 @@ export function sessionStateText(state: HistorySessionState): string {
       // T38 / D40：已终止会话只读回放（不评分不计入画像）
       return "已终止";
   }
+}
+
+type DetailStatus = Pick<HistoryDetailView, "questionKind" | "sourceType" | "isExtra" | "state" | "finalSubmittedAt">;
+
+export function historyDetailStateText(detail: DetailStatus): string {
+  if (detail.questionKind === "baseline" && detail.state === "followup" && detail.finalSubmittedAt) {
+    return "评分中";
+  }
+  return sessionStateText(detail.state);
+}
+
+export function historyDetailTypeText(detail: DetailStatus): string {
+  if (detail.questionKind === "baseline" || detail.sourceType === "baseline") return "基线";
+  if (detail.sourceType === "retest") return "复测";
+  if (detail.sourceType === "pack") return "训练包";
+  return detail.isExtra ? "加练" : "";
 }

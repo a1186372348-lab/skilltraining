@@ -31,6 +31,10 @@ function baselineStatusOf(required: boolean) {
     nextQuestion: null,
     completedAt: null,
     pendingScoringSessionIds: [],
+    // T27 切片 3：BaselineStatus 新增字段（本文件不断言这些字段）
+    items: [],
+    scoringPending: false,
+    dimensionPreview: null,
   };
 }
 

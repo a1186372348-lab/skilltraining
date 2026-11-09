@@ -1,7 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { navItemsFor } from "@/app/_shared/nav-items";
+import { navItemsFor, type NavLabel } from "@/app/_shared/nav-items";
+import { StageProvider } from "@/app/_shared/stage-badge/stage-provider";
+import { StageBadge } from "@/app/_shared/stage-badge/stage-badge";
+
 
 /**
  * 训练工作台外壳：深色侧边栏 + 主区浅灰底（原型 B 设计语言）。
@@ -9,20 +12,21 @@ import { navItemsFor } from "@/app/_shared/nav-items";
  * 路由依据 Prd.md 3.2 路由地图：/ 首页、/training 产品训练、/profile 能力画像、/settings 我的。
  */
 
-const NAV_ITEMS = navItemsFor("产品训练");
-
 export function TodayShell({
   stageText,
   children,
   lockViewport = false,
+  activeLabel = "产品训练",
 }: {
   /** 侧栏底部的今日状态（如 作答中 / 追问中 / 已完成） */
   stageText: string;
   children: ReactNode;
   /** T20 三栏工作台：xl 起锁定主区为视口高、页面本体不滚动；仅训练/基线页启用，反馈页等保持页面级滚动 */
   lockViewport?: boolean;
+  activeLabel?: NavLabel;
 }) {
   return (
+    <StageProvider>
     <div
       className={`flex min-h-full flex-1 bg-[#F5F6F8] text-[#0F172A] ${
         lockViewport ? "xl:h-screen xl:flex-none xl:overflow-hidden" : ""
@@ -40,7 +44,7 @@ export function TodayShell({
           </div>
         </div>
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) =>
+          {navItemsFor(activeLabel).map((item) =>
             item.active ? (
               <span
                 key={item.label}
@@ -60,6 +64,7 @@ export function TodayShell({
             ),
           )}
         </nav>
+        <StageBadge />
         <div className="mt-auto rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
           <div className="flex items-center justify-between text-[#8B98B2]">
             <span>今日状态</span>
@@ -74,8 +79,10 @@ export function TodayShell({
           lockViewport ? "xl:flex xl:flex-col xl:overflow-hidden" : ""
         }`}
       >
+        <div className="lg:hidden"><StageBadge compact /></div>
         {children}
       </main>
     </div>
+    </StageProvider>
   );
 }

@@ -120,6 +120,7 @@ export function createMockScorer(): CalibrationScorer {
     }),
     topIssue: "mock 最需优化问题",
     nextFocus: "mock 下一步方向",
+    confidence: null,
   });
 }
 

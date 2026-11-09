@@ -2,6 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { navItemsFor } from "@/app/_shared/nav-items";
+import { StageProvider } from "@/app/_shared/stage-badge/stage-provider";
+import { StageBadge } from "@/app/_shared/stage-badge/stage-badge";
+
 
 /**
  * 训练历史回放页外壳：深色侧边栏 + 主区浅灰底（原型 B 设计语言）。
@@ -20,6 +23,7 @@ export function HistoryShell({
   children: ReactNode;
 }) {
   return (
+    <StageProvider>
     <div className="flex min-h-full flex-1 bg-[#F5F6F8] text-[#0F172A]">
       {/* 深色侧边栏（桌面优先，D4；窄屏隐藏） */}
       <aside className="hidden w-60 shrink-0 flex-col bg-gradient-to-b from-[#101A2E] to-[#0B1322] px-5 py-7 text-[#C4CDDD] lg:flex">
@@ -53,6 +57,7 @@ export function HistoryShell({
             ),
           )}
         </nav>
+        <StageBadge />
         <div className="mt-auto rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
           <div className="flex items-center justify-between text-[#8B98B2]">
             <span>训练记录</span>
@@ -62,7 +67,8 @@ export function HistoryShell({
       </aside>
 
       {/* 主区 */}
-      <main className="min-w-0 flex-1 px-5 py-8 sm:px-8">{children}</main>
+      <main className="min-w-0 flex-1 px-5 py-8 sm:px-8"><div className="lg:hidden"><StageBadge compact /></div>{children}</main>
     </div>
+    </StageProvider>
   );
 }

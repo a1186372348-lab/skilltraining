@@ -1,0 +1,119 @@
+id: Q22
+title: Monzo 赌博交易拦截：如何设计开启与退出保护
+case_title: 帮助用户自愿设置一条有摩擦的边界
+case_background:
+  product:
+    text: Monzo 在 2018 年推出可选功能，针对使用 Monzo 卡向赌博商户发起的付款进行拦截。
+    citations:
+      - 1
+      - 5
+  audience:
+    text: 该功能面向希望限制自己赌博支出的账户用户；公司称曾征求提出该需求的用户意见。
+    citations:
+      - 1
+  scenario:
+    text: 用户可通过 app 或联系支持团队开启拦截；2018 年文章说明关闭时需先联系支持团队，再等待 48 小时，然后由用户在 app 中自行关闭。
+    citations:
+      - 1
+  features:
+    text: 系统依据商户类型代码尽力识别并拦截赌博商户的 Monzo 卡交易；商户若未被识别，交易可能不被拦截，也不能保证覆盖所有支付方式。
+    citations:
+      - 1
+      - 5
+  status:
+    text: Monzo 称 2018 年推出前曾与提出该需求的人测试，并听取社区反馈；拦截并非适合所有人的完整解决办法。
+    citations:
+      - 1
+case_sources:
+  - id: 1
+    title: 2018 年赌博交易拦截
+    publisher: Monzo
+    url: https://monzo.com/blog/2018/06/19/gambling-block-self-exclusion
+  - id: 2
+    title: 2017 年英国赌博参与与认知调查
+    publisher: 英国赌博委员会
+    url: https://www.gamblingcommission.gov.uk/news/article/latest-gambling-participation-and-perceptions-figures-released-by-gambling
+  - id: 3
+    title: 2017 年自我排除机制失效案例
+    publisher: 英国赌博委员会
+    url: https://www.gamblingcommission.gov.uk/news/article/gambling-firm-888-to-pay-over-gbp7-8million-for-failing-vulnerable-customers
+  - id: 4
+    title: 主持式可用性测试
+    publisher: 英国政府数字服务手册
+    url: https://www.gov.uk/service-manual/user-research/using-moderated-usability-testing
+  - id: 5
+    title: 2018 年推出前的自我排除方案说明
+    publisher: Monzo
+    url: https://monzo.com/blog/2018/05/16/gambling-self-exclusion
+main_question: 以 2018 年首次推出时的机制为基础，假设你负责帮助自愿使用者开启与退出拦截。请设计从理解范围、开启、误拦处理到申请关闭的流程：在哪些地方应增加保护性摩擦，哪些地方仍需保持清晰和可求助？解释你的取舍与验证方式。
+ability_tags:
+  - 方案设计
+  - 用户理解
+  - 产品取舍
+difficulty: 中等
+domain: 金融
+kind: daily
+rubric:
+  dimensions:
+    方案设计:
+      - 给出开启、反馈、误拦求助与关闭申请的连续流程，说明关键状态。
+      - 准确传达拦截范围与局限，不承诺覆盖全部支付渠道。
+      - 设置保护性摩擦的同时保留可理解求助路径和必要的隐私保护。
+      - 将自拟改进与 2018 年实际机制分开，不将未给出的能力当作历史事实。
+    用户理解:
+      - 理解选择使用拦截的人可能处于不同情境，不将所有用户视为同一种状态。
+      - 考虑误拦、急需协助或改变决定等不同需要，不以羞辱式文案描述用户。
+      - 说明需要与有相关经验的人共同验证，而不是替用户假定意图。
+    产品取舍:
+      - 解释便利开启、退出自由与降低冲动风险之间至少一项具体取舍。
+      - 结合方案说明误拦求助、隐私或支持成本中的相关代价，不只追求拦截次数。
+      - 提出可观察的风险或调整条件，并解释怎样在验证中关注它。
+  forbidden_leaks:
+    - 开启、误拦与关闭申请的完整保护流程和所有提示文案。
+    - 只要开启功能即可完全避免赌博伤害的结论。
+hint_tree:
+  - level: 1
+    stage: 任务澄清
+    question: 用户开启之前应知道这项拦截覆盖什么、不覆盖什么？
+  - level: 2
+    stage: 视角补充
+    question: 一笔付款被误拦时，用户如何获得帮助而不必公开敏感细节？
+  - level: 3
+    stage: 反例与风险
+    question: 如果关闭太容易或太困难，分别可能带来什么代价？
+  - level: 4
+    stage: 取舍权衡
+    question: 与客服交互需要收集哪些最少信息，哪些不应默认要求？
+  - level: 5
+    stage: 验证方式
+    question: 怎样与有亲身经验的用户一起测试，而不只统计拦截次数？
+materials:
+  core:
+    - title: 2018 年赌博交易拦截
+      source: Monzo
+      url: https://monzo.com/blog/2018/06/19/gambling-block-self-exclusion
+      summary: 2018 年公告介绍按商户代码尽力识别赌博商户、开启拦截和通过支持团队关闭的流程；本题采用 Monzo 卡交易范围。
+    - title: 2017 年英国赌博参与与认知调查
+      source: 英国赌博委员会
+      url: https://www.gamblingcommission.gov.uk/news/article/latest-gambling-participation-and-perceptions-figures-released-by-gambling
+      summary: 2018 年发布的英国调查摘要提供参与及自我排除认知背景，不能推断 Monzo 用户或拦截效果。
+  extended:
+    - title: 2017 年自我排除机制失效案例
+      source: 英国赌博委员会
+      url: https://www.gamblingcommission.gov.uk/news/article/gambling-firm-888-to-pay-over-gbp7-8million-for-failing-vulnerable-customers
+      summary: 监管机构 2017 年案例说明赌博运营商的自我排除机制可能失效，不等同于银行拦截。
+    - title: 主持式可用性测试
+      source: 英国政府数字服务手册
+      url: https://www.gov.uk/service-manual/user-research/using-moderated-usability-testing
+      summary: 2017 年政府手册介绍观察用户完成任务的通用研究方法，不证明拦截能降低伤害。
+    - title: 2018 年推出前的自我排除方案说明
+      source: Monzo
+      url: https://monzo.com/blog/2018/05/16/gambling-self-exclusion
+      summary: 2018 年 5 月提出商户代码识别、退出摩擦及可能的绕过路径；这是推出前计划，已推出机制以 6 月公告为准，文末其他设想不作为已上线事实或必答方案。
+uncertainty:
+  - 案例以 2018 年 6 月公告的已推出机制为准；5 月官方说明仅交代推出前设计与可能边界，文末其他设想不代表当时已上线。其余行业背景或通用方法资料不作为当时 Monzo 具体能力的证据。
+  - 交易拦截不是治疗，也不能保证覆盖所有支付方式；材料未给出伤害降低的因果结果。
+status: published
+reveal_after_first_answer:
+  text: 编辑复盘资料（当前不入库或展示）：开放银行支付扩展 https://monzo.com/blog/extending-our-open-banking-gambling-block ；后续改进 https://monzo.com/blog/weve-improved-our-gambling-block ；当前功能页面 https://monzo.com/gambling-block ；英国赌博委员会当前说明 https://www.gamblingcommission.gov.uk/public-and-players/page/i-want-to-know-how-to-block-gambling-transactions 。均不得作为 2018 年已覆盖渠道的依据。
+  citations: []

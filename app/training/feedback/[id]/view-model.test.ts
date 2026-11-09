@@ -33,16 +33,49 @@ function dim(overrides: Partial<FeedbackDimensionScore> = {}): FeedbackDimension
 }
 
 describe("分数与系数格式化", () => {
-  it("大号有效分：整数去小数，一位小数保留", () => {
+  it("常见分数保留最多两位小数，整数不补零", () => {
     expect(formatScore(68)).toBe("68");
     expect(formatScore(87.5)).toBe("87.5");
-    expect(formatScore(71.28)).toBe("71.3");
+    expect(formatScore(71.28)).toBe("71.28");
+    expect(formatScore(65.234)).toBe("65.23");
+    expect(formatScore(65.236)).toBe("65.24");
     expect(formatScore(0)).toBe("0");
+    expect(formatScore(100)).toBe("100");
+  });
+
+  it.each([
+    [59.95, 60, "59.95"],
+    [59.99, 60, "59.99"],
+    [59.995, 60, "59.995"],
+    [59.999, 60, "59.999"],
+    [59.99999999999999, 60, "59.99999999999999"],
+    [74.95, 75, "74.95"],
+    [74.99, 75, "74.99"],
+    [74.995, 75, "74.995"],
+    [74.999, 75, "74.999"],
+    [74.99999999999999, 75, "74.99999999999999"],
+    [69.999, 70, "69.999"],
+  ])("%s 分显示为 %s 以下的实际值", (score, boundary, expected) => {
+    const displayed = formatScore(score);
+    expect(displayed).toBe(expected);
+    expect(Number(displayed)).toBeLessThan(boundary);
+  });
+
+  it.each([
+    [60, 60],
+    [60.00001, 60],
+    [60.01, 60],
+    [75, 75],
+    [75.00001, 75],
+    [75.01, 75],
+  ])("%s 分达到 %s 时展示仍不低于该边界", (score, boundary) => {
+    expect(Number(formatScore(score))).toBeGreaterThanOrEqual(boundary);
   });
 
   it("非法分数显示占位符", () => {
     expect(formatScore(Number.NaN)).toBe("-");
     expect(formatScore(Number.POSITIVE_INFINITY)).toBe("-");
+    expect(formatScore(Number.NEGATIVE_INFINITY)).toBe("-");
   });
 
   it("系数保留一位小数（规避 1−0.1×n 浮点尾巴）", () => {
@@ -84,7 +117,13 @@ describe("有效得分行小字与「查看计算过程」（BR-1/BR-2 可解释
     const lines = calculationDetailLines(
       dim({ rawScore: 87.5, coefficient: 0.9, effectiveScore: 78.75 }),
     );
-    expect(lines[1]).toBe("87.5 × 0.9 = 78.8");
+    expect(lines[1]).toBe("87.5 × 0.9 = 78.75");
+  });
+
+  it("计算过程与大号分数一致，显示边界前的实际有效分", () => {
+    const score = dim({ rawScore: 74.99, hintCount: 0, coefficient: 1, effectiveScore: 74.99 });
+    expect(calculationDetailLines(score)[1]).toBe("74.99 × 1.0 = 74.99");
+    expect(scoreBreakdownText(score)).toContain("原始 74.99");
   });
 });
 

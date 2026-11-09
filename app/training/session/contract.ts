@@ -93,6 +93,9 @@ export interface FollowupRound {
 export interface TodayView {
   sessionId: string;
   state: TrainingSessionState;
+  sourceType?: "daily" | "extra" | "baseline" | "plan" | "pack" | "retest";
+  sourceId?: string | null;
+  finalSubmittedAt?: string | null;
   /** 首次提交前的提示次数（服务端记录为准，BR-3） */
   hintCount: number;
   /** 追问阶段已释放提示次数（T19 / D22，服务端记录为准；联调期缺失按 0 处理） */

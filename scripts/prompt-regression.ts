@@ -27,7 +27,10 @@
 // 判定口径：
 //   - scoring：MAE（人审对齐平均绝对差）≤ maeMax；题内排序反转 ≤ reversalsMax 组；
 //     各题 high-low 分离度最小值 ≥ minSeparation；
-//   - followup：放水数 ≤ missMax（硬上限 0）；误伤率 ≤ harmRateMax；
+//   - followup：放水数 ≤ missMax（硬上限 0）；误伤率 ≤ harmRateMax；泄露违规数 = 0
+//     （三查③规则检查硬门槛，T28 切片 4：对判定追问样本的追问与提示全文做字面重合 +
+//     字数上限检查，命中 forbidden_leaks / Rubric 要点或超限即违规；判定跳过的样本无产出不检查；
+//     泄露违规计入该遍「未通过」且不可被样本级确认豁免，但不算「跑批失败样本」）；
 //   - 任一样本跑批失败同样阻断（门槛数据不完整不得放行）；
 //   - 等于阈值即放行；结论四态：一遍过 / 抖动放行（首跑未过、复跑单跑指标全过）/ 确认放行（两遍单跑未过，
 //     但样本级确认达标且抖动率未超线，followup 专用）/ 双跑阻断（退出码 1，其余退出码 0）；
@@ -40,11 +43,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import path from "node:path";
 
 import { AI_MODEL, createAiClientFromEnv } from "../server/ai/client.ts";
-import {
-  buildFollowupMessages,
-  parseFollowupGateOutput,
-} from "../server/ai/followup.ts";
-import { parsePromptContent } from "../server/ai/prompts/registry.ts";
+import { parseTrustedPrompt } from "../server/ai/prompts/output-contract.ts";
+import { generateFollowups } from "../server/ai/followup.ts";
 import {
   findActivePromptVersion,
   insertEvalRun,
@@ -69,6 +69,14 @@ import {
   loadGateHumanReviewFile,
   loadGateSampleSet,
 } from "./lib/eval-sample-loaders.ts";
+import { resolveFilePrompt, validatePromptSource } from "./lib/regression-file-prompt.ts";
+import { followupEvidenceComplete, matchingPromptEvidence, promptEvidence } from "./lib/regression-evidence.ts";
+import { loadStandardReferences } from "../server/modules/content/standard-references.ts";
+import { loadQuestionDirectory } from "../server/modules/content/load-questions.ts";
+import { standardReferenceEvidence } from "./lib/standard-reference-evidence.ts";
+import {
+  checkFollowupLeak,
+} from "./lib/followup-leak-check.ts";
 import {
   analyzeGateComparison,
   createMockGateRunner,
@@ -134,8 +142,23 @@ if (!suiteArg || !["scoring", "followup"].includes(suiteArg)) {
   process.exit(1);
 }
 const suite: Suite = suiteArg;
+if (process.argv.includes("--mock") && process.argv.includes("--live")) {
+  console.error("不能同时指定 --mock 与 --live");
+  process.exit(1);
+}
 const live = process.argv.includes("--live");
 const versionArg = argValue("--version");
+if (["--prompt-source", "--version"].some((flag) => process.argv.filter((arg) => arg === flag).length > 1)) {
+  console.error("--prompt-source 和 --version 不可重复");
+  process.exit(1);
+}
+let promptSource: "file" | "database";
+try {
+  promptSource = validatePromptSource(argValue("--prompt-source"), suite, versionArg);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
 const outPath = argValue("--out");
 const cacheArg = argValue("--cache");
 const onlyArg = argValue("--only");
@@ -173,6 +196,8 @@ function retryCachePath(cacheFile: string, round: number): string {
 
 /* ============================== 断点缓存（JSONL 逐行追加，命中即跳过；编排内核见 scripts/lib/serial-runner.ts） ============================== */
 
+let currentEvidence: ReturnType<typeof promptEvidence> | null = null;
+
 function loadJsonlCache<T extends { label: string; attempts: number }>(file: string, validate: (raw: unknown) => raw is T): JsonlCache<T> {
   const entries = new Map<string, T>();
   if (existsSync(file)) {
@@ -181,8 +206,17 @@ function loadJsonlCache<T extends { label: string; attempts: number }>(file: str
       if (!trimmed) continue;
       try {
         const entry = JSON.parse(trimmed) as unknown;
-        if (validate(entry)) entries.set(entry.label, entry);
-      } catch {
+        if (validate(entry)) {
+          if (live && (!currentEvidence || !matchingPromptEvidence((entry as T & { promptEvidence?: unknown }).promptEvidence, currentEvidence))) {
+            throw new Error("缓存来源与实际 prompt 不一致或缺失，无法核验，请使用新缓存");
+          }
+          if (!live && (entry as T & { promptEvidence?: unknown }).promptEvidence) {
+            throw new Error("缓存来源与 mock 模式不一致，请使用新缓存");
+          }
+          entries.set(entry.label, entry);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("缓存来源")) throw error;
         console.error(`缓存行解析失败，已忽略：${trimmed.slice(0, 60)}…`);
       }
     }
@@ -192,14 +226,14 @@ function loadJsonlCache<T extends { label: string; attempts: number }>(file: str
 }
 
 function appendCache<T extends { label: string; attempts: number }>(cache: JsonlCache<T>, entry: T): void {
-  appendFileSync(cache.path, `${JSON.stringify(entry)}\n`, "utf8");
+  appendFileSync(cache.path, `${JSON.stringify(currentEvidence ? { ...entry, promptEvidence: currentEvidence } : entry)}\n`, "utf8");
   cache.entries.set(entry.label, entry);
 }
 
 /* ============================== 版本解析（live：回归目标版本的 prompt 模板） ============================== */
 
 interface ResolvedVersion {
-  id: string;
+  id: string | null;
   version: string;
   templates: PromptTemplatePair;
 }
@@ -213,10 +247,11 @@ async function resolveRegressionVersion(name: string): Promise<ResolvedVersion> 
       `未找到 prompt 版本行（${name} ${versionArg ?? "active"}）——先经 scripts/prompt-register.ts 登记/激活`,
     );
   }
-  const templates = parsePromptContent(row.content);
+  const templates = parseTrustedPrompt(name, row.version, row.content, row.contentHash);
   if (!templates) {
     throw new Error(`prompt 版本 ${name}/${row.version} 的 content 非法（非 JSON canonical），请重新登记`);
   }
+  currentEvidence = promptEvidence("database", row.version, row.content, 0.2, templates.outputContract);
   return { id: row.id, version: row.version, templates };
 }
 
@@ -243,7 +278,7 @@ function isScoringCacheEntry(raw: unknown): raw is ScoringCacheEntry {
 
 /** 单遍跑批结果（双跑确认制的每遍产出） */
 interface SuiteRunOutcome<TMetrics> {
-  /** 该遍整体通过 = 门槛全过 且 无跑批失败样本（补跑后仍失败才计入） */
+  /** 该遍整体通过 = 门槛全过 且 无跑批失败样本（补跑后仍失败才计入）且无泄露违规 */
   passed: boolean;
   metrics: TMetrics;
   verdict: GateVerdict;
@@ -252,6 +287,10 @@ interface SuiteRunOutcome<TMetrics> {
   failureLines: string[];
   /** 初次失败、定向补跑成功的样本（可读文案含初次失败原因；指标已并入） */
   retriedSucceededLines: string[];
+  /** 泄露规则检查违规数（followup 套件；scoring 恒 0） */
+  leakViolationCount: number;
+  /** 泄露违规明细（可读文案：样本、命中规则、摘录） */
+  leakViolationLines: string[];
   /** 供 eval_runs 留档的套件自有数据（scoring：analysis/humanAlignment；followup：comparison） */
   artifacts: Record<string, unknown>;
 }
@@ -317,6 +356,8 @@ async function executeScoringRun(
     retriedSucceededLines: merged.retriedSucceeded.map(
       (r) => `${r.label}：${r.firstError}（初次失败，定向补跑成功）`,
     ),
+    leakViolationCount: 0, // scoring 套件无泄露检查项（三查③仅追问 prompt）
+    leakViolationLines: [],
     artifacts: { analysis, humanAlignment },
   };
 }
@@ -456,6 +497,8 @@ interface FollowupCacheEntry {
   shouldFollowup: boolean;
   reason: string;
   followupCount: number;
+  /** 追问与提示全文（泄露规则检查输入；旧版缓存无此字段 → 该样本跳过泄露检查并提示） */
+  followups?: { question: string; hint: string }[];
   latencyMs: number;
   attempts: number;
 }
@@ -465,6 +508,8 @@ interface FollowupRunResult {
   shouldFollowup: boolean;
   reason: string;
   followupCount: number;
+  /** 追问与提示全文（泄露规则检查输入） */
+  followups: { question: string; hint: string }[];
   latencyMs: number;
 }
 
@@ -496,12 +541,14 @@ async function executeFollowupRun(
             shouldFollowup: gate.shouldFollowup,
             reason: gate.reason,
             followupCount: gate.followups.length,
+            followups: gate.followups,
             latencyMs,
           },
           entry: {
             shouldFollowup: gate.shouldFollowup,
             reason: gate.reason,
             followupCount: gate.followups.length,
+            followups: gate.followups,
             latencyMs,
           },
         };
@@ -510,6 +557,7 @@ async function executeFollowupRun(
         shouldFollowup: entry.shouldFollowup,
         reason: entry.reason,
         followupCount: entry.followupCount,
+        followups: entry.followups ?? [], // 旧版缓存无追问全文：泄露检查无法通过
         latencyMs: entry.latencyMs,
       }),
       cache,
@@ -536,15 +584,54 @@ async function executeFollowupRun(
   for (const row of comparison.rows) {
     verdictMap[`${row.questionId}#${row.sampleIndex}`] = { machine: row.machine, reason: row.reason };
   }
+
+  // 泄露规则检查（T28 三查③规则化，D31）：仅对判定追问且产出全文的样本
+  // （判定跳过/灰区无追问产出不检查；结构 1~2 条由 parseFollowupGateOutput 保证）。
+  // 缺少追问全文无法检查，必须阻断。
+  const leakViolations: { label: string; blindId: string; kind: string; source: string; excerpt: string }[] = [];
+  const leakSkipped: string[] = [];
+  for (const r of merged.results) {
+    if (!r.value.result.shouldFollowup) continue;
+    if (!followupEvidenceComplete(true, r.value.result.followupCount, r.value.result.followups)) {
+      leakSkipped.push(gateSampleLabel(r.value.task));
+      continue;
+    }
+    const items = r.value.result.followups.flatMap((f) => [
+      { role: "question" as const, text: f.question },
+      { role: "hint" as const, text: f.hint },
+    ]);
+    const rubric = r.value.task.input.rubric;
+    const violations = checkFollowupLeak({
+      items,
+      forbiddenLeaks: rubric.forbidden_leaks,
+      rubricPoints: Object.values(rubric.dimensions).flat(),
+    });
+    for (const v of violations) {
+      leakViolations.push({
+        label: gateSampleLabel(r.value.task),
+        blindId: r.value.task.blindId,
+        kind: v.kind,
+        source: v.source,
+        excerpt: v.excerpt,
+      });
+    }
+  }
+  if (leakSkipped.length > 0) {
+    console.warn(`泄露检查阻断（缓存缺追问全文）：${leakSkipped.join("、")}——live 重跑后可检查`);
+  }
+
   const metrics = extractFollowupGateMetrics(comparison);
   const verdict: GateVerdict = evaluateFollowupGate(metrics, followupThresholds);
   const failures = merged.failures;
-  const passed = verdict.passed && failures.length === 0;
+  // 泄露违规 = 0 为硬门槛（计入该遍未通过判定，但不算「跑批失败样本」）
+  const passed = verdict.passed && failures.length === 0 && leakViolations.length === 0 && leakSkipped.length === 0;
 
   const thresholdRows: ThresholdRow[] = [
     { metric: "放水数（人审该追问但判跳过）", actual: String(metrics.missCount), threshold: `≤ ${followupThresholds.missMax}`, passed: metrics.missCount <= followupThresholds.missMax },
     { metric: "误伤率（人审不该追问但判追问）", actual: metrics.harmRate === null ? "无可比样本" : `${(metrics.harmRate * 100).toFixed(1)}%`, threshold: `≤ ${(followupThresholds.harmRateMax * 100).toFixed(1)}%`, passed: metrics.harmRate === null || metrics.harmRate <= followupThresholds.harmRateMax },
     { metric: "跑批失败样本数", actual: String(failures.length), threshold: "= 0", passed: failures.length === 0 },
+    { metric: "泄露检查缺全文样本数", actual: String(leakSkipped.length), threshold: "= 0", passed: leakSkipped.length === 0 },
+    { metric: "泄露违规数（三查③规则检查）", actual: String(leakViolations.length), threshold: "≤ 0", passed: leakViolations.length === 0 },
   ];
   const sampleRows = [
     "| 样本 | blindId | 人审判定 | 机器判定 | 结论 | 机器 reason |",
@@ -564,7 +651,11 @@ async function executeFollowupRun(
     retriedSucceededLines: merged.retriedSucceeded.map(
       (r) => `${r.label}：${r.firstError}（初次失败，定向补跑成功）`,
     ),
-    artifacts: { comparison, verdictMap },
+    leakViolationCount: leakViolations.length + leakSkipped.length,
+    leakViolationLines: [...leakSkipped.map((label) => `${label}：缺少追问全文，无法检查泄露`), ...leakViolations.map(
+      (v) => `${v.label}（${v.blindId}）：${v.kind === "forbidden_leak" ? "命中禁止泄露点" : v.kind === "rubric_point" ? "命中 Rubric 要点" : "超出字数上限"}「${v.source}」摘录：${v.excerpt}`,
+    )],
+    artifacts: { comparison, verdictMap, leakViolations },
   };
 }
 
@@ -577,21 +668,18 @@ async function runFollowupSuite(): Promise<{ exitCode: number }> {
     if (unknown.length > 0) throw new Error(`--only 包含未知样本标签：${unknown.join(", ")}`);
     tasks = allTasks.filter((task) => onlyFilter.includes(gateSampleLabel(task)));
   }
-  const human = loadGateHumanReviewFile(tasks);
+  const human = loadGateHumanReviewFile(allTasks);
 
-  const version = live ? await resolveRegressionVersion(SUITE_PROMPT_NAME.followup) : null;
+  const fileVersion = promptSource === "file" ? resolveFilePrompt(versionArg) : null;
+  const version: ResolvedVersion | null = fileVersion ?? (live ? await resolveRegressionVersion(SUITE_PROMPT_NAME.followup) : null);
+  if (fileVersion && live) currentEvidence = fileVersion.evidence;
+  if (promptSource === "file") console.log(`文件候选 ${fileVersion!.version}：不查询或写入数据库，报告仅存本地。${live ? "" : "当前为 mock 桩，结果不反映模型质量。"}`);
   const versionLabel = live ? version!.version : (versionArg ?? "mock");
   const runner: GateRunner = live
     ? (() => {
         const client = createAiClientFromEnv();
         return async (input) => {
-          const result = await client.chatCompletion({
-            messages: buildFollowupMessages(input, version!.templates),
-            temperature: 0.3, // 与生产链路一致（server/ai/followup.ts generateFollowups 同参数）
-            maxCompletionTokens: 4096,
-            responseFormat: { type: "json_object" },
-          });
-          return parseFollowupGateOutput(result.content);
+          return generateFollowups(input, { client, templates: version!.templates });
         };
       })()
     : createMockGateRunner(tasks);
@@ -611,10 +699,15 @@ async function runFollowupSuite(): Promise<{ exitCode: number }> {
   });
 
   // 样本级双跑确认（两遍都跑完才判定）：两遍单跑皆未过时，逐样本对齐两遍判定——
-  // 两遍一致才计确认放水/确认误伤；遍间不一致进边界抖动清单（不计失败），抖动率超线仍阻断
+  // 两遍一致才计确认放水/确认误伤；遍间不一致进边界抖动清单（不计失败），抖动率超线仍阻断。
+  // 泄露违规属硬门槛：任一遍有泄露违规时不进入样本级确认（泄露违规不可被确认放行豁免）。
   let sampleConfirm: SampleConfirmResult | null = null;
   let sampleGate: GateVerdict | null = null;
-  if (runs.length >= 2 && runs.every((run) => !run.passed)) {
+  const runsCleanOfLeaks = runs.every((run) => run.leakViolationCount === 0);
+  if (runs.length >= 2 && runs.every((run) => !run.passed) && !runsCleanOfLeaks) {
+    console.log("样本级确认跳过：存在泄露违规（三查③硬门槛不可豁免）。");
+  }
+  if (runs.length >= 2 && runs.every((run) => !run.passed) && runsCleanOfLeaks) {
     sampleConfirm = confirmSampleRuns({
       tasks,
       human,
@@ -638,7 +731,7 @@ async function runFollowupSuite(): Promise<{ exitCode: number }> {
   }
   const aggregate = aggregateConfirmRuns(
     runs.map((r) => ({ passed: r.passed })),
-    { sampleConfirmedPassed: sampleGate?.passed === true },
+    { sampleConfirmedPassed: sampleGate?.passed === true, hardGateFailed: !runsCleanOfLeaks },
   );
   const first = runs[0];
   // consistencyScore 口径：first-pass/flaky-pass 取对应遍的单跑放水数；confirmed-pass 取确认放水数
@@ -671,10 +764,22 @@ async function runFollowupSuite(): Promise<{ exitCode: number }> {
             })),
           }
         : undefined,
-    extraSections:
-      runs.length > 1
+    extraSections: [
+      ...(runs.length > 1
         ? [{ title: "复跑逐样本明细", rows: runs[runs.length - 1].sampleRows }]
-        : undefined,
+        : []),
+      // 泄露规则检查（三查③）违规明细：各遍分行（无违规不出区块）
+      ...(runs.some((run) => run.leakViolationLines.length > 0)
+        ? [
+            {
+              title: "泄露规则检查（三查③）违规明细",
+              rows: runs.flatMap((run, index) =>
+                run.leakViolationLines.map((line) => `- [${index === 0 ? "首跑" : `复跑${index}`}] ${line}`),
+              ),
+            },
+          ]
+        : []),
+    ],
     // 样本级确认区块（仅双跑且触发样本级判定时下发；单跑/首跑即过不出现）
     sampleConfirm:
       sampleConfirm && sampleGate
@@ -797,6 +902,18 @@ async function persistRun(input: {
   consistencyScore: number | null;
   extra: unknown;
 }): Promise<void> {
+  const evidence = currentEvidence ?? { source: cacheArg ? "mock_or_unverified_cache" : "mock", version: input.versionLabel, contentHash: null, temperature: null };
+  const questionIds = ["B3", "B5", "B7", "B10", "B12", "B14", "B16", "B17"];
+  const knownQuestionIds = new Set(loadQuestionDirectory(path.resolve("content/questions"))
+    .map((item) => item.content?.id).filter((id): id is string => id !== undefined));
+  const standards = standardReferenceEvidence(loadStandardReferences(
+    path.resolve("content/standard-references"),
+    path.resolve("task/evidence/standard-reference-approvals"),
+    questionIds,
+    knownQuestionIds,
+  ), questionIds);
+  const annotatedReport = `${input.report}\n\n提示词证据：${JSON.stringify(evidence)}\n标准材料状态（不作为模型输入）：${JSON.stringify(standards)}\n`;
+  console.log(`提示词证据：${JSON.stringify(evidence)}`);
   // mock 默认只打印不落盘；live 写默认报告路径 + eval_runs 留档
   const reportFile = outPath
     ? path.resolve(outPath)
@@ -805,18 +922,24 @@ async function persistRun(input: {
       : null;
   if (reportFile) {
     mkdirSync(path.dirname(reportFile), { recursive: true });
-    writeFileSync(reportFile, input.report, "utf8");
+    writeFileSync(reportFile, annotatedReport, "utf8");
     console.log(`报告已写入：${reportFile}`);
   } else {
     console.log("（mock 模式未指定 --out，报告仅打印不落盘，不写 eval_runs）");
   }
   if (!live) return;
+  if (input.version?.id == null) {
+    console.log("文件候选不写入 eval_runs。");
+    return;
+  }
   // eval_runs 留档（live 模式每次运行）：consistencyScore 口径——scoring 存 MAE、followup 存放水数
   await insertEvalRun(prisma, {
     promptVersionId: input.version!.id,
     consistencyScore: input.consistencyScore,
     report: {
       suite: input.suite,
+      promptEvidence: evidence,
+      standardReferenceEvidence: standards,
       version: input.versionLabel,
       generatedAt: new Date().toISOString(),
       reportFile,
@@ -836,5 +959,6 @@ try {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 } finally {
-  await prisma.$disconnect();
+  if (promptSource === "database") await prisma.$disconnect();
 }
+

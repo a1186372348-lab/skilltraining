@@ -186,3 +186,40 @@ describe("draft 不抢 active（T28 调优：v2 登记纪律）", () => {
     expect((await findActivePromptVersion(prisma, NAME))?.id).toBe(v8.id);
   });
 });
+
+it("同名并发激活与回滚保持唯一 active，失败不破坏现有状态", async () => {
+  const name = `${NAME}-concurrent`;
+  try {
+    const rows = await Promise.all(["v1", "v2", "v3"].map((version) =>
+      registerPromptVersion(prisma, { name, version, content: contentA, contentHash: `hash-${version}` }),
+    ));
+    await Promise.all(rows.map((row) => transitionPromptStatus(prisma, row.id, "passed")));
+    await transitionPromptStatus(prisma, rows[0].id, "active");
+    await Promise.all([transitionPromptStatus(prisma, rows[1].id, "active"), transitionPromptStatus(prisma, rows[2].id, "active")]);
+    expect((await listPromptVersions(prisma, name)).filter((row) => row.status === "active")).toHaveLength(1);
+    await Promise.all([rollbackPrompt(prisma, name), rollbackPrompt(prisma, name)]);
+    const before = await listPromptVersions(prisma, name);
+    expect(before.filter((row) => row.status === "active")).toHaveLength(1);
+    const failingDb = {
+      $transaction: (work: (tx: unknown) => Promise<unknown>, options: { isolationLevel: "Serializable" }) =>
+        prisma.$transaction(async (tx) => {
+          let updates = 0;
+          return work({ promptVersion: {
+            findMany: tx.promptVersion.findMany.bind(tx.promptVersion),
+            update: async (args: Parameters<typeof tx.promptVersion.update>[0]) => {
+              updates += 1;
+              if (updates === 2) throw new Error("injected failure");
+              return tx.promptVersion.update(args);
+            },
+          } });
+        }, options),
+    } as unknown as PrismaClient;
+    await expect(rollbackPrompt(failingDb, name)).rejects.toThrow("injected failure");
+    expect(await listPromptVersions(prisma, name)).toEqual(before);
+    const draft = await registerPromptVersion(prisma, { name, version: "draft", content: contentA, contentHash: "draft" });
+    await expect(transitionPromptStatus(prisma, draft.id, "active")).rejects.toThrow();
+    expect(await listPromptVersions(prisma, name)).toEqual([...before, expect.objectContaining({ id: draft.id, status: "draft" })]);
+  } finally {
+    await prisma.promptVersion.deleteMany({ where: { name } });
+  }
+});

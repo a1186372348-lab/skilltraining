@@ -12,19 +12,26 @@
 - 概述：每日一题完整链路——大厅选题/回看 → 案例 → 作答 → 5 层渐进提示 → AI 总监追问 → 终答 → 评分 → 反馈页 → 再练一题（D27：训练链路合并为单一「产品训练」模块，不离开模块的连续闭环）。
 - 用户入口：`app/training/`（大厅，模块主页：当前训练卡三态 + 训练历史列表）；工作台 `app/training/session/[id]/`（P3，三栏布局，按会话寻址）；反馈页 `app/training/feedback/[id]/`（P4）；回放详情 `app/training/history/[id]/`（只读）。旧路由 `/today`、`/history` 307 重定向到新路由。
 - API：`app/api/training/`（hub、today、[id]、[id]/abandon（T38 终止）、hint、first-answer、followup-retry、final-answer、extra、score-notifications）。
-- 支撑模块：`server/modules/training`（状态机、系数、大厅视图 hub-view、单会话视图）、`scoring`（Rubric 评分）、`selection`（选题）、`profile`（画像更新）、`server/ai/followup.ts`（追问）。
-- 关键规则：BR-1/BR-2（有效分与系数）、BR-3（提示）、BR-4（追问）、BR-7（反馈必须具体可行动）、D7/D22/D23/D27；追问闸门（T35 / D37）：首答后同一次 AI 调用先判定必要性——主测维度（abilityTags[0]）无重大缺项、证据链完整则不追问，前端渲染正向零追问卡直进终答；判定该追问则给 1~2 问；闸门判定记录两分支落库（followups jsonb 首元素恒为 gate_decision 标记：shouldFollowup + 中文判定理由，仅审计不下发；存量 gate_skip 标记读取侧兼容），并配 gate-probe 探针（`scripts/gate-probe.ts`：--recent 判定分布监测，全部为同一判定时警示形同虚设；--live 真实调 DeepSeek 核查思考链）；追问生成失败态（空数组，与闸门跳过可区分）隐藏作答输入区，提供「重试本次对话」（followup-retry，幂等；闸门跳过会话 409 FOLLOWUP_GATE_SKIPPED 守卫）与「跳过追问直接作答」逃生口（T37 / D39）；训练终止与重启（T38 / D40）：进行中态当前训练卡提供「重启训练」（两步内联确认），终止为状态推进（`abandoned` 终态）而非删除——不评分不计入画像，历史以「已终止」徽章只读展示；仅未提交终答的日常会话（含加练）可终止（基线/已交终答/已评分一律 409）；被终止题进入选题排除集，重启走 get-or-create 出新题；终止会话的工作台直达 409 `SESSION_ABANDONED`，前端挡回大厅。
+- 支撑模块：`server/modules/training`（状态机、系数、大厅视图 hub-view、单会话视图）、`scoring`（Rubric 评分 + 置信度落库）、`selection`（选题）、`profile`（画像更新）、`server/ai/followup.ts`（追问）、`server/ai/prompts/`（评分/追问 prompt 文件化与版本管理，T28 / D31，详见 F11）。
+- 关键规则：BR-1/BR-2（有效分与系数）、BR-3（提示）、BR-4（追问）、BR-7（反馈必须具体可行动）、D7/D22/D23/D27；追问闸门（T35 / D37）：首答后同一次 AI 调用先判定必要性——主测维度（abilityTags[0]）无重大缺项、证据链完整则不追问，前端渲染正向零追问卡直进终答；判定该追问则给 1~2 问（followup prompt v3，请求温度 0.2，D43）；闸门判定记录两分支落库（followups jsonb 首元素恒为 gate_decision 标记：shouldFollowup + 中文判定理由，仅审计不下发；存量 gate_skip 标记读取侧兼容），并配 gate-probe 探针（`scripts/gate-probe.ts`：--recent 判定分布监测，全部为同一判定时警示形同虚设；--live 真实调 DeepSeek 核查思考链）；闸门边界规则（T28 调优，D41）：「已有据的条件式判断可跳过；关键前提被当作事实，或证据被外推到未测量的结果，即使结构完整、总体得分较高，也应追问」——④未验证关键因果写成确定事实 / ⑤证据外推到未测量结果，且仅当缺陷承载核心结论（实质性门槛）才追问；评分置信度（T28 步骤 5 / BR-V2-6）：scoring prompt v2 起模型自评 confidence（0~100）落库 `Score.confidence`（可空，NULL = 无置信度信息，T27 消费侧不触发加深判定）；评分低分上浮修正（T28 首次正式调优）：scoring prompt v3——行文流畅/结构完整不得作为进入 40 档以上依据，主体由零证据断言/套话/后见之明构成时主测维度必须落 0~39 档，诊断指出套话时分数不得给到 40+（低分端印证硬约束）；追问生成失败态（空数组，与闸门跳过可区分）隐藏作答输入区，提供「重试本次对话」（followup-retry，幂等；闸门跳过会话 409 FOLLOWUP_GATE_SKIPPED 守卫）与「跳过追问直接作答」逃生口（T37 / D39）；训练终止与重启（T38 / D40）：进行中态当前训练卡提供「重启训练」（两步内联确认），终止为状态推进（`abandoned` 终态）而非删除——不评分不计入画像，历史以「已终止」徽章只读展示；仅未提交终答的日常会话（含加练）可终止（基线/已交终答/已评分一律 409）；被终止题进入选题排除集，重启走 get-or-create 出新题；终止会话的工作台直达 409 `SESSION_ABANDONED`，前端挡回大厅。
 - 状态：已交付（T05/T06/T07）；追问提示（T19）、三栏工作台（T20）、加练（T21）、追问可靠性（T22）、评分通知（T24）陆续增强；IA 重构（T25）合并为「产品训练」模块；追问闸门（T35 DONE，2026-10-20 人审校准 R2：放水 0、误伤率 20% 裁定达标——判定标准为结构性缺陷三类 + 证据-结论错配 + 达标即放行 + 承认未知保护，报告 `docs/v2/gate-calibration-report.md`）；训练终止与重启（T38 DONE，实测确认）。
 
 ## F2 基线测评
 
-- 概述：新用户完成初始画像后必做的综合测评，当前为 8 题试测名单（覆盖 8 维，按 id 升序固定顺序），结果作为画像初始值，完成后解锁日常训练；每次登录按状态分发落点——问卷未完成 → `/onboarding`，基线未完成 → `/baseline`（`server/modules/auth/post-login`）。
+- 概述：新用户完成初始画像后必做的综合测评，按八维固定顺序起步，低置信度维度可加深，新测评最多 12 题，旧超额进度按 D44 保留，结果作为画像初始值，完成后解锁日常训练；每次登录按状态分发落点——问卷未完成 → `/onboarding`，基线未完成 → `/baseline`（`server/modules/auth/post-login`）。
+- 基线首屏：状态请求返回 401 时转到登录页。接口返回空正文或非 JSON 时，页面显示中文加载提示和重新加载入口。
 - 用户入口：`app/baseline/`（复用训练组件，BaselineFlow 不跳反馈页；T36 / D38 题间并行评分——提交终答即后台触发评分、按已作答推进；题间过渡卡：提交后「已提交 ✓ + 分段进度 + 评审统一揭晓预告」，手动点「进入下一题」继续，最后一题为「完成测评，查看能力边界 →」进「能力边界生成中」收尾页，按评分完成进度逐项点亮 8 维，全部评完自动跳 /profile 揭晓）。
-- API：`app/api/training/baseline/`（状态查询 + 已作答未评分会话补触发自愈）；`app/api/training/today` 在全部已作答待评分期间返回 409 `BASELINE_SCORING_PENDING`，各入口挡回 `/baseline`；`app/api/training/extra` 对基线未完成用户返回 409 `BASELINE_REQUIRED`（T36 试测修补：加练接口原本无基线门禁）。
+- API：`app/api/training/baseline/` 查询进度，并按用户额度补触发已作答未评分会话。达到额度时继续返回进度，待额度恢复后可补触发；`app/api/training/today` 在全部已作答待评分期间返回 409 `BASELINE_SCORING_PENDING`，各入口挡回 `/baseline`；`app/api/training/extra` 对基线未完成用户返回 409 `BASELINE_REQUIRED`（T36 试测修补：加练接口原本无基线门禁）。
 - 基线题反馈页分流：反馈页按题目类型切换动作按钮——基线题不出「再练一题」，主按钮为「回到基线测评」（`feedback/view.ts` 下发 `questionKind`）；日常题不变。
-- 支撑模块：`server/modules/baseline`（双计数：answeredCount 推进、doneCount 完成判定）、复用 `training` / `scoring`（`trigger.ts` 后台评分触发共享入口）。
-- 关键规则：BR-9、D19、D38。
-- 状态：流程（T17a）与题目生产（T17b）进行中。
+- 支撑模块：`server/modules/baseline`（双计数：answeredCount 推进、doneCount 完成判定；`result-visibility.ts` 提供只读结果可见性条件）、复用 `training` / `scoring`（`trigger.ts` 后台评分触发共享入口）。
+- 关键规则：BR-9、D19、D30、D38、D44。
+- 状态：基线测评升级 T27 已于 2026-10-29 通过产品验收。
+
+基线状态在展示加深候选前预留会话，实际选中才标记激活；晚到评分产生新加深题时可从收尾页继续。API 使用白名单，不下发评分标准与提示树。
+
+统一揭晓保护：本人基线会话须同时具备完成标记和参与证据，才进入历史、详情或反馈；未完成、无参与证据或越权的详情及反馈返回 404，反馈拒绝时不触发评分。本人存在基线会话但完成标记为空时，画像、首页及周计划接口先返回 409 `BASELINE_REQUIRED`。从未有基线会话时，旧用户的读取接口仍可用；这不是免测规则，既有登录与今日训练仍按未完成基线分流，启动基线会话后至完成前暂停展示结果。旧版既无激活标记、又无答案、提示或评分等参与证据的空白 reading 与未激活预留无法区分，安全排除，不推测回填。
+
+- 基线测评以主问所属维度锚定加深；预建补测在首次实际选中时激活，晚到评分不挤掉已展示的补测。新测评最多 12 题，旧超额进度按 D44 保留且不再加题。
 
 ## F3 自适应出题 v0.1
 
@@ -36,51 +43,55 @@
 
 ## F4 能力画像
 
-- 概述：8 个一级维度的分数 / 观察次数 / 提示依赖特征 / 趋势；允许「未知」；主视图 3D 力导向网络图，点击节点看评估记录与下一步方向。
+- 概述：8 个一级维度行内展示分数、观察次数、提示依赖特征及趋势，允许「未知」；展开查看各次评估，按 D35 移除原 3D 视图及切换。行内训练包入口区分发起、同维继续、其他包进行中、题量不足及需先基线等状态。下一步方向先探索未知维度；全部已观察时按最低分、观察次数较少、固定维度顺序依次确定方向，结合该维度分数与提示依赖给出具体行动，不保证实际下一题必然命中。最近评估逐条展示对应评分的 AI 自评信心，0 有效，NULL 或非法值不显示，不计算平均或作为准确率。
 - 用户入口：`app/profile/`（P2）。
-- API：`app/api/profile/`。
-- 支撑模块：`server/modules/profile`；3D 图依赖 `react-force-graph-3d` + `three`。
+- API：`app/api/profile/`；能力画像各维度 `recentEvaluations` 的每条记录含 `confidence: number | null`。
+- 支撑模块：`server/modules/profile`、`server/modules/packs` 的只读可用性查询。已清理原 3D 组件、模型及其四项直接依赖；仅更新清单和锁文件，未安装或下载依赖。
 - 关键规则：BR-6、D20/D21。
-- 状态：页面已交付（T09），3D 网络图（T16）进行中。
+- 状态：页面基础已交付（T09），八维行内入口与训练包改造随 T30 验收。T32 已核对画像和反馈中的评分信心逐条对应，见 [T32 验收证据](../task/evidence/T32-20261103/验收说明.md#产品验收与结项)。
 
 ## F5 首页仪表盘
 
-- 概述：问候行 + 统计条 + 「当前训练」三态卡（T26 / D28：与产品训练大厅同一张共享组件 `app/training/current-training-card.tsx`、同一判定数据源 `getCurrentTrainingCard`，两处永不漂移；题面预览已由大厅与工作台承接，首页只保留三态行动卡）+ 能力总览 + 最近一条诊断。
+- 概述：问候与统计后以「起点—探索—强化—复测」战役地图为主区，展示实际阶段、节点状态和原因，地图下承接真实周计划及训练包卡；窄屏纵向排列。当前训练行动卡继续与大厅复用 `app/training/current-training-card.tsx` 和 `getCurrentTrainingCard`（T26 / D28），另保留能力总览及最近诊断；明确的日常入口带 `mode=daily`，仅跳过自动复测推荐。
 - 用户入口：`app/page.tsx`（P1），共享组件在 `app/_dashboard/`（三态卡除外，见上）。
-- API：`app/api/dashboard/`（载荷含 `currentTraining`，单卡失败降级 null 空态）。
-- 支撑模块：`server/modules/dashboard`；当前训练卡判定复用 `server/modules/training/hub-view.ts`。
-- 状态：已交付（T08）；三态卡同构（T26）。
+- API：`app/api/dashboard/`（载荷含 `currentTraining`，单卡失败降级 null 空态；未完成基线的结果揭晓保护先于卡片装配，返回 409 `BASELINE_REQUIRED`）。
+- 首页分流：仪表盘请求返回 401 时清除已显示的训练数据并跳转登录页。未完成基线时引导至基线测评，普通加载故障可重新加载。
+- 支撑模块：`server/modules/dashboard`；当前训练卡判定复用 `server/modules/training/hub-view.ts`。`app/_dashboard/campaign-map.tsx` 使用共享 `StageProvider` 的阶段接口事实，计划和包卡分别读取各自领域接口，故障独立显示。
+- 状态：基础首页（T08）与三态卡同构（T26）已交付；当前 UI-HOME 地图及卡片联动已有组件和受控关键页面验证，产品验收及未测边界见[工程证据](../task/evidence/V2-core-20261106/验收说明.md)。
 
 ## F6 训练历史与回放
 
-- 概述：训练历史列表并入产品训练大厅（D27④：加练并入，以「加练」徽章区分；基线会话不进列表；T38 / D40②：已终止会话以「已终止」徽章保留在列表中，不评分不计入画像）；回放详情只读（案例、两版答案、提示使用、追问记录、最终反馈、能力变化）。
+- 概述：训练历史列表并入产品训练大厅（D27④：加练以「加练」徽章区分；完成统一揭晓且有参与证据的本人基线会话以「基线」徽章展示；T38 / D40②：已终止会话以「已终止」徽章保留在列表中，不评分不计入画像）；回放详情只读（案例、两版答案、提示使用、追问记录、最终反馈、能力变化）。基线可见性及旧空白记录边界见 F2；当前训练卡仍排除基线，连续训练日期集与基线通知口径不变。
 - 用户入口：大厅历史列表 `app/training/`；回放详情 `app/training/history/[id]/`（P5，自 `app/history/` 迁移，旧列表页已被大厅取代不共存）。
-- API：`app/api/training/hub/`（大厅历史列表）、`app/api/history/[id]/`（回放详情）；`GET /api/history`（旧列表）已随大厅落地删除。
+- API：`app/api/training/hub/`（大厅历史列表项区分基线及合法训练来源，先按可见性过滤再倒序取最近 20 条；本人包来源可返回合法包编号以重入详情）、`app/api/history/[id]/`（回放详情含 `questionKind` 和白名单 `sourceType`，仍受本人及基线结果门禁）；`GET /api/history`（旧列表）已随大厅落地删除。界面优先识别基线，再区分复测/包，最后区分加练与日常，不以内部 `isExtra` 把复测误标为加练。
 - 支撑模块：`server/modules/training/hub-view.ts`（大厅列表）、`server/modules/history`（回放详情）。
 - 状态：已交付（T10）；T25 迁入产品训练模块。
 
 ## F7 认证与我的
 
-- 概述：邮箱魔法链接登录（无密码）；每次登录（verify 核销成功）按状态分发落点——无画像行 → `/onboarding`，基线未完成 → `/baseline`，全部完成 → `/`；「我的」页承载初始画像查看/编辑、兴趣方向、基础设置。
+- 概述：邮箱魔法链接登录（无密码）；每次登录（verify 核销成功）按状态分发落点——无画像行 → `/onboarding`，基线未完成 → `/baseline`，全部完成 → `/`；仅画像存在性查询失败时记录固定脱敏日志并回首页，基线状态查询及认证错误不由此降级；「我的」页承载初始画像查看/编辑、兴趣方向、基础设置。
 - 用户入口：`app/login/`、`app/onboarding/`（初始画像问卷，入口由登录分发提供）、`app/settings/`（P6）。
 - API：`app/api/auth/`、`app/api/profile/`（画像部分）。
 - 支撑模块：`server/modules/auth`（token/session/rate-limit/mailer；`post-login` 登录落点分发）、`profile`。
 - 关键规则：D17；登录与发信端点必须限流。
-- 状态：登录（T03）与初始画像（T04）已交付；我的页面（T15）进行中。
+- 状态：登录（T03）、初始画像（T04）与我的页面（T15）已交付；2026-10-22 修复设置页会话解析 bug（`app/settings/api.ts` + `contract.ts`）。
 
 ## F8 题库内容管线
 
-- 概述：YAML 题库 Git 管理，校验后导入数据库；案例五要素每字段必须带真实来源引用。
+- 概述：YAML 题库 Git 管理，校验后导入数据库；案例五要素每字段必须带真实来源引用；T33 第一批已交付基线候选题 B3~B18（八维各 2 道，共 16 道）与 B1/B2 转挑战日常题、日常题 Q01~Q12、Question `+domain` 字段迁移与老题回填、每题标准答案/评测样本 YAML 共 30 份（`content/eval/`，含 31 份人审评分样本覆盖 B3~B17 八题）。
 - 入口：`content/questions/`（draft/ 为草稿区）；命令 `npm run content:validate` / `content:import`。
 - 支撑模块：`server/modules/content`、`scripts/validate-content.ts`、`scripts/import-content.ts`。
 - 关键规则：BR-8、D18；无来源论断不得进入案例背景。
-- 状态：已交付（T02）；首日 12 题（T12）与真实来源改写（T13）完成。
+- 独立标准参考：B3～B18 的 16 题现各有一份已确认参考，正文与 `task/evidence/standard-reference-approvals/` 的记录绑定；原八题默认严格检查范围不变，16 题已另做显式结构及就绪验证。评测样本的质量标签与标准角色审批分开，不能互相推定。
+- 本地内容修订：B9 区分 2026 年四月数据口径与周年措辞；B11 改用九月决策时点前公开的二季度资料。两题编号、发布状态、评分要点与提示保持原样；修订仅在本地内容及隔离测试库中体现，尚未导入开发或线上题库。[确认来源](../task/evidence/standard-reference-approvals/T33-baseline-20261104-approval-context.md)。
+- 状态：T33 已于 2026-11-08 验收结项。第二、三批 36 道日常题与参考已定稿，当前本地题库共 50 道日常题、16 道基线题。全库在新隔离库重复导入逐字段一致，实际浏览器验证了问题定义组包及开题。参考正文保留在内容文件，来源核验及首标签难度空档见 [结项记录](../docs/v2/t33-approved-20261104.md#2026-11-08-真实题库浏览器补证与结项)。
+- 覆盖口径：本地内容文件现有 50 道 published 日常题（原有 14 道及本次定稿 36 道），不代表开发或线上数据库已经更新。按标签命中，八维均不少于 6 题；隔离库中八维各可选出基础 2、中等 2、挑战 1 并有备用题。按首标签统计的主测难度仍有空档，包括产品表达没有挑战题。两种口径不能互相替代；[具体合成用户样本](../docs/v2/t33-approved-20261104/specific-user-eligibility.json)的未练题组包与不足场景已验证，不能保证所有用户都有足够未练题。
 
 ## F9 反馈与感知问卷
 
-- 概述：每次训练后两问（1~5 分）+ 周期性一问，用于评估训练方向有效性。
-- 用户入口：反馈页内嵌（P4）。
-- API：`app/api/feedback-survey/`。
+- 概述：训练反馈展示各维度评分、诊断与对应的 AI 自评信心；有效整数 0～100（含 0）可见，NULL 或非法值不显示，不视为准确率或求平均。每次训练后两问（1~5 分）+ 周期性一问，用于评估训练方向有效性。
+- 用户入口：反馈页内嵌（P4）；窄屏下评分计算说明换至独立行，宽屏保留与得分、操作同排。大号得分及计算说明通常保留最多两位小数，不补末尾零；舍入会跨整数边界时保留原值，避免未达标分数显示成达标分，历史高精度值在此情形下可超过两位。评分与阶段判断仍使用保存的有效分，不由显示值反推。
+- API：`app/api/training/[id]/feedback/`（就绪反馈的 `scores` 每项含 `confidence: number | null`；基线结果受 F2 可见性保护）、`app/api/feedback-survey/`。
 - 支撑模块：`server/modules/feedback`。
 - 状态：已交付（T07）。
 
@@ -89,4 +100,52 @@
 - 概述：本地 PostgreSQL（docker-compose，5433）、测试库隔离、AI 网关用量监控、评分校准等脚本。
 - 入口：`docker-compose.yml`、`scripts/`（`prepare-test-db.ts`、`ai-usage-report.ts`、`scoring-calibration.ts` 等）。
 - 关键规则：`DEEPSEEK_API_KEY` 仅存服务端；测试一律运行于 `skilltraining_test`。
-- 状态：测试隔离（T14）已交付；用量监控（T23）进行中。
+- 状态：测试隔离（T14）与用量监控（T23）已交付；历史 MiMo 任务名保留，当前脚本读取 DeepSeek 审计事件。
+
+## F11 总监 Agent 可度量调优体系（T28 / D31）
+
+- 概述：评分/追问 prompt 的每次变更「可回归、可度量、可回滚」（BR-V2-7）——prompt 独立文件化（Git 管内容）、DB 管版本状态（draft→passed→active→rolled_back），统一回归门禁一键判定，不过门槛退出码 1。
+- prompt 文件：`server/ai/prompts/`（`scoring.v1~v3.ts` / `followup.v1~v10.ts`，`{{slot}}` 插值模板 + `template.ts` 渲染器；逐字快照保护网 `snapshot.test.ts`）；v4、v5、v6、v7 为登记脚本可选候选：v4 真实回归阻断，v5 真实双跑阻断；v6 默认跳过，仅具体重大缺陷或承载核心结论的未验证前提等才追问，真实双跑阻断、人审未完成；v7 增加核心断言与证据范围核对，离线接入已验证，真实单遍未通过、人工审核尚未完成，本次未请求启用；运行时解析 `resolver.ts`——进程内缓存（V1 单实例），DB active 版本优先、无 active 回退文件版本，legacy 版本哈希漂移仅 console.warn；V8/V9/V10 strict 契约或哈希异常失败关闭。
+- 版本管理：`prompt_versions` 表（`registry.ts` 纯函数状态机 + `repository.ts` 读写，同 name 至多一个 active，回滚仅选择最近创建的 passed 或 rolled_back 版本，无合格目标则保留当前版本；draft 不可绕过门禁）；登记脚本 `scripts/prompt-register.ts`（默认 draft，`--mark passed` / `--activate` 带状态机校验，同内容哈希幂等，内容漂移拒绝改写）；晋级序列 = 回归通过 → mark passed → activate → 重启进程生效。
+- 回归门禁：`scripts/prompt-regression.ts --suite scoring|followup [--version vN] [--live --cache 路径]`——scoring 门槛 MAE ≤9.9 / 排序反转 ≤5 / 各题 high-low 分离度 ≥20，followup 门槛 放水 ≤0 / 误伤率 ≤20% / 泄露违规 =0（三查③规则检查 `scripts/lib/followup-leak-check.ts`：字面重合 + 字数上限，判定跳过的样本无产出不检查，泄露违规不可被确认豁免）；机制：双跑确认制（首跑未过用全新缓存复跑；first-pass / flaky-pass / confirmed-pass / blocked 四态，D42）、遍内定向补跑（失败样本补跑 1 次并入指标）、followup 样本级确认（两遍一致的误判才计失败，边界抖动单列、抖动率默认 ≤15%，D42）；live 写 `eval_runs` 留档（含 passKind 与各遍指标）+ `docs/v2/regression/` 报告；三查①②人工抽检 `docs/v2/followup-review-checklist.md`（prompt 变更过门槛后必检）。
+- D45 请求契约：显式 enabled/high、`max_tokens` 默认总预算 24576，非法预算在请求前拒绝；live 回归缓存绑定契约并拒绝旧或异配置复用。新参数评分真实单遍 30 份成功、1 份输出非法 JSON 失败，原自动门槛未通过；成功样本指标与 6 题可算分离度的限制见[评分结果](../docs/v2/regression/scoring-v3-d45-20261103-review.md)。
+- 标准参考角色：八题候选独立于评测样本，结构和就绪分开检查；本地审批记录须与题目、候选及正文哈希匹配，匹配不认证审批人身份。八题标准正文经产品负责人认可，结构与严格就绪检查通过。摘要仅关联报告，不进入模型输入。
+- 运行审计：网关记录末次尝试的受限请求与响应元数据，未知值降级，指纹只记录校验后的摘要；新增审计元数据不包含提示、答案、评分标准、密钥或思考内容，D45 显式请求 thinking enabled / high 和 max_tokens 24576；官方说明 thinking 模式下温度不生效，历史实际模式与生效情况仍未知。
+- 回归证据：实时运行绑定实际 prompt 内容哈希与请求温度，追问请求温度 0.2；生效条件见 [运行参数核查](../docs/v2/t28-runtime-parameter-review-20261029.md)；缓存缺少追问全文时阻断，所有运行遍次均须通过泄露硬门槛。历史报告不补造哈希。
+- V8 候选以可信版本绑定 gate-evidence-v1，严格校验检查项、原文引用及追问关联；内部证据对外剥离，生产与回归使用同一解析路径。严格契约错误失败关闭，旧版保持兼容；离线结构校验不保证语义正确。其唯一授权真实单遍曾中止并已见误追问，未通过完整质量门禁、未启用。
+- V9 语义候选显式绑定 gate-evidence-v2：允许保留非重大缺项而跳过追问；跳过时两组均需合法检查且无重大项，引用、长度、泄露和追问关联继续严格校验。原主张、确认条件和追问价值由模型结合全文判断，程序不以关键词验证语义。V8/v1 保留旧约束，默认文件版本和活动版本未切换。
+- V10 显式绑定 gate-evidence-v2，强化支撑核心结论的关键因果前提核对；真实单遍完成 31 份，固定标签漏问 1 份，未通过原零漏问门槛，未启用。用户接受当前产品表现并停止继续语义调优（D46）；不改变自动门槛、标签或启用状态。
+- 文件候选回归：`scripts/prompt-regression.ts --suite followup --prompt-source file --version v9` 或 `v10` 静态选择对应可信候选，不接受任意文件路径；缺省为 mock 桩，只有显式 `--live` 才调用模型。该来源不查写数据库、不写 `eval_runs` 或版本状态，真实来源及模板哈希随本地报告和缓存留档；无数据库仍可验证隔离候选。缺省数据库来源与原晋级流程保留。
+- 评分输出校验：模型返回 JSON 的顶层必须是非 null、非数组对象，空值、数组及其他非对象按 `SCORING_OUTPUT_INVALID` 处理；confidence 缺失或无效仍降级为空，不阻断有效评分。
+- 数据契约：`prompt_versions`（id/name/version/content/contentHash/status/createdAt）、`eval_runs`（id/promptVersionId/consistencyScore/report Json/createdAt）、`Score.confidence`（可空 Int，T28 步骤 5）。
+- 历史晋级记录：scoring v3（低分上浮修正）、followup v3（闸门边界规则④⑤+实质性门槛，温度 0.2）曾晋级 active（D43）；本次未核对生产 active 状态。
+- 状态：T28 本轮开发于 2026-11-03 经产品负责人接受已知限制后验收 DONE，不代表自动门槛通过或 V10 启用；历史体系于 2026-10-22 交付；V8 离线实现已验证，V9 已接入独立语义候选及文件回归来源。V9 唯一授权单遍保存 9／31 份后进程中断，已见固定标签漏问 1 份，未启用，见[部分报告](../docs/v2/regression/followup-v9-20261103-partial.md)。V10 独立单遍完整返回 31／31，退出码 1，固定标签漏问 1 份、误问和跑批失败均为 0，未通过零漏问门槛且未启用，本轮未追加评测；独立语义预审未覆盖全部输出，见[结果解读](../docs/v2/regression/followup-v10-20261103-review.md)。
+
+## F12 周期训练计划（T29 / F5；D29/D32/D33②/D34/D35）
+
+- 概述：每周一首访懒生成「本周主攻维度」计划（规则引擎取画像最低分维度，同分按 ABILITY_DIMENSIONS 固定顺序；targetScore = min(100, 当前分+10)；理由模板文案，不用 AI）→ 日常选题优先命中主攻维度 → 周日首访生成周回顾（完成天数 + 主攻维度有效分变化）并归档；用户可拒绝，拒绝后本周不再重复推荐该维度的周计划，普通自适应仍可命中（可撤销）；存在未知维度时暂缓生成，引导先完成基线测评（D35）。
+- 用户入口：大厅 `app/training/`（当前训练卡下方 `PlanSection` 计划条：主攻卡 + 周一至周五排期三态 + 拒绝/撤销 + 周回顾卡）；首页悬挂计划卡（`HangingPlanCard`，当前训练卡下方，屏 1 样式）；接口或数据异常时前端降级为不展示计划卡，绝不影响训练主流程。
+- API：`app/api/plans/current`（GET 懒生成 + 视图 + 进度聚合；画像不完整 409 `PROFILE_INCOMPLETE` 待补测态）、`app/api/plans/reject`（POST zod 判别 reject/unreject，幂等）、`app/api/plans/review`（GET 周回顾，周日前 review=null；轻量 DB 端点不接限流，T24 先例）。三者在计划读取或写入前执行 F2 的基线揭晓保护，未完成返回 409 `BASELINE_REQUIRED`。
+- 回顾口径：计划会话按评分完成时间的 UTC 日期统计并返回完成日期，未完成日期不显示为已完成；首次回顾以生成时刻和下周一中较早者为截止，固定快照，跨周不随新评分变化。active 归档为 completed，rejected 保留且本周可撤销；并发写入复用首个快照。拒绝仅停止计划推荐，自适应仍可选择同维度。
+- 支撑模块：`server/modules/planning/` 负责懒生成、拒绝撤销、进度聚合和周回顾归档。`training/service.ts` 先承接活动训练包，`selection/service.ts` 对新题依次尝试计划、复测和自适应。规则引擎无需 AI。
+- 数据契约：`training_plans` 表（id/userId/weekStartDate@周一/focusDimension/startScore/targetScore/status(active/rejected/completed)/reason/createdAt；@@unique(userId,weekStartDate) 懒生成幂等）；`TrainingSession.sourceType`（daily/extra/baseline/plan/pack/retest，默认 daily）+ `sourceId`（计划命中落计划 id），历史会话已按 kind/isExtra 回填（迁移 20261022140000）；training_plans 迁移 20261022150000。
+- 状态：T29 已于 2026-10-29 通过产品验收。
+
+## F13 专项训练包（T30 / V2 F4）
+
+- 当前实现：`server/modules/packs/` 提供组题、本人包查询、开题、放弃及只读可用性查询；五个不同且用户未练的 published 日常题按基础 2、中等 2、挑战 1 组包，邻近难度递补时分别保留目标层和实际层。上一题真实评分完整后才解锁，五题后按目标维有效分输出轨迹与规则建议，不调用 AI 生成包级诊断。
+- 数据：`training_packs`、`pack_items` 与可空 `TrainingSession.linkedPlanId`，迁移为 `20261103120000_t30_training_packs`。数据库部分唯一索引限制每用户一个 active 包；条目保存首次开题时间，关联会话丢失不自动重开。删包不删训练会话与成绩；计划关联采用可延迟的删除保护。迁移已在隔离测试区验证并应用到本机开发库。
+- 事务与可见性：`server/lib/user-transaction.ts` 参数化锁定本人用户行；包服务的公共与事务内入口分别使用，不能嵌套开启同用户事务。创建/开题须完成基线，结果读取遵循基线揭晓保护。开题时才固化本人当 UTC 周有效且同维计划；包来源仍为 pack。
+- 输出：包详情仅返回有序题名、难度、状态、本人会话及有效分摘要；已评分答案和点评由既有本人历史接口按需展开，未下发 rubric 或标准答案。界面按来源识别训练包，不以内部 isExtra 标为加练。
+- 页面与来源：画像八维行内发起或继续包，包详情展示逐题状态、评分轨迹和规则建议；开题复用训练工作台，完成后从本人历史可重入包详情。未提交终答时可确认放弃整个包，保留已有答案和成绩；存在评分中条目时不允许借放弃重开。独立的复测不占用普通日常槽位，包优先级仍高于计划和复测。
+- 合成验收题显示：包详情与训练工作台将合成案例标题显示为「合成日常案例 N」或「合成基线案例 N」，训练工作台的题干去除开头完整的验收识别标记。评分服务使用原题干识别合成样本。
+- 状态：T30 已于 2026-11-08 验收结项。既有受控浏览器核对完整五题训练包，当前候选通过全量验证、逐源覆盖和题面修复浏览器补证。构建口径及实际观察范围见[结项证据](../task/evidence/V2-core-20261106/验收说明.md#2026-11-08-t30-专项训练包结项)。
+
+## F14 成长阶段与复测（T31 / V2 F6）
+
+- 当前实现：`server/modules/stages/` 持久化阶段事件、维度观察水位和复测尝试。合规 daily/extra/plan/pack 的同维连续三次有效分 ≥75 触发；baseline/retest 不参与三连，重复或损坏评分不凑成达标。复测有效分 ≥60 通过，否则回到待加强；无合格未练题时保留触发并挂起，已有有效复测优先继续。
+- 数据与恢复：新评分在真实提交事务内原子保存数据库序号和实际评分维度快照；历史记录不回填，旧窗口首次固定。漏回调可在本人锁内按事实恢复；复测结算只消费至其自身评分序号，之后的训练仍可触发新一轮。会话关联丢失或证据矛盾时标记待恢复，不自动重开、造零分或修复历史。
+- 接口与用户入口：`GET /api/stages/overview` 返回本人阶段、逐维状态与时间线；`POST /api/stages/retest/start` 只接受本人触发编号。`app/stages/` 展示阶段、复测和挂起原因；各业务侧栏由共享 `StageProvider` 提供阶段标识。未知维度优先显示探索，局部待复测另行保留。没有基线完成标记不启用阶段写入；存在未完成基线会话时仍执行统一揭晓保护。
+- 访问保护：两个阶段入口认证后、进入领域事务前，按用户和入口分别限制每分钟 30 次；超限返回 429 和等待秒数。额度仅在单进程内共享，不宣称跨实例全局限制；此保护不替代现有身份、归属和基线门禁。
+- 训练衔接：复测是独立来源和会话，不占每日训练槽位；默认优先级为包 > 可执行周计划 > 复测 > 自适应，`mode=daily` 明确跳过复测。未提交终答的复测可终止，保留已做内容与触发，下次换合格未练题；已交终答或评分中不允许借终止重开。只读回放按合法来源区分复测、包、加练和日常。
+- 状态：T31 已于 2026-11-08 验收结项。已在隔离测试区验证阶段写入故障后的恢复、复测终止保留首答和同触发换题。迁移已在隔离测试区验证并应用到本机开发库。发布前的旧版评分排空见 T39 准备材料。见 [结项证据](../task/evidence/V2-core-20261106/验收说明.md#2026-11-08-t31-成长阶段与复测结项)。

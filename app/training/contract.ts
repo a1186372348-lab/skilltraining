@@ -11,6 +11,7 @@ export type HubSessionState = "reading" | "answering" | "followup" | "scored" | 
 
 /** 进行中会话的阶段（D27 状态机：reading/answering→作答中；followup 未交终答→追问中；已交终答未评分→评分中） */
 export type HubSessionStage = "answering" | "followup" | "scoring";
+export type TrainingSourceType = "daily" | "extra" | "baseline" | "plan" | "pack" | "retest";
 
 /** 维度有效分摘要条目（当前卡得分条与历史行摘要共用，≤3 条） */
 export interface HubScoreSummary {
@@ -20,9 +21,9 @@ export interface HubScoreSummary {
 
 /** 当前训练卡三态（D27②） */
 export type HubCurrentCard =
-  | { kind: "in_progress"; sessionId: string; caseTitle: string; stage: HubSessionStage }
+  | { kind: "in_progress"; sessionId: string; caseTitle: string; stage: HubSessionStage; sourceType?: TrainingSourceType }
   | { kind: "not_started"; dateKey: string }
-  | { kind: "completed"; sessionId: string; caseTitle: string; scores: HubScoreSummary[] };
+  | { kind: "completed"; sessionId: string; caseTitle: string; scores: HubScoreSummary[]; sourceType?: TrainingSourceType };
 
 /** 「进行中」态卡片（从联合中收窄；view-model 与页面组件共用） */
 export type HubInProgressCard = Extract<HubCurrentCard, { kind: "in_progress" }>;
@@ -33,6 +34,10 @@ export interface HubHistoryItem {
   caseTitle: string;
   /** 是否加练（true→「加练」徽章，false→「每日」徽章） */
   isExtra: boolean;
+  /** 基线会话在存储层也使用 isExtra；展示优先使用此标识。 */
+  isBaseline?: boolean;
+  sourceType?: TrainingSourceType;
+  sourceId?: string | null;
   state: HubSessionState;
   /** 已提交终答（区分「追问中 / 评分中」徽章的依据） */
   hasFinalAnswer: boolean;

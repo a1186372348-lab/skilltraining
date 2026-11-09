@@ -18,6 +18,7 @@ export interface FeedbackDimensionScore {
   /** 有效得分 = 原始分 × 系数（BR-1） */
   effectiveScore: number;
   diagnosisText: string | null;
+  confidence?: number | null;
 }
 
 /** 问卷状态（D16：needsPeriodicQ3 为 true 时前端渲染第三问） */

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaClient, type Question } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { SCORING_ERROR_CODES as CODES } from "./errors";
 import { scoreSession } from "./service";
@@ -100,10 +100,11 @@ async function seedScorableSession(
   });
 }
 
-/** 构造 mock 评分实现：可按维度给分，记录入参 */
+/** 构造 mock 评分实现：可按维度给分，记录入参；confidence 缺省 null（v1 输出形态） */
 function fakeScorer(
   rawScores: Record<string, number>,
   tracker?: { calls: number; lastInput?: RubricScoringInput },
+  confidence?: number | null,
 ) {
   return async (input: RubricScoringInput): Promise<RubricScoringOutput> => {
     if (tracker) {
@@ -118,9 +119,42 @@ function fakeScorer(
       })),
       topIssue: "终答中「效率更高」的断言缺少衡量口径，应补充具体指标。",
       nextFocus: "下一步练「产品价值判断」中的价值量化类问题。",
+      confidence: confidence ?? null,
     };
   };
 }
+
+
+describe("scoreSession：confidence 落库（T28 切片 3）", () => {
+  it("输出含 confidence：写入每个维度行；缺失（v1 形态）降级 NULL 不阻断", async () => {
+    const userId = await newUser();
+    const withConfidence = await seedScorableSession(userId);
+    const first = await scoreSession(prisma, withConfidence.id, userId, {
+      scoreWithRubric: fakeScorer({ 用户理解: 80 }, undefined, 77),
+    });
+    expect(first.scores.every((row) => row.confidence === 77)).toBe(true);
+    const repeated = await scoreSession(prisma, withConfidence.id, userId, { scoreWithRubric: vi.fn() });
+    expect(repeated.scores.every((row) => row.confidence === 77)).toBe(true);
+    const rows = await prisma.score.findMany({ where: { sessionId: withConfidence.id } });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.confidence).toBe(77);
+    }
+
+    // v1 输出形态（无 confidence）：落 NULL（T27 消费侧按 NULL = 无置信度信息处理）
+    const legacy = await seedScorableSession(userId);
+    const oldResult = await scoreSession(prisma, legacy.id, userId, { scoreWithRubric: fakeScorer({ 用户理解: 80 }) });
+    expect(oldResult.scores.every((row) => row.confidence === null)).toBe(true);
+    const legacyRows = await prisma.score.findMany({ where: { sessionId: legacy.id } });
+    expect(legacyRows.length).toBeGreaterThan(0);
+    for (const row of legacyRows) {
+      expect(row.confidence).toBeNull();
+    }
+    const zero = await seedScorableSession(userId);
+    const zeroResult = await scoreSession(prisma, zero.id, userId, { scoreWithRubric: fakeScorer({}, undefined, 0) });
+    expect(zeroResult.scores.every((row) => row.confidence === 0)).toBe(true);
+  });
+});
 
 beforeAll(async () => {
   await ensureSeedQuestion();
@@ -286,6 +320,7 @@ describe("scoreSession：评分主链路（US-006/FR-5）", () => {
       dimensions: [{ dimension: "用户理解", rawScore: 80, diagnosis: "诊断" }],
       topIssue: "具体问题",
       nextFocus: "下一步",
+      confidence: null,
     });
 
     await expect(
@@ -304,9 +339,9 @@ describe("scoreSession：评分主链路（US-006/FR-5）", () => {
       // 外层评分实现被调用时，模拟并发另一方已抢先完成评分
       const racing = async (input: RubricScoringInput): Promise<RubricScoringOutput> => {
         await scoreSession(competitor, session.id, userId, {
-          scoreWithRubric: fakeScorer({ 用户理解: 55 }),
+          scoreWithRubric: fakeScorer({ 用户理解: 55 }, undefined, 78),
         });
-        return fakeScorer({ 用户理解: 99 })(input);
+        return fakeScorer({ 用户理解: 99 }, undefined, 12)(input);
       };
 
       const result = await scoreSession(prisma, session.id, userId, {
@@ -316,6 +351,7 @@ describe("scoreSession：评分主链路（US-006/FR-5）", () => {
       expect(result.state).toBe("scored");
       // 落库与返回的都是抢先一方的四元组，未被外层覆盖
       expect(result.scores.find((s) => s.dimension === "用户理解")?.rawScore).toBe(55);
+      expect(result.scores.find((s) => s.dimension === "用户理解")?.confidence).toBe(78);
       expect(await prisma.score.count({ where: { sessionId: session.id } })).toBe(3);
       expect(await prisma.sessionFeedback.count({ where: { sessionId: session.id } })).toBe(1);
     } finally {

@@ -84,6 +84,8 @@ async function seedSession(
     isExtra: boolean;
     finalAnswer: string;
     finalSubmittedAt: Date;
+    firstAnswer: string;
+    baselineActivatedAt: Date;
   }> = {},
 ) {
   return prisma.trainingSession.create({
@@ -96,6 +98,8 @@ async function seedSession(
       isExtra: overrides.isExtra ?? false,
       finalAnswer: overrides.finalAnswer ?? null,
       finalSubmittedAt: overrides.finalSubmittedAt ?? null,
+      firstAnswer: overrides.firstAnswer ?? null,
+      baselineActivatedAt: overrides.baselineActivatedAt ?? null,
     },
   });
 }
@@ -201,6 +205,29 @@ describe("GET /api/training/hub：当前训练卡三态", () => {
 });
 
 describe("GET /api/training/hub：历史列表", () => {
+  it("完成基线后仅列出有参与证据的本人基线，过滤先于 20 条上限", async () => {
+    const owner = await newUser();
+    const stranger = await newUser();
+    await prisma.userProfile.create({ data: {
+      userId: owner.userId, position: "产品经理", yearsExperience: "1-3年", industry: "软件",
+      familiarProducts: [], interestAreas: [], selfAssessment: [], baselineCompletedAt: new Date(),
+    } });
+    const baseTime = Date.now() - 60_000;
+    const activated = await seedSession(owner.userId, { questionId: BASELINE_KIND_QUESTION_ID, isExtra: true, baselineActivatedAt: new Date(), startedAt: new Date(baseTime) });
+    const oldAnswer = await seedSession(owner.userId, { questionId: BASELINE_KIND_QUESTION_ID, isExtra: true, firstAnswer: "旧作答", startedAt: new Date(baseTime - 1000) });
+    await seedSession(stranger.userId, { questionId: BASELINE_KIND_QUESTION_ID, isExtra: true, baselineActivatedAt: new Date() });
+    await prisma.trainingSession.createMany({ data: Array.from({ length: 22 }, (_, index) => ({
+      userId: owner.userId, questionId: BASELINE_KIND_QUESTION_ID, date: todayUtc(), isExtra: true,
+      state: "reading" as const, startedAt: new Date(baseTime + (index + 1) * 1000),
+    })) });
+    const daily = await seedSession(owner.userId, { startedAt: new Date(baseTime - 2000) });
+    const json = await (await GET(await buildRequest(owner.email))).json();
+    expect(json.data.history.map((item: { sessionId: string }) => item.sessionId)).toEqual([activated.id, oldAnswer.id, daily.id]);
+    expect(json.data.history[0]).toMatchObject({ isBaseline: true, isExtra: true });
+    expect(json.data.history[2]).toMatchObject({ isBaseline: false, isExtra: false });
+    expect(json.data.current).toMatchObject({ kind: "in_progress", sessionId: daily.id });
+  });
+
   it("基线会话（kind=baseline）不进历史、不触发进行中", async () => {
     const { email, userId } = await newUser();
     const baseline = await seedSession(userId, {

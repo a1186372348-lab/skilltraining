@@ -343,9 +343,10 @@ export interface ConfirmRunOutcome {
  */
 export function aggregateConfirmRuns(
   runs: ConfirmRunOutcome[],
-  options?: { sampleConfirmedPassed?: boolean },
+  options?: { sampleConfirmedPassed?: boolean; hardGateFailed?: boolean },
 ): { passKind: RegressionPassKind; passed: boolean } {
   if (runs.length === 0) throw new Error("aggregateConfirmRuns 至少需要一遍结果");
+  if (options?.hardGateFailed) return { passKind: "blocked", passed: false };
   if (runs[0].passed) return { passKind: "first-pass", passed: true };
   const laterPass = runs.slice(1).some((run) => run.passed);
   if (laterPass) return { passKind: "flaky-pass", passed: true };

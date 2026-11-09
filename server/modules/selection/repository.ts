@@ -7,6 +7,9 @@ import {
 
 import type { CandidateQuestion } from "./engine";
 
+/** 选题只读能力；普通 Prisma 客户端和事务客户端均可提供。 */
+export type SelectionDb = Pick<PrismaClient, "question" | "trainingSession" | "trainingPlan" | "userProfile" | "abilityProfile" | "score">;
+
 /**
  * 选题模块的数据访问（Repository 模式）：
  * 读 ability_profiles（经画像模块视图）、user_profiles、training_sessions、questions。
@@ -42,7 +45,7 @@ function parseStringArray(raw: unknown): string[] {
 }
 
 /** Prisma 实现：生产路径唯一数据入口 */
-export function createPrismaSelectionRepository(db: PrismaClient): SelectionRepository {
+export function createPrismaSelectionRepository(db: SelectionDb): SelectionRepository {
   return {
     async getProfileView(userId) {
       // 复用画像模块的全 8 维视图（未知维度补齐未知态）

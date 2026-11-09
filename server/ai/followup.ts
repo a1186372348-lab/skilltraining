@@ -1,3 +1,4 @@
+import { assertEvidenceInput, FollowupEvidenceError, validateFollowupEvidence } from "./followup-evidence.ts";
 import type { ChatMessage, AiClient } from "./client.ts";
 import { createAiClientFromEnv } from "./client.ts";
 import { FOLLOWUP_PROMPT_V1 } from "./prompts/followup.v1.ts";
@@ -165,15 +166,15 @@ export async function generateFollowups(
   input: FollowupInput,
   deps: GenerateFollowupsDeps = {},
 ): Promise<FollowupGateResult> {
+  if (deps.templates?.outputContract !== undefined && deps.templates.outputContract !== "gate-evidence-v1" && deps.templates.outputContract !== "gate-evidence-v2") throw new FollowupEvidenceError();
+  if (deps.templates?.outputContract) assertEvidenceInput(input);
   const client = deps.client ?? createAiClientFromEnv();
   const result = await client.chatCompletion({
     messages: buildFollowupMessages(input, deps.templates),
-    temperature: 0.2, // 低 temperature（R1/R2：减少自由发挥；2026-10-22 经 0.5 试验后回落至 0.2，压低边界样本判定抖动）
-    // deepseek-flash 为推理模型（D39）：推理 token 计入 max_completion_tokens，
-    // 预算过小会导致正文被截空（T22 起「200 空 content」已纳入网关重试）。
-    // T19 起每条追问附带一条提示，T35 起追加判定字段，产出略增；4096 是余量而非必需。
-    maxCompletionTokens: 4096,
+    temperature: 0.2, // 请求值；深度思考模式下不作为有效温度证据。
     responseFormat: { type: "json_object" },
   });
-  return parseFollowupGateOutput(result.content);
+  return deps.templates?.outputContract
+    ? validateFollowupEvidence(result.content, input, deps.templates.outputContract)
+    : parseFollowupGateOutput(result.content);
 }

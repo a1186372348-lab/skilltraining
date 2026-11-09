@@ -64,6 +64,7 @@ function makeScore(task: EvalSampleTask, overall: number): SampleScore {
         diagnosis: `诊断 ${dimension}`,
       })),
       topIssue: "最需优化的问题",
+      confidence: null,
       nextFocus: "下一步方向",
     },
     overall,
@@ -117,6 +118,7 @@ describe("overallScore", () => {
         { dimension: "用户理解", rawScore: 60, diagnosis: "d" },
       ],
       topIssue: "t",
+      confidence: null,
       nextFocus: "n",
     };
     expect(overallScore(output)).toBe(70);
@@ -361,6 +363,7 @@ function makeScoreWithDims(task: EvalSampleTask, dims: Record<string, number>): 
         diagnosis: `诊断 ${dimension}`,
       })),
       topIssue: "最需优化的问题",
+      confidence: null,
       nextFocus: "下一步方向",
     },
     overall: values.reduce((a, b) => a + b, 0) / values.length,

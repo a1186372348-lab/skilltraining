@@ -92,6 +92,14 @@ export interface SelectionOutcome {
   matchedInterest: string | null;
   matchedFamiliarProduct: string | null;
   independenceTraining: boolean;
+  /**
+   * 会话来源（T29 / BR-V2-1 优先级链：包 > 计划 > 复测 > 自适应）。
+   * 引擎（纯函数）不产出该字段——由服务层在计划层/自适应/降级各出口补齐；
+   * 值集与 Prisma TrainingSessionSource 枚举一致（字面量联合以保持本文件可 node 直跑）。
+   */
+  sourceType?: "daily" | "extra" | "baseline" | "plan" | "pack" | "retest";
+  /** 来源对象 id（计划命中时为计划 id；其余为 null） */
+  sourceId?: string | null;
 }
 
 /** 解析 ability_tags jsonb：仅保留字符串项（导入管线已校验，这里做防御性读取） */

@@ -17,6 +17,7 @@ const prisma = new PrismaClient();
 const createdUserIds: string[] = [];
 
 const SEED_QUESTION_ID = "00000000-0000-4000-8000-0000000000a9";
+const BASELINE_QUESTION_ID = "00000000-0000-4000-8000-0000000000aa";
 
 async function ensureSeedQuestion(): Promise<void> {
   const data = {
@@ -56,6 +57,11 @@ async function ensureSeedQuestion(): Promise<void> {
       where: { id: SEED_QUESTION_ID },
       create: { id: SEED_QUESTION_ID, ...data },
       update: data,
+    });
+    await prisma.question.upsert({
+      where: { id: BASELINE_QUESTION_ID },
+      create: { id: BASELINE_QUESTION_ID, ...data, kind: "baseline", status: "draft" },
+      update: { ...data, kind: "baseline", status: "draft" },
     });
   } catch {
     // 并发测试文件同时播种：冲突时忽略
@@ -122,6 +128,51 @@ afterAll(async () => {
 });
 
 describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", () => {
+  it("每条评估保留本次 confidence，最新 NULL 不借旧值，其他用户不混入", async () => {
+    await ensureSeedQuestion();
+    const owner = await newUser();
+    const other = await newUser();
+    const day = (value: number) => new Date(Date.UTC(2026, 9, value));
+    const zero = await seedScore(owner.id, "用户理解", 60, 0, day(1));
+    const older = await seedScore(owner.id, "用户理解", 70, 0, day(2));
+    const invalid = await seedScore(owner.id, "用户理解", 80, 0, day(3));
+    const latest = await seedScore(owner.id, "用户理解", 90, 0, day(4));
+    const foreign = await seedScore(other.id, "用户理解", 99, 0, day(5));
+    for (const [sessionId, confidence] of [[zero, 0], [older, 78], [invalid, 101], [foreign, 100]] as const) {
+      await prisma.score.updateMany({ where: { sessionId }, data: { confidence } });
+    }
+    await refreshAbilityProfile(prisma, owner.id, ["用户理解"]);
+    const response = await GET(buildRequest(owner));
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    const dimension = data.data.dimensions.find((item: { dimension: string }) => item.dimension === "用户理解");
+    expect(dimension.recentEvaluations.map((item: { sessionId: string; confidence: number | null }) => [item.sessionId, item.confidence])).toEqual([
+      [latest, null], [invalid, null], [older, 78], [zero, 0],
+    ]);
+  });
+  it("存在基线会话且尚未完成时不返回分数；无基线的旧用户不受影响，完成后揭晓", async () => {
+    await ensureSeedQuestion();
+    const user = await newUser();
+    await prisma.userProfile.create({ data: {
+      userId: user.id, position: "产品经理", yearsExperience: "1-3年", industry: "软件",
+      familiarProducts: [], interestAreas: [], selfAssessment: [],
+    } });
+    await seedScore(user.id, "用户理解", 73, 0, new Date());
+    await refreshAbilityProfile(prisma, user.id, ["用户理解"]);
+    expect((await GET(buildRequest(user))).status).toBe(200);
+    await prisma.trainingSession.create({ data: {
+      userId: user.id, questionId: BASELINE_QUESTION_ID, date: new Date(), isExtra: true,
+    } });
+    const blocked = await GET(buildRequest(user));
+    expect(blocked.status).toBe(409);
+    const body = await blocked.json();
+    expect(body.error.code).toBe("BASELINE_REQUIRED");
+    expect(JSON.stringify(body)).not.toContain("73");
+    await prisma.userProfile.update({ where: { userId: user.id }, data: { baselineCompletedAt: new Date() } });
+    const revealed = await GET(buildRequest(user));
+    expect(revealed.status).toBe(200);
+    expect((await revealed.json()).data.dimensions.find((d: { dimension: string }) => d.dimension === "用户理解").currentScore).toBe(73);
+  });
   it("从未训练的用户：8 维全部未知态 + 0/8 洞察 + 探索期方向 + 无整体依赖度", async () => {
     const user = await newUser();
 
@@ -135,7 +186,7 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
     expect(json.data.insight.nextFocus).toEqual({
       dimension: "问题定义",
       mode: "explore",
-      text: "下一题将优先探索「问题定义」",
+      text: "当前建议先探索「问题定义」，积累该维度的作答记录",
     });
     expect(json.data.hintDependencyOverall).toBeNull();
     expect(json.data.dimensions.map((d: { dimension: string }) => d.dimension)).toEqual([
@@ -186,7 +237,7 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
     expect(json.data.insight.nextFocus).toEqual({
       dimension: "问题定义",
       mode: "explore",
-      text: "下一题将优先探索「问题定义」",
+      text: "当前建议先探索「问题定义」，积累该维度的作答记录",
     });
 
     const comprehension = json.data.dimensions.find(
@@ -211,6 +262,7 @@ describe("GET /api/profile/ability：能力画像页视图（US-008 / FR-8）", 
       score: 90,
       scoredAt: day(4).toISOString(),
       caseTitle: "T09 集成测试种子题",
+      confidence: null,
     });
     expect(
       comprehension.recentEvaluations.map((e: { score: number }) => e.score),

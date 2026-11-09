@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "approvedReviewFingerprint": "5e38dc89b70c9ee4b998c44adeb328ee36b9af2c9817eb4cf0e8901e88c1369a",
+  "questions": 36,
+  "approvedReferences": 36,
+  "rawAfterHashesMatch": true,
+  "reviewedPreimagesMatch": true,
+  "unchangedExceptApprovalMetadata": true,
+  "approvalRecordsExactlyMatch": true,
+  "databaseAccess": false
+}

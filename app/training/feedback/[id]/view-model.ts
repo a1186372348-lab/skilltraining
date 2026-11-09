@@ -12,11 +12,11 @@ export const SCORING_POLL_INTERVAL_MS = 3000;
 /** 连续轮询失败达到该次数才展示错误态（瞬时网络抖动不打断等待） */
 export const MAX_CONSECUTIVE_POLL_FAILURES = 5;
 
-/** 大号有效分展示：整数去小数，最多一位小数；非法值显示占位符 */
+/** 常见分数最多显示两位小数；舍入跨整数边界时保留原值，非法值显示占位符 */
 export function formatScore(score: number): string {
   if (!Number.isFinite(score)) return "-";
-  const rounded = Math.round(score * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  const rounded = Math.round(score * 100) / 100;
+  return String(Math.floor(rounded) > Math.floor(score) ? score : rounded);
 }
 
 /** 系数展示：保留 1 位小数（规避 1−0.1×n 的浮点尾巴） */

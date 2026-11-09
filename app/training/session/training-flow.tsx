@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
+import { displayCaseTitle, displayMainQuestion } from "@/app/_shared/question-display";
+
 import {
   ApiError,
   fetchSessionById,
@@ -17,6 +19,8 @@ import {
 } from "./api";
 import type { FollowupRound, TodayView } from "./contract";
 import { TodayShell } from "./shell";
+import { PackContext } from "./pack-context";
+import { RetestContext } from "./retest-context";
 import type { ChatMessage, FollowupFailureMode, FollowupPanelMode, MaterialView } from "./view-model";
 import {
   FOLLOWUP_GATE_SKIP_MESSAGE,
@@ -202,7 +206,12 @@ export function TrainingFlow({
         prev ? { ...prev, state: res.state, finalAnswer: res.finalAnswer } : prev,
       );
       if (redirectToFeedbackOnDone) {
-        router.push(`/training/feedback/${payload.sessionId}`);
+        if (payload.sourceType === "pack") {
+          if (payload.sourceId) router.push(`/training/pack/${encodeURIComponent(payload.sourceId)}`);
+          else setActionError("训练包信息缺失，无法返回包详情；你仍可查看本题反馈。");
+        } else {
+          router.push(`/training/feedback/${payload.sessionId}`);
+        }
       } else {
         onFinalSubmitted?.();
       }
@@ -403,6 +412,14 @@ export function TrainingFlow({
 
         {payload ? (
           <>
+            {payload.sourceType === "pack" && payload.sourceId ? (
+              <PackContext packId={payload.sourceId} sessionId={payload.sessionId}
+                canAbandon={payload.finalSubmittedAt === null && payload.finalAnswer === null && payload.state !== "scored" && pendingAction === null} />
+            ) : payload.sourceType === "pack" ? <p className="mb-4 text-sm text-[#B45309]">专项训练包 · 状态待恢复</p> : null}
+            {payload.sourceType === "retest" && payload.sourceId ? (
+              <RetestContext sessionId={payload.sessionId}
+                canAbandon={payload.finalSubmittedAt === null && payload.finalAnswer === null && payload.state !== "scored" && pendingAction === null} />
+            ) : payload.sourceType === "retest" ? <p className="mb-4 text-sm text-[#B45309]">复测验证 · 状态待恢复</p> : null}
             {/* 三栏工作台（D23）：xl 起锁定单行高度、各栏自然排布 + 封顶内滚；xl 以下 order 恢复原有纵向堆叠次序 */}
             <div className="grid items-start gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-[320px_minmax(0,1fr)_288px] xl:grid-rows-1">
               {/* 左栏：案例卡 + 训练重点自然竖排；xl 起封顶，超高时案例卡内容区内滚（重点小卡 shrink-0 始终完整） */}
@@ -422,7 +439,7 @@ export function TrainingFlow({
                     今日问题
                   </span>
                   <h1 className="text-xl leading-relaxed font-bold text-[#12233F]">
-                    {payload.mainQuestion}
+                    {displayMainQuestion(payload.mainQuestion)}
                   </h1>
                 </section>
 
@@ -525,7 +542,7 @@ function CaseCard({ payload }: { payload: TodayView }) {
       <span className="mb-3 block text-xs font-bold tracking-[0.16em] text-[#2563EB] xl:shrink-0">
         今日案例
       </span>
-      <h2 className="mb-4 text-base leading-7 font-bold xl:shrink-0">{payload.caseTitle}</h2>
+      <h2 className="mb-4 text-base leading-7 font-bold xl:shrink-0">{displayCaseTitle(payload.caseTitle)}</h2>
       <dl className="scrollbar-subtle flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2">
         {fields.map((field) => (
           <div key={field.key} className="grid grid-cols-[64px_1fr] gap-2 text-xs leading-5">

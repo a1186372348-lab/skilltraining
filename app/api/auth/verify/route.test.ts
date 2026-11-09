@@ -164,6 +164,21 @@ describe("GET /api/auth/verify（登录落点分发）", () => {
     expect(res.headers.get("location")).toBe("http://localhost:3000/");
   });
 
+  it("画像查询失败时仍完成核销、跳首页并设置会话 cookie", async () => {
+    const actual = await vi.importActual<typeof import("@/server/modules/auth/post-login")>("@/server/modules/auth/post-login");
+    const failedDb = { userProfile: { findUnique: vi.fn().mockRejectedValue(new Error("private database detail")) } };
+    mockedResolve.mockImplementation((_db, userId) => actual.resolvePostLoginPath(failedDb as never, userId));
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { token } = await issueValidToken("profile-failed@example.com");
+      const res = await GET(getReq(`http://localhost:3000/api/auth/verify?token=${token}`));
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe("http://localhost:3000/");
+      expect(res.cookies.get(SESSION_COOKIE_NAME)?.value).toBeTruthy();
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain("private database detail");
+    } finally { errorLog.mockRestore(); }
+  });
+
   it("无效 token：→ /login?error=invalid_link，不种 cookie，不触发落点分发", async () => {
     const res = await GET(getReq("http://localhost:3000/api/auth/verify?token=wrong-token"));
 

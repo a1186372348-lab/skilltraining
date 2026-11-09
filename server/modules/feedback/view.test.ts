@@ -126,6 +126,7 @@ function buildScoringOutput(
     })),
     topIssue: "终答中「效率更高」的断言缺少衡量口径，应补充具体指标。",
     nextFocus: "下一步练「产品价值判断」中的价值量化类问题。",
+    confidence: null,
   };
 }
 
@@ -283,6 +284,7 @@ describe("getFeedbackView 视图装配（四元组 / BR-7 反馈文本）", () =
       coefficient: 0.8,
       effectiveScore: 68, // 85 × 0.8
       diagnosisText: "用户理解诊断：引用了终答中的具体证据。",
+      confidence: null,
     });
     expect(view.scores[1]?.effectiveScore).toBe(72); // 90 × 0.8
     expect(view.scores[2]?.effectiveScore).toBe(56); // 70 × 0.8
@@ -338,6 +340,10 @@ describe("getFeedbackView 视图装配（四元组 / BR-7 反馈文本）", () =
 
   it("题目类型下发（T36 / D38）：日常题 questionKind=daily，基线题 questionKind=baseline（前端据此切换动作按钮）", async () => {
     const userId = await newUser();
+    await prisma.userProfile.create({ data: {
+      userId, position: "产品经理", yearsExperience: "1-3年", industry: "软件",
+      familiarProducts: [], interestAreas: [], selfAssessment: [], baselineCompletedAt: new Date(),
+    } });
     const dailyId = await seedScorableSession(userId);
     const baselineId = await seedScorableSession(userId, {
       questionId: SEED_BASELINE_QUESTION_ID,
@@ -355,6 +361,46 @@ describe("getFeedbackView 视图装配（四元组 / BR-7 反馈文本）", () =
 });
 
 describe("getFeedbackView 状态与归属守卫", () => {
+  it("反馈置信度来自同一次对应评分，0 和 100 有效、无效值降级为 null", async () => {
+    const userId = await newUser();
+    const first = await seedScorableSession(userId);
+    const second = await seedScorableSession(userId);
+    await scoreSession(prisma, first, userId, { scoreWithRubric: fastScorer({}) });
+    await scoreSession(prisma, second, userId, { scoreWithRubric: fastScorer({}) });
+    await prisma.score.updateMany({ where: { sessionId: first, dimension: "用户理解" }, data: { confidence: 0 } });
+    await prisma.score.updateMany({ where: { sessionId: first, dimension: "产品价值判断" }, data: { confidence: 101 } });
+    await prisma.score.updateMany({ where: { sessionId: second, dimension: "用户理解" }, data: { confidence: 100 } });
+    const a = await getFeedbackView(prisma, first, userId);
+    const b = await getFeedbackView(prisma, second, userId);
+    expect(a.status).toBe("ready");
+    expect(b.status).toBe("ready");
+    if (a.status !== "ready" || b.status !== "ready") throw new Error("expected ready");
+    expect(a.scores.find((row) => row.dimension === "用户理解")?.confidence).toBe(0);
+    expect(a.scores.find((row) => row.dimension === "产品价值判断")?.confidence).toBeNull();
+    expect(a.scores.find((row) => row.dimension === "产品取舍")?.confidence).toBeNull();
+    expect(b.scores.find((row) => row.dimension === "用户理解")?.confidence).toBe(100);
+  });
+  it("未完成基线不可提前查看反馈或触发后台评分；完成后仍拒绝无参与证据的预留", async () => {
+    const userId = await newUser();
+    const other = await newUser();
+    await prisma.userProfile.create({ data: {
+      userId, position: "产品经理", yearsExperience: "1-3年", industry: "软件",
+      familiarProducts: [], interestAreas: [], selfAssessment: [],
+    } });
+    const pending = await seedScorableSession(userId, { questionId: SEED_BASELINE_QUESTION_ID });
+    const reserve = await prisma.trainingSession.create({ data: {
+      userId, questionId: SEED_BASELINE_QUESTION_ID, date: new Date(), isExtra: true,
+    } });
+    const schedule = vi.fn();
+    const scoreWithRubric = vi.fn(fastScorer({}));
+    await expect(getFeedbackView(prisma, pending, userId, { schedule, scoreWithRubric })).rejects.toMatchObject({ code: CODES.SESSION_NOT_FOUND, httpStatus: 404 });
+    expect(schedule).not.toHaveBeenCalled();
+    expect(scoreWithRubric).not.toHaveBeenCalled();
+    await prisma.userProfile.update({ where: { userId }, data: { baselineCompletedAt: new Date() } });
+    await expect(getFeedbackView(prisma, reserve.id, userId)).rejects.toMatchObject({ code: CODES.SESSION_NOT_FOUND, httpStatus: 404 });
+    await expect(getFeedbackView(prisma, pending, other)).rejects.toMatchObject({ code: CODES.SESSION_NOT_FOUND, httpStatus: 404 });
+    expect((await getFeedbackView(prisma, pending, userId, { schedule })).status).toBe("scoring");
+  });
   it("reading/answering 状态：409 SESSION_STATE_INVALID（作答流程未走完）", async () => {
     const userId = await newUser();
     const readingId = await seedScorableSession(userId, {
