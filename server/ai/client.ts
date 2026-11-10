@@ -55,10 +55,14 @@ export class AiApiError extends Error {
 }
 
 export function getAiConfig(): AiConfig {
-  const baseUrl = process.env.DEEPSEEK_BASE_URL?.trim().replace(/\/+$/, "");
+  const configuredBaseUrl = process.env.DEEPSEEK_BASE_URL?.trim();
+  const baseUrl = configuredBaseUrl?.replace(/\/+$/, "");
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!baseUrl) throw new AiConfigError("缺少环境变量 DEEPSEEK_BASE_URL");
   if (!apiKey) throw new AiConfigError("缺少环境变量 DEEPSEEK_API_KEY");
+  if (process.env.NODE_ENV === "production" && !/^https:\/\/api\.deepseek\.com\/?$/i.test(configuredBaseUrl!)) {
+    throw new AiConfigError("无效 DEEPSEEK_BASE_URL：生产环境必须使用官方 HTTPS 地址");
+  }
   return { baseUrl, apiKey, model: AI_MODEL };
 }
 
@@ -69,6 +73,8 @@ export interface ChatMessage {
 
 export interface ChatCompletionParams {
   messages: ChatMessage[];
+  /** 本次调用的绝对截止时间（毫秒时间戳），仅在调用方显式提供时生效。 */
+  deadlineMs?: number;
   /** 请求的 temperature；是否生效取决于服务端模式。 */
   temperature?: number;
   maxCompletionTokens?: number;
@@ -131,13 +137,22 @@ export function createAiClient(options: AiClientOptions): AiClient {
     let lastError: AiApiError | null = null;
     let lastResponseAudit = responseAudit(null);
     let requestMetadata: ReturnType<typeof requestAudit> = unknownRequestAudit();
+    const remaining = () => params.deadlineMs === undefined ? Infinity : params.deadlineMs - Date.now();
+    const deadlineError = () => new AiApiError("AI API 调用超时", { retryable: true, timeout: true });
+    const waitForRetry = async () => {
+      if (remaining() > 0) await sleep(Math.min(backoffDelayMs(attempt), remaining()));
+    };
 
     while (attempt <= maxRetries) {
+      if (remaining() <= 0) {
+        lastError = deadlineError();
+        break;
+      }
       attempt += 1;
       lastResponseAudit = responseAudit(null);
       requestMetadata = unknownRequestAudit();
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, remaining()));
       try {
         const headers = {
           "content-type": "application/json",
@@ -176,7 +191,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
             retryable,
           });
           if (!retryable || attempt > maxRetries) break;
-          await sleep(backoffDelayMs(attempt));
+          await waitForRetry();
           continue;
         }
 
@@ -185,6 +200,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
           choices?: { message?: { content?: string; reasoning_content?: unknown } }[];
           usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
+        if (controller.signal.aborted || remaining() <= 0) throw deadlineError();
         lastResponseAudit = responseAudit(body);
         const message = body.choices?.[0]?.message;
         const content = message?.content;
@@ -231,7 +247,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
           lastError = error;
           // 不可重试错误（如 400）单次即抛；可重试的结构错误（T22：200 空 content）走退避重试
           if (!error.retryable || attempt > maxRetries) break;
-          await sleep(backoffDelayMs(attempt));
+          await waitForRetry();
           continue;
         }
         const aborted = controller.signal.aborted;
@@ -240,7 +256,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
           { retryable: true, timeout: aborted },
         );
         if (attempt > maxRetries) break;
-        await sleep(backoffDelayMs(attempt));
+        await waitForRetry();
       } finally {
         clearTimeout(timer);
       }

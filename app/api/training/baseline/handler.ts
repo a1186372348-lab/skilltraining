@@ -28,6 +28,7 @@ import {
  */
 export function createBaselineGetHandler(deps: TriggerSessionScoringDeps = {}) {
   return async function GET(request: Request) {
+    const deadlineMs = Date.now() + 270_000;
     const user = await getRequestUser(prisma, request);
     if (!user) return unauthorized();
 
@@ -35,7 +36,7 @@ export function createBaselineGetHandler(deps: TriggerSessionScoringDeps = {}) {
     if (status.pendingScoringSessionIds.length > 0 && aiEndpointRateLimiter.check(`baseline:${user.id}`).allowed) {
       for (const sessionId of status.pendingScoringSessionIds) {
         // T39：注入 next/server 的 after 作 schedule，Serverless 下保活后台评分
-        triggerSessionScoring(prisma, sessionId, user.id, { ...deps, schedule: after });
+        triggerSessionScoring(prisma, sessionId, user.id, { ...deps, schedule: after, deadlineMs });
       }
     }
     // T27 切片 3：响应扩展为逐题进度视图（兼容字段原样保留；items/resume/dimensionPreview

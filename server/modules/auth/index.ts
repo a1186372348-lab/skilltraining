@@ -1,6 +1,6 @@
 import { prisma } from "@/server/db";
 
-import { getAuthConfig } from "./config";
+import { getAuthConfig, resolveSessionSecret } from "./config";
 import { createMailer } from "./mailer";
 import { PrismaAuthRepository } from "./repository";
 import { AuthService } from "./service";
@@ -30,7 +30,7 @@ function buildAuthService(): AuthService {
 
 /** 会话签名密钥（每次读取环境变量，便于测试注入） */
 export function getSessionSecret(): string {
-  return getAuthConfig().sessionSecret;
+  return resolveSessionSecret(process.env);
 }
 
 /** 仅测试使用：注入/清除 AuthService 替代实现 */

@@ -40,6 +40,7 @@ export function createFeedbackGetHandler(deps: FeedbackViewDeps = {}) {
     request: Request,
     context: { params: Promise<{ id: string }> },
   ) {
+    const deadlineMs = Date.now() + 270_000;
     const user = await getRequestUser(prisma, request);
     if (!user) return unauthorized();
 
@@ -58,7 +59,7 @@ export function createFeedbackGetHandler(deps: FeedbackViewDeps = {}) {
 
     try {
       // T39：注入 next/server 的 after 作 schedule（透传至懒触发评分），Serverless 下保活
-      return jsonOk(await getFeedbackView(prisma, id, user.id, { ...deps, schedule: after }));
+      return jsonOk(await getFeedbackView(prisma, id, user.id, { ...deps, schedule: after, deadlineMs }));
     } catch (error) {
       if (error instanceof ScoringError) {
         return jsonError(

@@ -257,6 +257,11 @@ describe("parseScoringOutput：结构化输出解析与兜底", () => {
 });
 
 describe("scoreWithRubric：AI 网关调用参数", () => {
+  it("将评分截止时间传给客户端", async () => {
+    const client = fakeClient(validOutput);
+    await scoreWithRubric(input, { client, deadlineMs: 12345 });
+    expect(client.chatCompletion).toHaveBeenCalledWith(expect.objectContaining({ deadlineMs: 12345 }));
+  });
   it("低 temperature + json_object + 结构化输出预算 ≥2048（R1）", async () => {
     const client = fakeClient(validOutput);
     const output = await scoreWithRubric(input, { client });

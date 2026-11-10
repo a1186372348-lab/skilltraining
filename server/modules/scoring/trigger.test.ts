@@ -1,157 +1,109 @@
 import type { PrismaClient } from "@prisma/client";
-import { describe, expect, it, vi, type Mock } from "vitest";
-
+import { describe, expect, it, vi } from "vitest";
 import { triggerSessionScoring } from "./trigger";
 
-// 后台评分触发（T36 / D38）单元测试：注入 mock 评分实现，不触数据库与 AI。
-// 语义：inflight 去重（进行中的会话不重复触发）、失败仅日志不落库并释放标记
-// （下一次触发自动重试）、deps 透传 ScoreSessionDeps。
-
 const db = {} as PrismaClient;
+const scheduleTask = () => {
+  const tasks: Array<() => Promise<void>> = [];
+  return { tasks, schedule: (task: () => Promise<void>) => { tasks.push(task); } };
+};
 
-/** 反复触发直到被接纳（标记释放是异步的，轮询保证确定性） */
-async function eventuallyAccepted(
-  sessionId: string,
-  scoreSession: Mock<() => Promise<void>>,
-  timeoutMs = 1000,
-): Promise<void> {
-  const start = Date.now();
-  for (;;) {
-    triggerSessionScoring(db, sessionId, "u-1", { scoreSession });
-    if (scoreSession.mock.calls.length > 0) return;
-    if (Date.now() - start > timeoutMs) throw new Error("等待进行中标记释放超时");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
-
-describe("triggerSessionScoring：inflight 去重与失败重试（T36 / D38）", () => {
-  it("评分进行中重复触发被去重，完成后释放标记可再次触发", async () => {
-    const gate: { release: () => void } = { release: () => {} };
-    const scoreSession = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          gate.release = resolve;
-        }),
-    );
-
-    triggerSessionScoring(db, "session-dedupe", "u-1", { scoreSession });
-    triggerSessionScoring(db, "session-dedupe", "u-1", { scoreSession });
-    // 调用是同步发起的：进行中第二次触发被 inflight 去重
-    expect(scoreSession).toHaveBeenCalledTimes(1);
-
-    gate.release();
-    // 完成（标记释放）后再触发被接纳：scoreSession 幂等，重复评分不重复落库
-    await eventuallyAccepted("session-dedupe", vi.fn(() => Promise.resolve()));
+describe("评分任务领取", () => {
+  it("只有成功领取的任务可以评分，并在完成后释放其令牌", async () => {
+    const { tasks, schedule } = scheduleTask();
+    const scoreSession = vi.fn().mockResolvedValue(undefined);
+    const acquireLease = vi.fn().mockResolvedValue("owner-token");
+    const releaseLease = vi.fn().mockResolvedValue(undefined);
+    triggerSessionScoring(db, "s1", "u1", { schedule, scoreSession, acquireLease, releaseLease });
+    expect(acquireLease).not.toHaveBeenCalled();
+    await tasks[0]!();
+    expect(acquireLease).toHaveBeenCalledWith(db, "s1", "u1");
+    expect(scoreSession).toHaveBeenCalledOnce();
+    expect(releaseLease).toHaveBeenCalledWith(db, "s1", "u1", "owner-token");
   });
 
-  it("评分失败：仅记录日志不落库，标记释放后下一次触发自动重试", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const failing = vi.fn(() => Promise.reject(new Error("模拟 AI 网关故障")));
-      triggerSessionScoring(db, "session-retry", "u-1", { scoreSession: failing });
-      expect(failing).toHaveBeenCalledTimes(1);
-
-      const start = Date.now();
-      while (consoleSpy.mock.calls.length === 0) {
-        if (Date.now() - start > 1000) throw new Error("等待失败日志超时");
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      // 失败后标记已释放：换成功实现的下一次触发被接纳
-      await eventuallyAccepted("session-retry", vi.fn(() => Promise.resolve()));
-    } finally {
-      consoleSpy.mockRestore();
-    }
-  });
-
-  it("注入 schedule（T39）：任务交由 schedule 调度，由调度方驱动执行", async () => {
-    let scheduled: (() => Promise<void>) | null = null;
-    const schedule = vi.fn((task: () => Promise<void>) => {
-      scheduled = task;
-    });
-    const scoreSession = vi.fn(() => Promise.resolve());
-
-    triggerSessionScoring(db, "session-sched", "u-1", { scoreSession, schedule });
-    // 任务未直接发起：schedule 收到 task，调度方尚未驱动时评分不执行
-    expect(schedule).toHaveBeenCalledTimes(1);
+  it("已被其他实例领取时不调用评分或释放", async () => {
+    const { tasks, schedule } = scheduleTask();
+    const scoreSession = vi.fn();
+    const releaseLease = vi.fn();
+    triggerSessionScoring(db, "s2", "u1", { schedule, scoreSession, acquireLease: vi.fn().mockResolvedValue(null), releaseLease });
+    await tasks[0]!();
     expect(scoreSession).not.toHaveBeenCalled();
-
-    await (scheduled as unknown as () => Promise<void>)();
-    expect(scoreSession).toHaveBeenCalledTimes(1);
+    expect(releaseLease).not.toHaveBeenCalled();
   });
 
-  it("注入 schedule（T39）：进行中重复触发不重复调度，完成后可再次调度", async () => {
-    const tasks: Array<() => Promise<void>> = [];
-    const schedule = vi.fn((task: () => Promise<void>) => {
-      tasks.push(task);
-    });
-    const gate: { release: () => void } = { release: () => {} };
-    const scoreSession = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          gate.release = resolve;
-        }),
-    );
+  it("评分失败时释放令牌并允许下次重试", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { tasks, schedule } = scheduleTask();
+    const releaseLease = vi.fn().mockResolvedValue(undefined);
+    const deps = { schedule, scoreSession: vi.fn().mockRejectedValue(new Error("failure")), acquireLease: vi.fn().mockResolvedValue("token"), releaseLease };
+    triggerSessionScoring(db, "s3", "u1", deps);
+    await tasks[0]!();
+    expect(releaseLease).toHaveBeenCalledOnce();
+    triggerSessionScoring(db, "s3", "u1", deps);
+    expect(tasks).toHaveLength(2);
+    log.mockRestore();
+  });
 
-    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
-    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
-    // inflight 去重在 schedule 路径下同样成立：进行中第二次触发不重复调度
-    expect(schedule).toHaveBeenCalledTimes(1);
+  it("领取失败和释放失败均记录错误，且不阻止后续调度", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { tasks, schedule } = scheduleTask();
+    const scoreSession = vi.fn().mockResolvedValue(undefined);
+    const acquireLease = vi.fn().mockRejectedValueOnce(new Error("db")).mockResolvedValue("token");
+    const releaseLease = vi.fn().mockRejectedValue(new Error("db"));
+    const deps = { schedule, scoreSession, acquireLease, releaseLease };
+    triggerSessionScoring(db, "s4", "u1", deps);
+    await tasks[0]!();
+    expect(scoreSession).not.toHaveBeenCalled();
+    triggerSessionScoring(db, "s4", "u1", deps);
+    await tasks[1]!();
+    triggerSessionScoring(db, "s4", "u1", deps);
+    expect(tasks).toHaveLength(3);
+    expect(log).toHaveBeenCalledTimes(2);
+    log.mockRestore();
+  });
 
-    // 驱动执行：评分进行中（未 resolve）时再触发仍被去重
+  it("同一进程内在调度和执行期间只调度一次", async () => {
+    const { tasks, schedule } = scheduleTask();
+    let finish!: () => void;
+    const scoreSession = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const deps = { schedule, scoreSession, acquireLease: vi.fn().mockResolvedValue("token"), releaseLease: vi.fn().mockResolvedValue(undefined) };
+    triggerSessionScoring(db, "s5", "u1", deps);
+    triggerSessionScoring(db, "s5", "u1", deps);
+    expect(tasks).toHaveLength(1);
     const running = tasks[0]!();
-    expect(scoreSession).toHaveBeenCalledTimes(1);
-    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
-    expect(schedule).toHaveBeenCalledTimes(1);
-
-    // 任务完成（finally 释放标记）后再触发被接纳、重新调度
-    gate.release();
+    await vi.waitFor(() => expect(scoreSession).toHaveBeenCalledOnce());
+    triggerSessionScoring(db, "s5", "u1", deps);
+    expect(tasks).toHaveLength(1);
+    finish();
     await running;
-    triggerSessionScoring(db, "session-sched-dedupe", "u-1", { scoreSession, schedule });
-    expect(schedule).toHaveBeenCalledTimes(2);
+    triggerSessionScoring(db, "s5", "u1", deps);
+    expect(tasks).toHaveLength(2);
   });
 
-  it("注入 schedule（T39）：失败仅日志不落库，标记释放后下次触发重新调度", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const tasks: Array<() => Promise<void>> = [];
-      const schedule = vi.fn((task: () => Promise<void>) => {
-        tasks.push(task);
-      });
-      const failing = vi.fn(() => Promise.reject(new Error("模拟 AI 网关故障")));
-
-      triggerSessionScoring(db, "session-sched-retry", "u-1", { scoreSession: failing, schedule });
-      expect(schedule).toHaveBeenCalledTimes(1);
-
-      // task 链内部 catch 兜底：驱动失败任务本身不抛出，仅记录日志
-      await tasks[0]!();
-      expect(consoleSpy).toHaveBeenCalledTimes(1);
-
-      // 失败后标记已释放：下一次触发重新调度（自动重试语义不变）
-      triggerSessionScoring(db, "session-sched-retry", "u-1", { scoreSession: failing, schedule });
-      expect(schedule).toHaveBeenCalledTimes(2);
-    } finally {
-      consoleSpy.mockRestore();
-    }
+  it("默认路径未能访问数据库时不会绕过领取直接评分", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { tasks, schedule } = scheduleTask();
+    const scoreSession = vi.fn().mockResolvedValue(undefined);
+    triggerSessionScoring(db, "s6", "u1", { schedule, scoreSession });
+    await tasks[0]!();
+    expect(scoreSession).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledOnce();
+    log.mockRestore();
   });
 
-  it("透传 db/sessionId/userId 与 ScoreSessionDeps 给评分实现", () => {
-    const seen: unknown[][] = [];
-    const scoreWithRubric = async () => ({
-      dimensions: [],
-      topIssue: "issue",
-      nextFocus: "focus",
-      confidence: null,
-    });
-    const scoreSession = vi.fn((...args: unknown[]) => {
-      seen.push(args);
-      return Promise.resolve();
-    });
-    triggerSessionScoring(db, "session-deps", "u-9", { scoreSession, scoreWithRubric });
-    expect(seen).toHaveLength(1);
-    expect(seen[0]?.[0]).toBe(db);
-    expect(seen[0]?.[1]).toBe("session-deps");
-    expect(seen[0]?.[2]).toBe("u-9");
-    expect(seen[0]?.[3]).toMatchObject({ scoreWithRubric });
+  it("调度器异常后可重新调度", () => {
+    expect(() => triggerSessionScoring(db, "s7", "u1", { schedule: () => { throw new Error("schedule"); } })).toThrow("schedule");
+    const { tasks, schedule } = scheduleTask();
+    triggerSessionScoring(db, "s7", "u1", { schedule });
+    expect(tasks).toHaveLength(1);
   });
-});
+
+  it("未注入调度器时后台启动并透传评分依赖", async () => {
+    const scoreWithRubric = vi.fn();
+    const scoreSession = vi.fn().mockResolvedValue(undefined);
+    const releaseLease = vi.fn().mockResolvedValue(undefined);
+    triggerSessionScoring(db, "s8", "u1", { scoreSession, scoreWithRubric, acquireLease: vi.fn().mockResolvedValue("token"), releaseLease });
+    await vi.waitFor(() => expect(releaseLease).toHaveBeenCalledOnce());
+    expect(scoreSession).toHaveBeenCalledWith(db, "s8", "u1", expect.objectContaining({ scoreWithRubric }));
+  });});

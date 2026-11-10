@@ -36,6 +36,7 @@ export function createFinalAnswerPostHandler(deps: TriggerSessionScoringDeps = {
     request: Request,
     context: { params: Promise<{ id: string }> },
   ) {
+    const deadlineMs = Date.now() + 270_000;
     const user = await getRequestUser(prisma, request);
     if (!user) return unauthorized();
 
@@ -72,7 +73,7 @@ export function createFinalAnswerPostHandler(deps: TriggerSessionScoringDeps = {
       const result = await submitFinalAnswer(prisma, id, user.id, parsed.data.answer);
       // T36 / D38：终答提交成功即后台触发评分（基线题间并行评分的前提）
       // T39：注入 next/server 的 after 作 schedule，Serverless 下保活后台评分
-      triggerSessionScoring(prisma, id, user.id, { ...deps, schedule: after });
+      triggerSessionScoring(prisma, id, user.id, { ...deps, schedule: after, deadlineMs });
       return jsonOk(result);
     } catch (error) {
       if (error instanceof TrainingError) {

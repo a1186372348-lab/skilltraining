@@ -25,6 +25,17 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("基线状态后台评分限流", () => {
+  it("从请求入口计算评分截止时间并传给每个待评分会话", async () => {
+    const now = Date.now();
+    mocks.getUser.mockImplementation(async () => { vi.setSystemTime(now + 5_000); return { id: "baseline-user-1" }; });
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    mocks.status.mockResolvedValue(status(["pending-1", "pending-2"]));
+    await GET(request());
+    expect(mocks.trigger).toHaveBeenCalledTimes(2);
+    expect(mocks.trigger).toHaveBeenCalledWith(expect.anything(), "pending-1", "baseline-user-1", expect.objectContaining({ deadlineMs: now + 270_000 }));
+    expect(mocks.trigger).toHaveBeenCalledWith(expect.anything(), "pending-2", "baseline-user-1", expect.objectContaining({ deadlineMs: now + 270_000 }));
+  });
   it("额度耗尽只暂停补触发，继续返回相同进度；其他用户仍可触发", async () => {
     mocks.status.mockResolvedValue(status(["pending-1", "pending-2"]));
     const first = await GET(request());

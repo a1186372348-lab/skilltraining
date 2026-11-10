@@ -55,6 +55,7 @@ export interface ScoreSessionResult {
 }
 
 export interface ScoreSessionDeps {
+  deadlineMs?: number;
   /** AI 评分实现（测试注入 mock；缺省走 AI 网关真实调用，DeepSeek，D39） */
   scoreWithRubric?: (input: RubricScoringInput) => Promise<RubricScoringOutput>;
   /** 评分提交后独立推进训练包，失败不影响评分。 */
@@ -202,7 +203,7 @@ export async function scoreSession(
   // prompt 模板（T28 / D31）：DB active 版本优先，无 active 回退文件版本（resolver 进程内缓存）
   const mainDimension = Object.keys(rubricDimensions)[0];
   const templates = await resolvePromptTemplates(db, SCORING_PROMPT_V1);
-  const score = deps.scoreWithRubric ?? ((input: RubricScoringInput) => scoreWithRubric(input, { templates }));
+  const score = deps.scoreWithRubric ?? ((input: RubricScoringInput) => scoreWithRubric(input, { templates, deadlineMs: deps.deadlineMs }));
   const output = await score({
     mainDimension,
     mainQuestion: session.question.mainQuestion,

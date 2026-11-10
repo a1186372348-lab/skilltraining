@@ -1,0 +1,4 @@
+{
+  "fluid": true,
+  "buildCommand": "npm run build -- --webpack"
+}

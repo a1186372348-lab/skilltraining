@@ -168,6 +168,7 @@ export function parseScoringOutput(
 
 export interface ScoreWithRubricDeps {
   client?: AiClient;
+  deadlineMs?: number;
   /** prompt 模板（T28：运行时经 resolver 注入 DB active 版本；缺省为文件版本 scoring.v1） */
   templates?: PromptTemplatePair;
 }
@@ -179,6 +180,7 @@ export async function scoreWithRubric(
   const client = deps.client ?? createAiClientFromEnv();
   const result = await client.chatCompletion({
     messages: buildScoringMessages(input, deps.templates),
+    ...(deps.deadlineMs === undefined ? {} : { deadlineMs: deps.deadlineMs }),
     temperature: 0.2, // 请求值；深度思考模式下不作为有效温度证据。
     // deepseek-flash 为推理模型（D39）：推理 token 计入 max_completion_tokens，
     // 多维度诊断的结构化输出预算给足，避免正文被截空

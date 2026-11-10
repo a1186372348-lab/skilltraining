@@ -165,6 +165,8 @@ model TrainingSession {
   scoreSequence    BigInt?              @unique @map("score_sequence")
   scoredDimensions Json?                @map("scored_dimensions")
   scoredAt         DateTime?            @map("scored_at") // 完成评分
+  scoringLeaseToken String?              @map("scoring_lease_token") @db.Uuid
+  scoringLeaseExpiresAt DateTime?        @map("scoring_lease_expires_at")
   user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   question         Question             @relation(fields: [questionId], references: [id])
   hintEvents       HintEvent[]

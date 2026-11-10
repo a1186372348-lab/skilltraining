@@ -34,13 +34,15 @@
 - 计划 current/reject/review 及训练 baseline/feedback/final-answer 六个入口的处理器工厂位于同目录 `handler.ts`，`route.ts` 仅导出对应 HTTP 方法及原有必要路由配置；迁移未改变认证、授权、校验、限流、后台评分调度或错误处理。
 - 跨模块共享的服务端工具只放 `server/lib/`；模块私有函数不跨模块导出。
 
+部署候选通过 `vercel.json` 请求启用 Fluid compute，并指定 webpack 构建；实际云端生效和项目计划仍须核验。候选安装使用 Next 16.4.5、React 19.2.9 和 Zod 4.6.6。
+
 ## 3. 领域模块职责（server/modules/）
 
 | 模块 | 职责 | 关键文件 |
 |---|---|---|
 | `auth` | 魔法链接登录、会话签发与校验、登录限流、邮件投递及登录后画像/基线落点分流 | `service.ts` `session.ts` `token.ts` `rate-limiter.ts` `mailer.ts` `post-login.ts` |
 | `training` | 训练会话状态机（reading/answering/followup/scored + abandoned 终止态，T38 / D40）、渐进提示记录、独立完成系数、今日题视图、单会话工作台视图、产品训练大厅视图（本人可见历史与基线标识）、加练、训练终止（abandon，T38）、评分完成通知 | `state-machine.ts` `coefficient.ts` `today-view.ts` `hub-view.ts` `service.ts` |
-| `scoring` | 按 Rubric 调 AI 评分、有效分计算、评分置信度落库（`Score.confidence`，T28 / BR-V2-6）、评分校准、后台评分触发共享入口（`trigger.ts`：inflight 去重、失败不落库待重试，T36） | `rubric-scorer.ts` `calibration.ts` `service.ts` `trigger.ts` |
+| `scoring` | 按 Rubric 调 AI 评分、有效分计算、评分置信度落库（`Score.confidence`，T28 / BR-V2-6）、评分校准、后台评分触发共享入口（`trigger.ts`：进程内去重和数据库租约协调、失败待重试，T36） | `rubric-scorer.ts` `calibration.ts` `service.ts` `trigger.ts` |
 | `selection` | 包、可执行周计划、复测和自适应分层选择；显式日常模式仅跳过复测，排除本人已练题及活动包保留题 | `service.ts` `repository.ts` |
 | `profile` | 能力画像读写（8 维度分数、观察次数、提示依赖特征）、基于维度事实的下一步建议及各次评分信心展示数据 | `ability-page.ts` |
 | `content` | 题库 YAML 读取与契约校验 | — |
@@ -52,9 +54,13 @@
 | `history` | 按本人和结果可见性查询只读回放详情（T25 起仅详情——历史列表已由 training 大厅视图承接） | `repository.ts` `view.ts` |
 | `planning` | 周期训练计划（T29 / F5）：周一懒生成（画像最低分维度，规则引擎不用 AI）、拒绝/撤销幂等、进度聚合（本周 plan 已评分数 + scoredAt UTC 日期去重天数）、周日首访固定回顾快照；active 归档 completed，rejected 保留，可在本周撤销 | `service.ts` `repository.ts` `schemas.ts` `errors.ts` `index.ts` |
 
+生产环境会话密钥至少 32 字节且不能以空白开头；创建认证服务时校验 HTTPS 回调地址与完整 SMTP 凭据，要求隐式 TLS；配置不符则失败关闭，不退回控制台投递。开发环境保留本地默认值；签名会话读取只依赖会话密钥。生产 AI 网关仅接受官方 HTTPS 地址。
+
+终答、反馈及基线入口为评分设置从请求开始计算的 270 秒绝对截止时间，相对路由配置的 300 秒预留 30 秒；评分调用和重试共享截止时间，耗尽后停止后续尝试。该约束不保证云平台的实际执行、落库或中断恢复成功。评分任务以数据库原子租约跨实例协调，有效期 330 秒，完成后仅持有者可释放；租约过期可被接管，不能保证过期旧任务绝不重叠。
+
 D45 运行契约显式请求 thinking enabled/high 和 `max_tokens` 总生成预算，默认 24576；非法预算在请求前拒绝，80 秒超时与既有重试保留。回归缓存和报告绑定契约身份，旧或异配置 live 缓存拒绝复用；请求温度不是思考模式有效采样温度的证明。本次新参数评分单遍 30 成功、1 失败，未通过原自动门槛；产品负责人已接受已知限制完成本轮开发验收，该结果不改变门槛或版本状态；成功样本指标及适用范围见[评分结果](../docs/v2/regression/scoring-v3-d45-20261103-review.md)，本次不足以证明全部样本的模型质量。
 
-AI 网关审计仅记录末次尝试的请求参数与白名单响应元数据；模型及结束原因受限枚举，推理用量校验为安全整数，指纹仅保存限长校验后的 SHA-256 摘要。未知字段降级，新增审计元数据不包含提示、答案、评分标准、密钥或思考内容；观测功能本身不改变请求、重试与超时。D45 显式请求 thinking enabled / high 和 max_tokens 24576；官方说明 thinking 模式下温度不生效，历史实际模式及参数生效情况仍未知。
+AI 网关审计仅记录末次尝试的请求参数与白名单响应元数据；模型及结束原因受限枚举，推理用量校验为安全整数，指纹仅保存限长校验后的 SHA-256 摘要。未知字段降级，新增审计元数据不包含提示、答案、评分标准、密钥或思考内容；观测功能本身不改变请求、重试与超时；评分入口另有共享截止时间。D45 显式请求 thinking enabled / high 和 max_tokens 24576；官方说明 thinking 模式下温度不生效，历史实际模式及参数生效情况仍未知。
 
 AI 网关（`server/ai/`）：`client.ts`（DeepSeek OpenAI 兼容客户端，provider 中立封装，D39）、`followup.ts`（AI 总监追问生成；T35 / D37 追问闸门——同一次调用先判定必要性，输出 `{ should_followup, reason, followups }`，判定锚定主测维度 abilityTags[0] 的 Rubric 要点、标准从紧；followup v3 起请求温度 0.2，D43；生效条件见 [运行参数核查](../docs/v2/t28-runtime-parameter-review-20261029.md)）。
 
@@ -104,5 +110,5 @@ YAML 题库（`content/questions/`，案例五要素每字段带 `{text, citatio
 - 调优数据契约（T28 / D31）：`prompt_versions` 表（prompt 版本注册表：id / name / version / content / contentHash / status / createdAt，迁移 20261020120000）；`eval_runs` 表（回归留档：id / promptVersionId / consistencyScore / report Json / createdAt，同迁移）；`Score.confidence`（评分置信度可空 Int，迁移 20261022120000；老数据 NULL，T27 消费侧不触发加深判定）。
 - 计划数据契约（T29 / F5）：`TrainingSession.sourceType`（枚举 daily/extra/baseline/plan/pack/retest，默认 daily 兜底）+ `sourceId`（可空 Uuid，计划命中落计划 id）——迁移 20261022140000，历史会话按 question.kind/isExtra 幂等回填（baseline→baseline、isExtra→extra、其余→daily，回填前后分组计数一致）；`training_plans` 表（迁移 20261022150000：id/userId/weekStartDate(@db.Date 周一）/focusDimension/startScore/targetScore/status(active/rejected/completed)/reason/createdAt；@@unique(userId, weekStartDate) 懒生成幂等 + @@index(userId, status)）。
 - 统一回归门禁：`scripts/prompt-regression.ts`（scoring/followup 双套件，mock/live 双模式；双跑确认制 + 遍内定向补跑 + followup 样本级确认与抖动率门槛 + 三查③泄露硬门槛，D42；门槛不过退出码 1）。缺省数据库来源的 live 写 eval_runs 与 `docs/v2/regression/` 报告；显式 `--prompt-source file --suite followup --version v9` 或 `v10` 经 `regression-file-prompt.ts` 静态选择可信候选，mock 仍为桩，live 记录 file 来源和实际模板哈希，只写本地报告与缓存，不查写数据库或改变版本状态。配套 `scripts/prompt-register.ts`（版本登记与晋级）、`scripts/gate-probe.ts`（闸门探针）、`scripts/lib/`（eval-calibration / gate-calibration / regression-gate / serial-runner / followup-leak-check / eval-sample-loaders 等回归与校准纯函数库，含 fixtures 单测）。
-- 部署拓扑（T39）：Vercel（GitHub main 自动部署，Fluid compute 函数上限 300s）+ Neon 云 PostgreSQL（Singapore 区域）+ QQ 邮箱 SMTP（465 隐式 TLS，复用现有 `SmtpMailer`）+ DeepSeek API；环境差异全部走环境变量（Vercel 后台配置），本地开发不受影响。早期「云服务器 + Docker + Nginx + 云 RDS」设想（D15）由本选型取代。
+- 部署选型（T39）：Vercel + Neon 云 PostgreSQL（Singapore 区域）+ QQ 邮箱 SMTP（465 隐式 TLS，复用现有 `SmtpMailer`）+ DeepSeek API；候选请求启用 Fluid compute，项目实际计划与配置、云迁移和公网验收尚待核验。环境差异走环境变量，本地开发不受影响。早期「云服务器 + Docker + Nginx + 云 RDS」设想（D15）由本选型取代。
 - 后台评分保活（T39）：`triggerSessionScoring` 支持路由层注入 `schedule`（`next/server` 的 `after`，响应返回后在函数时限内继续执行）；三个触发路由（final-answer / baseline / feedback）传入并声明 `maxDuration = 300`。基线状态接口只在有待评分会话时检查按用户限流，超额时跳过补触发并返回正常进度。缺省维持 fire-and-forget；限流与触发去重均为进程内，Serverless 多实例仍可能并行触发。

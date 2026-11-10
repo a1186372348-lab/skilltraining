@@ -43,6 +43,25 @@ function makeClient(fetchImpl: typeof fetch, extra?: { sleep?: (ms: number) => P
 describe("getAiConfig：环境变量读取（Prd.md 3.5 启动时校验）", () => {
   afterEach(() => vi.unstubAllEnvs());
 
+  it.each(["http://api.deepseek.com", "https://api.deepseek.com.evil.test", "https://user@api.deepseek.com", "https://api.deepseek.com:444", "https://api.deepseek.com?token=x", "https://api.deepseek.com#x", "https://api.deepseek.com/other", "https://example.test"])(
+    "生产环境拒绝非官方地址 %s", (url) => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("DEEPSEEK_API_KEY", FAKE_API_KEY);
+      vi.stubEnv("DEEPSEEK_BASE_URL", url);
+      expect(() => getAiConfig()).toThrow(AiConfigError);
+    },
+  );
+
+  it("生产环境接受官方地址，开发环境允许本地模拟地址", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", FAKE_API_KEY);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/");
+    expect(getAiConfig().baseUrl).toBe("https://api.deepseek.com");
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("DEEPSEEK_BASE_URL", "http://localhost:8080/v1/");
+    expect(getAiConfig().baseUrl).toBe("http://localhost:8080/v1");
+  });
+
   it("缺 DEEPSEEK_API_KEY 抛 AiConfigError", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "");
     vi.stubEnv("DEEPSEEK_BASE_URL", "https://api.deepseek.com");

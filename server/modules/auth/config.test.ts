@@ -5,8 +5,8 @@ import { getAuthConfig, resolveSessionSecret } from "./config";
 // 配置：密钥与 SMTP 一律走环境变量，禁止硬编码
 describe("认证配置", () => {
   it("AUTH_SECRET 存在时直接使用", () => {
-    expect(resolveSessionSecret({ AUTH_SECRET: "prod-secret", NODE_ENV: "production" })).toBe(
-      "prod-secret",
+    expect(resolveSessionSecret({ AUTH_SECRET: "x".repeat(32), NODE_ENV: "production" })).toBe(
+      "x".repeat(32),
     );
   });
 
@@ -60,5 +60,72 @@ describe("认证配置", () => {
 
   it("未配置 SMTP_HOST 时 smtp.host 为 undefined（走控制台投递）", () => {
     expect(getAuthConfig({ AUTH_SECRET: "s" }).smtp.host).toBeUndefined();
+  });
+});
+
+const productionEnv = {
+  NODE_ENV: "production",
+  AUTH_SECRET: "x".repeat(32),
+  APP_BASE_URL: "https://training.example.com",
+  SMTP_HOST: "smtp.example.com",
+  SMTP_PORT: "465",
+  SMTP_SECURE: "true",
+  SMTP_USER: "sender@example.com",
+  SMTP_PASS: "test-password",
+  SMTP_FROM: "sender@example.com",
+};
+
+describe("生产认证配置", () => {
+  it.each([undefined, "", " ".repeat(32), "x".repeat(31), " " + "x".repeat(32), "\tx" + "x".repeat(32)])(
+    "生产密钥无效时拒绝 %s", (value) => {
+      expect(() => resolveSessionSecret({ NODE_ENV: "production", AUTH_SECRET: value })).toThrow(/AUTH_SECRET/);
+      expect(() => getAuthConfig({ ...productionEnv, AUTH_SECRET: value })).toThrow(/AUTH_SECRET/);
+    },
+  );
+
+  it("按 UTF-8 字节计算长度并保留原始密钥", () => {
+    const secret = "密".repeat(11) + " ";
+    expect(resolveSessionSecret({ NODE_ENV: "production", AUTH_SECRET: secret })).toBe(secret);
+    expect(resolveSessionSecret({ NODE_ENV: "development", AUTH_SECRET: "short" })).toBe("short");
+  });
+  it("接受完整的隐式 TLS 配置及现有默认端口和发件人", () => {
+    expect(getAuthConfig(productionEnv).smtp.secure).toBe(true);
+    expect(getAuthConfig({ ...productionEnv, SMTP_PORT: undefined, SMTP_SECURE: undefined, SMTP_FROM: undefined }).smtp)
+      .toMatchObject({ port: 465, secure: true, from: "sender@example.com" });
+  });
+
+  it.each([undefined, "", "http://example.com", "https://example.com/path", "https://user:pass@example.com", "https://example.com?x=1", "not-a-url"])(
+    "拒绝无效的生产地址 %s", (value) => {
+      expect(() => getAuthConfig({ ...productionEnv, APP_BASE_URL: value })).toThrow(/APP_BASE_URL/);
+    },
+  );
+
+  it.each(["SMTP_HOST", "SMTP_USER", "SMTP_PASS"] as const)("拒绝缺失 %s", (field) => {
+    expect(() => getAuthConfig({ ...productionEnv, [field]: " " })).toThrow(new RegExp(field));
+  });
+
+  it.each(["smtp.example.com:465", "https://smtp.example.com", "bad host", "example.com\r\nX: injected"])(
+    "拒绝无效邮件服务器 %s", (value) => {
+      expect(() => getAuthConfig({ ...productionEnv, SMTP_HOST: value })).toThrow(/SMTP_HOST/);
+    },
+  );
+
+  it.each(["0", "65536", "465abc", "-1", "4.5"])("拒绝无效端口 %s", (value) => {
+    expect(() => getAuthConfig({ ...productionEnv, SMTP_PORT: value })).toThrow(/SMTP_PORT/);
+  });
+
+  it.each(["false", "TRUE", "invalid"])("拒绝非隐式 TLS 配置 %s", (value) => {
+    expect(() => getAuthConfig({ ...productionEnv, SMTP_SECURE: value })).toThrow(/SMTP_SECURE/);
+  });
+
+  it.each(["invalid", "sender@example.com\r\nBcc: victim@example.com"])("拒绝无效发件人", (value) => {
+    expect(() => getAuthConfig({ ...productionEnv, SMTP_FROM: value })).toThrow(/SMTP_FROM/);
+  });
+
+  it("错误不包含输入值", () => {
+    expect(() => getAuthConfig({ ...productionEnv, APP_BASE_URL: "secret-value" })).toThrow(/^.*APP_BASE_URL[^\n]*$/);
+    try { getAuthConfig({ ...productionEnv, APP_BASE_URL: "secret-value" }); } catch (error) {
+      expect(String(error)).not.toContain("secret-value");
+    }
   });
 });
