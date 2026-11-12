@@ -52,7 +52,11 @@ export function HomeDashboard() {
     } catch (error) {
       if (error instanceof DashboardApiError && (error.status === 401 || error.code === "BASELINE_REQUIRED")) {
         setView(null);
-        router.replace(error.status === 401 ? "/login" : "/baseline");
+        if (error.status === 401) {
+          location.replace("/login");
+        } else {
+          router.replace("/baseline");
+        }
         return;
       }
       setLoadError(error instanceof Error ? error.message : "加载失败，请稍后重试");

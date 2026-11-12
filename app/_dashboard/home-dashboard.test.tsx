@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import HomePage from "../page";
 import { HomeDashboard } from "./home-dashboard";
 
-const mocks = vi.hoisted(() => ({ replace: vi.fn() }));
+const mocks = vi.hoisted(() => ({ replace: vi.fn(), navigate: vi.fn() }));
 vi.mock("next/navigation", () => { const router = { replace: mocks.replace }; return { useRouter: () => router }; });
 vi.mock("./home-shell", () => ({ HomeShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("@/app/_shared/plan-cards", () => ({ HangingPlanCard: () => null }));
@@ -19,10 +19,12 @@ it.each([
 ] as const)("打开首页时收到 401（%s）直接进入登录页", async (_description, response) => {
   const fetchMock = vi.fn().mockResolvedValue(response());
   vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("location", { replace: mocks.navigate });
 
   render(<HomePage />);
 
-  await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/login"));
+  await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith("/login"));
+  expect(mocks.replace).not.toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: "重新加载" })).toBeNull();
   expect(fetchMock).toHaveBeenCalledOnce();
 });
@@ -76,11 +78,12 @@ it("首页刷新时登录已失效，清除之前显示的训练数据并进入�
     .mockResolvedValueOnce(Response.json({ success: true, data }))
     .mockResolvedValueOnce(new Response(null, { status: 401 }));
   vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("location", { replace: mocks.navigate });
   render(<HomePage />);
   expect(await screen.findByText(/补充验证依据/)).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: "重新加载" }));
 
-  await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/login"));
+  await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith("/login"));
   expect(screen.queryByText(/补充验证依据/)).toBeNull();
 });

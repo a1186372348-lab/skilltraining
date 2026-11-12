@@ -57,7 +57,7 @@
 - 概述：问候与统计后以「起点—探索—强化—复测」战役地图为主区，展示实际阶段、节点状态和原因，地图下承接真实周计划及训练包卡；窄屏纵向排列。当前训练行动卡继续与大厅复用 `app/training/current-training-card.tsx` 和 `getCurrentTrainingCard`（T26 / D28），另保留能力总览及最近诊断；明确的日常入口带 `mode=daily`，仅跳过自动复测推荐。
 - 用户入口：`app/page.tsx`（P1），共享组件在 `app/_dashboard/`（三态卡除外，见上）。
 - API：`app/api/dashboard/`（载荷含 `currentTraining`，单卡失败降级 null 空态；未完成基线的结果揭晓保护先于卡片装配，返回 409 `BASELINE_REQUIRED`）。
-- 首页分流：仪表盘请求返回 401 时清除已显示的训练数据并跳转登录页。未完成基线时引导至基线测评，普通加载故障可重新加载。
+- 首页分流：仪表盘请求返回 401 时清除已显示的训练数据，并通过浏览器整页跳转登录页。未完成基线时引导至基线测评，普通加载故障可重新加载。
 - 支撑模块：`server/modules/dashboard`；当前训练卡判定复用 `server/modules/training/hub-view.ts`。`app/_dashboard/campaign-map.tsx` 使用共享 `StageProvider` 的阶段接口事实，计划和包卡分别读取各自领域接口，故障独立显示。
 - 状态：基础首页（T08）与三态卡同构（T26）已交付；当前 UI-HOME 地图及卡片联动已有组件和受控关键页面验证，产品验收及未测边界见[工程证据](../task/evidence/V2-core-20261106/验收说明.md)。
 
